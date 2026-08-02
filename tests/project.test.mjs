@@ -62,14 +62,19 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.1.2');
+  assert.equal(JSON.parse(packageJson).version,'2.1.3');
   assert.match(html,/app\.js\?v=2\.1\.2/);
   assert.match(html,/styles\.css\?v=2\.1\.2/);
 });
 
-test('solicitação Pix mantém Nome e Chave amplos e Valor compacto',()=>{
-  assert.match(css,/\.pix-request-row \{[\s\S]*minmax\(190px, 1\.15fr\)[\s\S]*minmax\(220px, 1\.35fr\)[\s\S]*minmax\(96px, \.55fr\)/);
-  assert.match(css,/@media \(max-width: 1100px\)[\s\S]*\.pix-request-row > label:nth-child\(4\) \{ grid-column: span 3; \}[\s\S]*\.pix-request-row > label:nth-child\(5\) \{ grid-column: span 8; \}/);
+test('solicitação Pix mantém Nome e Chave amplos sem ultrapassar o cartão',()=>{
+  assert.match(css,/\.pix-request-row \{[\s\S]*grid-template-columns: repeat\(12, minmax\(0, 1fr\)\)/);
+  assert.match(css,/\.pix-request-row > label:nth-child\(1\) \{ grid-column: span 5; \}/);
+  assert.match(css,/\.pix-request-row > label:nth-child\(2\) \{ grid-column: span 7; \}/);
+  assert.match(css,/\.pix-request-row > label:nth-child\(3\) \{ grid-column: span 7; \}/);
+  assert.match(css,/\.pix-request-row > label:nth-child\(4\) \{ grid-column: span 3; \}/);
+  assert.match(css,/\.pix-request-row > \.entry-remove \{ grid-column: span 2; justify-self: end; \}/);
+  assert.match(css,/\.pix-request-row > label:nth-child\(5\) \{ grid-column: 1 \/ -1; \}/);
   assert.match(css,/@media \(max-width: 600px\)[\s\S]*\.pix-request-row > label:nth-child\(n\),[\s\S]*grid-column: auto;/);
 });
 

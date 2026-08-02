@@ -206,15 +206,15 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
 .entry-row { display: grid; grid-template-columns: minmax(96px, .85fr) minmax(0, 1.65fr) minmax(96px, .8fr) 40px; gap: 10px; align-items: end; padding: 12px; border: 1px solid #e2e5e9; border-left: 4px solid var(--yellow); border-radius: 9px; background: #fff; }
 .entry-row > label { min-width: 0; }
 .pix-request-row {
-  grid-template-columns:
-    minmax(170px, .9fr)
-    minmax(190px, 1.15fr)
-    minmax(220px, 1.35fr)
-    minmax(96px, .55fr)
-    minmax(190px, 1.15fr)
-    40px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   border-left-color: var(--green);
 }
+.pix-request-row > label:nth-child(1) { grid-column: span 5; }
+.pix-request-row > label:nth-child(2) { grid-column: span 7; }
+.pix-request-row > label:nth-child(3) { grid-column: span 7; }
+.pix-request-row > label:nth-child(4) { grid-column: span 3; }
+.pix-request-row > .entry-remove { grid-column: span 2; justify-self: end; }
+.pix-request-row > label:nth-child(5) { grid-column: 1 / -1; }
 .entry-remove { width: 36px; height: 40px; border: 1px solid #efc5c5; border-radius: 9px; background: #fff; color: #b72f2f; font-size: 20px; cursor: pointer; }
 .movement-card > .subtotal:not(.sheet-grand-total), .movement-card > .check-field { margin-left: 16px; margin-right: 16px; }
 .pix-request-section .sheet-titlebar { border-bottom-color: var(--green); }
@@ -425,13 +425,6 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
   .finance-workbench { grid-template-columns: 1fr; }
   .settlement-summary { position: static; }
   .entry-row { grid-template-columns: minmax(90px, .8fr) minmax(0, 1.5fr) minmax(90px, .75fr) 40px; }
-  .pix-request-row { grid-template-columns: repeat(12, minmax(0, 1fr)); }
-  .pix-request-row > label:nth-child(1),
-  .pix-request-row > label:nth-child(2),
-  .pix-request-row > label:nth-child(3) { grid-column: span 4; }
-  .pix-request-row > label:nth-child(4) { grid-column: span 3; }
-  .pix-request-row > label:nth-child(5) { grid-column: span 8; }
-  .pix-request-row > .entry-remove { grid-column: span 1; }
   .entry-description { grid-column: auto; }
   .finance-consolidated-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
 }
