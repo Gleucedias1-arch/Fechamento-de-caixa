@@ -50,6 +50,12 @@ test('iFood e outros canais não entram na divergência da conferência',()=>{
   assert.equal(result.difference,0);
 });
 
+test('ajuste autorizado antigo não altera mais a divergência',()=>{
+  const result=calculateClosing({system_cash:100,counted_cash:100,adjustments:35});
+  assert.equal(result.difference,0);
+  assert.equal(result.status,'balanced');
+});
+
 test('financeiro concilia dinheiro, débito e crédito por máquina e Pix',()=>{
   const record={
     system_cash:100,system_credit:200,system_debit:100,system_pix:50,

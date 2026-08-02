@@ -22,7 +22,7 @@ const FINANCE_FIELDS = [
 ];
 const OPERATION_FIELDS = [
   ...SYSTEM_FIELDS,...COUNTED_FIELDS,...EXPENSE_FIELDS,'opening_float','withdrawals',
-  'cash_in','closing_float','adjustments'
+  'cash_in','closing_float'
 ];
 
 const app = initializeApp(firebaseConfig);

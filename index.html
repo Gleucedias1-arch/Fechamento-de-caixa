@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2.1.0" />
+  <link rel="stylesheet" href="styles.css?v=2.1.1" />
 </head>
 <body>
   <div id="toast" class="toast" aria-live="polite"></div>
@@ -82,7 +82,7 @@
             <label>Dinheiro<input name="system_cash" inputmode="decimal" value="0" /></label><label>Crédito<input name="system_credit" inputmode="decimal" value="0" /></label><label>Débito<input name="system_debit" inputmode="decimal" value="0" /></label><label>Pix<input name="system_pix" inputmode="decimal" value="0" /></label><label>iFood Online<input name="system_ifood_online" inputmode="decimal" value="0" /></label><label>iFood Voucher<input name="system_ifood_voucher" inputmode="decimal" value="0" /></label><label>Notas a prazo/boleto<input name="system_term" inputmode="decimal" value="0" /></label><label>Resgate Clube<input name="system_club" inputmode="decimal" value="0" /></label><label>Acréscimos<input name="system_accrual" inputmode="decimal" value="0" /></label>
           </div><div class="subtotal sheet-grand-total"><span>Entrada total</span><strong id="systemTotal">R$ 0,00</strong></div></article>
           <article class="card form-section sheet-section movement-card"><div class="sheet-titlebar"><div><span class="sheet-step">ETAPA 3</span><h3>Movimentações e saídas</h3></div><div class="section-number">3</div></div><div class="form-grid money-grid sheet-value-grid movement-values">
-            <label>Saldo inicial/troco<input name="opening_float" inputmode="decimal" value="0" /></label><label>Suprimentos/entradas<input name="cash_in" inputmode="decimal" value="0" /></label><label>Sangrias/retiradas<input name="withdrawals" inputmode="decimal" value="0" /></label><label>Troco final separado<input name="closing_float" inputmode="decimal" value="0" /></label><label>Ajustes autorizados<input name="adjustments" inputmode="decimal" value="0" /></label>
+            <label>Saldo inicial/troco<input name="opening_float" inputmode="decimal" value="0" /></label><label>Suprimentos/entradas<input name="cash_in" inputmode="decimal" value="0" /></label><label>Sangrias/retiradas<input name="withdrawals" inputmode="decimal" value="0" /></label><label>Troco final separado<input name="closing_float" inputmode="decimal" value="0" /></label>
           </div><div class="subsection-heading"><div><h4 class="subsection-title">Saídas pagas em dinheiro</h4><p>Declare cada pagamento retirado do caixa.</p></div><button id="addOutflow" class="btn btn-secondary btn-small" type="button">+ Adicionar saída</button></div><div id="outflowRows" class="entry-list"></div><div class="subtotal">Total de saídas declaradas <strong id="outflowTotal">R$ 0,00</strong></div><div class="sangria-control"><label class="check-field"><input name="sangria_delivered" type="checkbox" /> Sangria/fechamento entregue ao responsável</label><div id="sangriaDetails" class="sangria-detail-grid hidden"><label>Responsável pela entrega<input name="sangria_responsible" placeholder="Nome de quem levou a sangria" /></label><label>Data e horário da entrega<input name="sangria_delivered_at" type="datetime-local" /></label><p>O financeiro registrará automaticamente quem recebeu e o horário do recebimento.</p></div></div></article>
           </div>
           <div class="closing-column">
@@ -138,6 +138,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=2.1.0"></script>
+  <script type="module" src="app.js?v=2.1.1"></script>
 </body>
 </html>

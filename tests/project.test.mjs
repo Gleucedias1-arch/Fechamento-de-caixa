@@ -62,9 +62,22 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.1.0');
-  assert.match(html,/app\.js\?v=2\.1\.0/);
-  assert.match(html,/styles\.css\?v=2\.1\.0/);
+  assert.equal(JSON.parse(packageJson).version,'2.1.1');
+  assert.match(html,/app\.js\?v=2\.1\.1/);
+  assert.match(html,/styles\.css\?v=2\.1\.1/);
+});
+
+test('botão de excluir movimentação permanece visível em todas as larguras',()=>{
+  assert.match(css,/\.entry-row \{[^}]*grid-template-columns: minmax\(96px, \.85fr\) minmax\(0, 1\.65fr\) minmax\(96px, \.8fr\) 40px;/);
+  assert.match(css,/\.entry-row > label \{ min-width: 0; \}/);
+  assert.match(css,/@media \(max-width: 600px\)[\s\S]*\.entry-row,[\s\S]*\.pix-request-row \{ grid-template-columns: 1fr; \}/);
+  assert.match(css,/@media \(max-width: 600px\)[\s\S]*\.entry-remove \{ width: 100%; min-height: 44px; \}/);
+});
+
+test('fechamento não exibe nem salva ajustes autorizados',()=>{
+  assert.doesNotMatch(html,/Ajustes autorizados/);
+  assert.doesNotMatch(html,/name="adjustments"/);
+  assert.doesNotMatch(app,/'cash_in','closing_float','adjustments'/);
 });
 
 test('identidade visual usa base clara e destaques profissionais',()=>{

@@ -112,7 +112,7 @@ export function calculateClosing(data = {}) {
   };
   const systemTotal = Object.values(system).reduce((sum, value) => sum + value, 0);
   const countedReceipts = counted.cash + counted.card + counted.pix;
-  const difference = Object.values(differences).reduce((sum, value) => sum + value, 0) - numberFrom(data.adjustments);
+  const difference = Object.values(differences).reduce((sum, value) => sum + value, 0);
   const countedTotal = countedReceipts;
   const totalOutflows = numberFrom(data.withdrawals) + expenseTotal;
   const totalAvailable = numberFrom(data.closing_float) + counted.card + counted.pix;
