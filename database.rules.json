@@ -5,14 +5,25 @@
     "users": {
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin')",
-        ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin')"
+        ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+        ".validate": "newData.hasChildren(['name','email','role','active']) && (newData.child('role').val() === 'admin' || newData.child('role').val() === 'finance' || newData.child('role').val() === 'manager' || newData.child('role').val() === 'operator')"
       }
     },
     "closings": {
-      ".indexOn": ["date", "searchDateStore"],
+      ".read": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('active').val() === true)",
+      ".indexOn": ["date", "searchDateStore", "financeStatus"],
       "$id": {
-        ".read": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('active').val() === true)",
-        ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('active').val() === true) && newData.hasChildren(['date','store','operator','systemTotal','countedTotal','difference','status','createdBy']) && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('stores').hasChild(newData.child('store').val()))"
+        ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance' || (root.child('users').child(auth.uid).child('active').val() === true && root.child('users').child(auth.uid).child('store').val() === newData.child('store').val() && newData.child('createdBy').val() === auth.uid && (!data.exists() || data.child('status').val() === 'draft') && !newData.child('financeReview').exists() && (newData.child('status').val() === 'draft' || newData.child('status').val() === 'submitted'))) ",
+        ".validate": "newData.hasChildren(['date','store','operator','systemTotal','countedTotal','difference','status','createdBy','financeStatus'])",
+        "status": {
+          ".validate": "newData.val() === 'draft' || newData.val() === 'submitted' || newData.val() === 'approved' || newData.val() === 'returned'"
+        },
+        "financeStatus": {
+          ".validate": "newData.val() === 'not_submitted' || newData.val() === 'pending' || newData.val() === 'approved' || newData.val() === 'returned'"
+        },
+        "financeReview": {
+          ".validate": "!newData.exists() || auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance'"
+        }
       }
     }
   }

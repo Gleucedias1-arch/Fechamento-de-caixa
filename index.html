@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=1.1.0" />
 </head>
 <body>
   <div id="toast" class="toast" aria-live="polite"></div>
@@ -18,7 +18,7 @@
       <div class="brand-mark">H<span>190</span></div>
       <p class="eyebrow">GESTÃO FINANCEIRA</p>
       <h1>Fechamento de Caixa</h1>
-      <p class="muted">Entre para registrar e acompanhar os caixas das lojas.</p>
+      <p class="muted">Registre o caixa, acompanhe divergências e conclua a conferência financeira.</p>
       <form id="loginForm" class="stack">
         <label>E-mail<input id="loginEmail" type="email" autocomplete="username" required /></label>
         <label>Senha<input id="loginPassword" type="password" autocomplete="current-password" required /></label>
@@ -34,6 +34,7 @@
       <nav>
         <button class="nav-item active" data-view="dashboard">▦ <span>Dashboard</span></button>
         <button class="nav-item" data-view="closing">＋ <span>Novo fechamento</span></button>
+        <button class="nav-item finance-only" data-view="finance">✓ <span>Conferência financeira</span></button>
         <button class="nav-item" data-view="history">◷ <span>Histórico</span></button>
         <button class="nav-item admin-only" data-view="users">♙ <span>Usuários</span></button>
       </nav>
@@ -42,7 +43,7 @@
 
     <div class="workspace">
       <header class="topbar">
-        <button id="menuBtn" class="icon-btn">☰</button>
+        <button id="menuBtn" class="icon-btn" aria-label="Abrir menu">☰</button>
         <div><h2 id="pageTitle">Dashboard</h2><p id="todayLabel"></p></div>
         <div class="user-chip"><span id="userInitial">G</span><div><b id="userName">Usuário</b><small id="userRole">Administrador</small></div></div>
       </header>
@@ -53,46 +54,77 @@
           <label>Loja<select id="dashStore"></select></label>
           <button id="refreshDash" class="btn btn-secondary">Atualizar</button>
         </div>
-        <div class="kpi-grid">
-          <article class="kpi card"><span>Venda informada</span><strong id="kpiSales">R$ 0,00</strong><small>Total do sistema</small></article>
-          <article class="kpi card"><span>Valor conferido</span><strong id="kpiCounted">R$ 0,00</strong><small>Recebimentos apurados</small></article>
-          <article class="kpi card"><span>Divergência</span><strong id="kpiDiff">R$ 0,00</strong><small id="kpiDiffText">Caixa conciliado</small></article>
-          <article class="kpi card"><span>Fechamentos</span><strong id="kpiClosings">0/0</strong><small>Concluídos no dia</small></article>
+        <div class="kpi-grid kpi-grid-6">
+          <article class="kpi card"><span>Entradas do dia</span><strong id="kpiEntries">R$ 0,00</strong><small>Vendas informadas</small></article>
+          <article class="kpi card"><span>Saídas</span><strong id="kpiOutflows">R$ 0,00</strong><small>Despesas e sangrias</small></article>
+          <article class="kpi card"><span>Total disponível</span><strong id="kpiAvailable">R$ 0,00</strong><small>Caixa, cartões líquidos e Pix</small></article>
+          <article class="kpi card"><span>Divergência</span><strong id="kpiDiff">R$ 0,00</strong><small id="kpiDiffText">Sem divergência</small></article>
+          <article class="kpi card"><span>Conferidos</span><strong id="kpiReviewed">0</strong><small>Aprovados pelo financeiro</small></article>
+          <article class="kpi card"><span>Pendentes</span><strong id="kpiPending">0</strong><small>Aguardando conferência</small></article>
         </div>
         <div class="dashboard-grid">
-          <article class="card"><div class="card-title"><div><h3>Situação por loja</h3><p>Conferência do dia selecionado</p></div></div><div id="storeStatus" class="store-list"></div></article>
-          <article class="card"><div class="card-title"><div><h3>Composição das vendas</h3><p>Valores por canal</p></div></div><div id="channelBars" class="bars"></div></article>
+          <article class="card"><div class="card-title"><div><h3>Situação por loja</h3><p>Fechamento e conferência do dia selecionado</p></div></div><div id="storeStatus" class="store-list"></div></article>
+          <article class="card"><div class="card-title"><div><h3>Composição das entradas</h3><p>Valores por forma de pagamento</p></div></div><div id="channelBars" class="bars"></div></article>
         </div>
-        <article class="card"><div class="card-title"><div><h3>Divergências encontradas</h3><p>Priorize os caixas que precisam de revisão</p></div></div><div class="table-wrap"><table><thead><tr><th>Loja</th><th>Operador</th><th>Venda</th><th>Conferido</th><th>Divergência</th><th>Status</th></tr></thead><tbody id="divergenceRows"></tbody></table></div></article>
+        <article class="card"><div class="card-title"><div><h3>Divergências encontradas</h3><p>Origem das diferenças e situação da conferência</p></div></div><div class="table-wrap"><table><thead><tr><th>Loja</th><th>Operador</th><th>Dinheiro</th><th>Cartão</th><th>Pix</th><th>iFood</th><th>Total</th><th>Status</th></tr></thead><tbody id="divergenceRows"></tbody></table></div></article>
       </section>
 
       <section id="closingView" class="view">
         <form id="closingForm">
-          <div class="form-heading"><div><h3>Novo fechamento</h3><p>Preencha os valores do sistema e da conferência.</p></div><span id="formStatus" class="badge draft">Rascunho</span></div>
+          <div class="form-heading"><div><h3>Novo fechamento</h3><p>A loja registra os valores e envia para o financeiro conferir.</p></div><span id="formStatus" class="badge draft">Rascunho</span></div>
           <article class="card form-section"><h3>Identificação</h3><div class="form-grid cols-4">
             <label>Data<input name="date" type="date" required /></label><label>Loja<select name="store" required></select></label><label>Turno<select name="shift"><option>Noite</option><option>Almoço</option><option>Integral</option></select></label><label>Operador<input name="operator" required /></label>
           </div></article>
-          <article class="card form-section"><h3>Valores informados pelo sistema</h3><p class="section-note">Informe o total vendido em cada canal.</p><div class="form-grid money-grid">
-            <label>Dinheiro<input name="system_cash" inputmode="decimal" value="0" /></label><label>Crédito<input name="system_credit" inputmode="decimal" value="0" /></label><label>Débito<input name="system_debit" inputmode="decimal" value="0" /></label><label>Pix<input name="system_pix" inputmode="decimal" value="0" /></label><label>iFood Online<input name="system_ifood_online" inputmode="decimal" value="0" /></label><label>iFood Voucher<input name="system_ifood_voucher" inputmode="decimal" value="0" /></label><label>Nota a prazo<input name="system_term" inputmode="decimal" value="0" /></label><label>Resgate Clube<input name="system_club" inputmode="decimal" value="0" /></label>
-          </div><div class="subtotal">Total informado <strong id="systemTotal">R$ 0,00</strong></div></article>
-          <article class="card form-section"><h3>Conferência dos recebimentos</h3><p class="section-note">Registre os extratos e o dinheiro efetivamente contado.</p><div class="form-grid money-grid">
-            <label>Dinheiro contado<input name="counted_cash" inputmode="decimal" value="0" /></label><label>Sipag crédito<input name="sipag_credit" inputmode="decimal" value="0" /></label><label>Sipag débito<input name="sipag_debit" inputmode="decimal" value="0" /></label><label>Cappta crédito<input name="cappta_credit" inputmode="decimal" value="0" /></label><label>Cappta débito<input name="cappta_debit" inputmode="decimal" value="0" /></label><label>Stone crédito<input name="stone_credit" inputmode="decimal" value="0" /></label><label>Stone débito<input name="stone_debit" inputmode="decimal" value="0" /></label><label>Pix conferido<input name="counted_pix" inputmode="decimal" value="0" /></label><label>iFood conferido<input name="counted_ifood" inputmode="decimal" value="0" /></label><label>Outros conferidos<input name="counted_other" inputmode="decimal" value="0" /></label>
-          </div><div class="subtotal">Total conferido <strong id="countedTotal">R$ 0,00</strong></div></article>
-          <article class="card form-section"><h3>Movimentações do caixa</h3><div class="form-grid money-grid">
-            <label>Fundo/troco inicial<input name="opening_float" inputmode="decimal" value="0" /></label><label>Sangrias<input name="withdrawals" inputmode="decimal" value="0" /></label><label>Despesas pagas<input name="expenses" inputmode="decimal" value="0" /></label><label>Suprimentos/entradas<input name="cash_in" inputmode="decimal" value="0" /></label><label>Troco final separado<input name="closing_float" inputmode="decimal" value="0" /></label><label>Taxas/ajustes<input name="adjustments" inputmode="decimal" value="0" /></label>
-          </div></article>
-          <article class="card reconciliation"><div><span>Resultado da conferência</span><strong id="diffTotal">R$ 0,00</strong><p id="diffExplanation">Os valores estão conciliados.</p></div><div id="diffBadge" class="result-icon ok">✓</div></article>
+          <article class="card form-section"><h3>Valores informados pelo sistema</h3><p class="section-note">Use os valores brutos do sistema de vendas.</p><div class="form-grid money-grid">
+            <label>Dinheiro<input name="system_cash" inputmode="decimal" value="0" /></label><label>Crédito<input name="system_credit" inputmode="decimal" value="0" /></label><label>Débito<input name="system_debit" inputmode="decimal" value="0" /></label><label>Pix<input name="system_pix" inputmode="decimal" value="0" /></label><label>iFood Online<input name="system_ifood_online" inputmode="decimal" value="0" /></label><label>iFood Voucher<input name="system_ifood_voucher" inputmode="decimal" value="0" /></label><label>Notas a prazo/boleto<input name="system_term" inputmode="decimal" value="0" /></label><label>Resgate Clube<input name="system_club" inputmode="decimal" value="0" /></label><label>Acréscimos<input name="system_accrual" inputmode="decimal" value="0" /></label>
+          </div><div class="subtotal">Entrada total <strong id="systemTotal">R$ 0,00</strong></div></article>
+          <article class="card form-section"><h3>Conferência dos recebimentos</h3><p class="section-note">Informe o dinheiro contado e as vendas brutas de cada operadora.</p><div class="form-grid money-grid">
+            <label>Dinheiro contado<input name="counted_cash" inputmode="decimal" value="0" /></label><label>Pix conferido<input name="counted_pix" inputmode="decimal" value="0" /></label><label>iFood conferido<input name="counted_ifood" inputmode="decimal" value="0" /></label><label>Outros conferidos<input name="counted_other" inputmode="decimal" value="0" /></label>
+          </div><h4 class="subsection-title">Cartões por operadora</h4><div class="form-grid money-grid">
+            <label>Stone crédito<input name="stone_credit" inputmode="decimal" value="0" /></label><label>Stone débito<input name="stone_debit" inputmode="decimal" value="0" /></label><label>Sipag crédito<input name="sipag_credit" inputmode="decimal" value="0" /></label><label>Sipag débito<input name="sipag_debit" inputmode="decimal" value="0" /></label><label>Cappta crédito<input name="cappta_credit" inputmode="decimal" value="0" /></label><label>Cappta débito<input name="cappta_debit" inputmode="decimal" value="0" /></label><label>Laranjinha crédito<input name="laranjinha_credit" inputmode="decimal" value="0" /></label><label>Laranjinha débito<input name="laranjinha_debit" inputmode="decimal" value="0" /></label><label>Cielo crédito<input name="cielo_credit" inputmode="decimal" value="0" /></label><label>Cielo débito<input name="cielo_debit" inputmode="decimal" value="0" /></label><label>Wise crédito<input name="wise_credit" inputmode="decimal" value="0" /></label><label>Wise débito<input name="wise_debit" inputmode="decimal" value="0" /></label>
+          </div><div class="subtotal">Recebimentos conferidos <strong id="countedTotal">R$ 0,00</strong></div></article>
+          <article class="card form-section"><h3>Movimentações e saídas</h3><div class="form-grid money-grid">
+            <label>Saldo inicial/troco<input name="opening_float" inputmode="decimal" value="0" /></label><label>Suprimentos/entradas<input name="cash_in" inputmode="decimal" value="0" /></label><label>Sangrias/retiradas<input name="withdrawals" inputmode="decimal" value="0" /></label><label>Troco final separado<input name="closing_float" inputmode="decimal" value="0" /></label><label>Ajustes autorizados<input name="adjustments" inputmode="decimal" value="0" /></label>
+          </div><h4 class="subsection-title">Detalhamento das despesas</h4><div class="form-grid money-grid">
+            <label>Motoboy<input name="expense_motoboy" inputmode="decimal" value="0" /></label><label>Freelancer<input name="expense_freelancer" inputmode="decimal" value="0" /></label><label>Entrega grátis<input name="expense_free_delivery" inputmode="decimal" value="0" /></label><label>Outras despesas<input name="expenses" inputmode="decimal" value="0" /></label><label>Ajustes/saídas diversas<input name="expense_other" inputmode="decimal" value="0" /></label>
+          </div><label class="wide-label">Descrição das despesas<textarea name="expense_notes" rows="3" placeholder="Informe nomes, motivos e valores pagos..."></textarea></label><label class="check-field"><input name="sangria_delivered" type="checkbox" /> Sangria/fechamento entregue ao responsável</label></article>
+          <article class="card reconciliation"><div><span>Resultado operacional</span><strong id="diffTotal">R$ 0,00</strong><p id="diffExplanation">Os valores estão conciliados.</p></div><div id="diffBadge" class="result-icon ok">✓</div></article>
           <article class="card form-section"><h3>Observações</h3><textarea name="notes" rows="4" placeholder="Descreva divergências, comprovantes pendentes ou ocorrências do turno..."></textarea></article>
-          <div class="form-actions"><button type="button" id="saveDraft" class="btn btn-secondary">Salvar rascunho</button><button type="submit" class="btn btn-primary">Fechar caixa</button></div>
+          <div class="form-actions"><button type="button" id="saveDraft" class="btn btn-secondary">Salvar rascunho</button><button type="submit" class="btn btn-primary">Enviar ao financeiro</button></div>
         </form>
       </section>
 
-      <section id="historyView" class="view"><article class="card"><div class="card-title"><div><h3>Histórico de fechamentos</h3><p>Consulte os registros por período e loja.</p></div></div><div class="filters inline"><label>De<input id="historyFrom" type="date" /></label><label>Até<input id="historyTo" type="date" /></label><label>Loja<select id="historyStore"></select></label><button id="loadHistory" class="btn btn-secondary">Buscar</button></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Loja</th><th>Operador</th><th>Informado</th><th>Conferido</th><th>Divergência</th><th>Status</th></tr></thead><tbody id="historyRows"></tbody></table></div></article></section>
+      <section id="financeView" class="view finance-only">
+        <div class="filters card compact"><label>Data<input id="financeDate" type="date" /></label><label>Loja<select id="financeStore"></select></label><label>Status<select id="financeStatus"><option value="pending">Pendentes</option><option value="all">Todos</option><option value="approved">Aprovados</option><option value="returned">Devolvidos</option></select></label><button id="loadFinance" class="btn btn-secondary">Buscar</button></div>
+        <div class="kpi-grid finance-kpis">
+          <article class="kpi card"><span>Aguardando</span><strong id="financePending">0</strong><small>Caixas para conferir</small></article><article class="kpi card"><span>Conferidos</span><strong id="financeApproved">0</strong><small>Aprovações no período</small></article><article class="kpi card"><span>Com divergência</span><strong id="financeDivergent">0</strong><small>Exigem justificativa</small></article><article class="kpi card"><span>Divergência acumulada</span><strong id="financeTotalDiff">R$ 0,00</strong><small>Resultado das conferências</small></article>
+        </div>
+        <article class="card" id="financeQueueCard"><div class="card-title"><div><h3>Fila de conferência</h3><p>Selecione um fechamento para analisar e apresentar o resultado.</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Loja</th><th>Operador</th><th>Entradas</th><th>Saídas</th><th>Divergência operacional</th><th>Status</th><th></th></tr></thead><tbody id="financeRows"></tbody></table></div></article>
 
-      <section id="usersView" class="view admin-only"><article class="card"><div class="card-title"><div><h3>Usuários</h3><p>Crie acessos e defina as lojas permitidas.</p></div></div><form id="userForm" class="form-grid cols-4"><label>Nome<input name="name" required /></label><label>E-mail<input name="email" type="email" required /></label><label>Senha temporária<input name="password" type="password" minlength="6" required /></label><label>Perfil<select name="role"><option value="manager">Gerente</option><option value="admin">Administrador</option><option value="operator">Operador</option></select></label><label class="span-3">Loja<select name="store"></select></label><button class="btn btn-primary align-end">Criar usuário</button></form><div id="usersList" class="user-list"></div></article></section>
+        <div id="financeReviewPanel" class="hidden">
+          <div class="review-heading"><div><button id="closeReview" class="back-button" type="button">← Voltar à fila</button><h3 id="reviewRecordTitle">Conferência do caixa</h3><p id="reviewRecordMeta" class="muted"></p></div><span id="reviewStatus" class="badge draft">Pendente</span></div>
+          <div class="kpi-grid finance-review-kpis"><article class="kpi card"><span>Entradas</span><strong id="reviewEntries">R$ 0,00</strong></article><article class="kpi card"><span>Saídas</span><strong id="reviewOutflows">R$ 0,00</strong></article><article class="kpi card"><span>Disponível</span><strong id="reviewAvailable">R$ 0,00</strong></article><article class="kpi card"><span>Divergência</span><strong id="reviewDifference">R$ 0,00</strong></article></div>
+          <div class="dashboard-grid review-grid"><article class="card"><div class="card-title"><div><h3>Conferência por forma de pagamento</h3><p>Sistema x valor informado pela loja</p></div></div><div class="table-wrap"><table><thead><tr><th>Forma</th><th>Esperado</th><th>Informado</th><th>Diferença</th></tr></thead><tbody id="reviewMethodRows"></tbody></table></div></article><article class="card"><div class="card-title"><div><h3>Cartões por operadora</h3><p>Valores brutos informados</p></div></div><div id="reviewOperators" class="metric-list"></div></article></div>
+          <div class="dashboard-grid review-grid"><article class="card"><div class="card-title"><div><h3>Saídas detalhadas</h3><p>Despesas e movimentações do caixa</p></div></div><div id="reviewExpenses" class="metric-list"></div><p id="reviewExpenseNotes" class="note-box"></p></article><article class="card"><div class="card-title"><div><h3>Controles</h3><p>Entrega e observações da loja</p></div></div><div id="reviewControls" class="metric-list"></div><p id="reviewNotes" class="note-box"></p></article></div>
+          <form id="financeReviewForm">
+            <article class="card form-section"><h3>Valores conferidos pelo financeiro</h3><p class="section-note">Informe os valores dos extratos e documentos. O resultado será calculado automaticamente.</p><div class="form-grid money-grid">
+              <label>Dinheiro conferido<input name="finance_cash" inputmode="decimal" value="0" /></label><label>Taxas dos cartões<input name="finance_card_fees" inputmode="decimal" value="0" /></label><label>Pix conferido<input name="finance_pix" inputmode="decimal" value="0" /></label><label>iFood conferido<input name="finance_ifood" inputmode="decimal" value="0" /></label><label>Outros conferidos<input name="finance_other" inputmode="decimal" value="0" /></label>
+            </div><h4 class="subsection-title">Valores líquidos por operadora</h4><div class="form-grid money-grid">
+              <label>Stone<input name="finance_stone" inputmode="decimal" value="0" /></label><label>Sipag<input name="finance_sipag" inputmode="decimal" value="0" /></label><label>Cielo<input name="finance_cielo" inputmode="decimal" value="0" /></label><label>Cappta<input name="finance_cappta" inputmode="decimal" value="0" /></label><label>Laranjinha<input name="finance_laranjinha" inputmode="decimal" value="0" /></label><label>Wise<input name="finance_wise" inputmode="decimal" value="0" /></label>
+            </div></article>
+            <article class="card form-section"><h3>Auditorias da planilha</h3><div class="form-grid money-grid"><label>Cupom emitido<input name="finance_coupon_issued" inputmode="decimal" value="0" /></label><label>Motoboy no sistema<input name="finance_motoboy_system" inputmode="decimal" value="0" /></label><label>Entrega grátis<input name="finance_free_delivery" inputmode="decimal" value="0" /></label><label>Ajustes autorizados<input name="finance_adjustments" inputmode="decimal" value="0" /></label></div><label class="check-field"><input name="finance_sangria_received" type="checkbox" /> Confirmo o recebimento da sangria/fechamento</label><label class="wide-label">Parecer do financeiro<textarea name="finance_notes" rows="4" placeholder="Explique diferenças, documentos pendentes ou a razão da devolução..."></textarea></label></article>
+            <article class="card finance-result"><div><span>Resultado financeiro</span><strong id="financeReviewDiff">R$ 0,00</strong><p id="financeReviewMessage">Preencha os valores conferidos.</p></div><div class="audit-result"><small>Diferença fiscal</small><b id="financeFiscalDiff">R$ 0,00</b><small>Auditoria motoboy</small><b id="financeMotoboyDiff">R$ 0,00</b></div></article>
+            <div class="form-actions"><button type="button" id="returnClosing" class="btn btn-danger">Devolver para correção</button><button type="submit" class="btn btn-primary">Aprovar conferência</button></div>
+          </form>
+        </div>
+      </section>
+
+      <section id="historyView" class="view"><article class="card"><div class="card-title"><div><h3>Histórico de fechamentos</h3><p>Consulte o registro operacional e a situação financeira.</p></div></div><div class="filters inline"><label>De<input id="historyFrom" type="date" /></label><label>Até<input id="historyTo" type="date" /></label><label>Loja<select id="historyStore"></select></label><button id="loadHistory" class="btn btn-secondary">Buscar</button></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Loja</th><th>Operador</th><th>Entradas</th><th>Saídas</th><th>Divergência</th><th>Financeiro</th></tr></thead><tbody id="historyRows"></tbody></table></div></article></section>
+
+      <section id="usersView" class="view admin-only"><article class="card"><div class="card-title"><div><h3>Usuários</h3><p>Crie acessos e defina as lojas permitidas.</p></div></div><form id="userForm" class="form-grid cols-4"><label>Nome<input name="name" required /></label><label>E-mail<input name="email" type="email" required /></label><label>Senha temporária<input name="password" type="password" minlength="6" required /></label><label>Perfil<select name="role"><option value="manager">Gerente</option><option value="finance">Financeiro</option><option value="admin">Administrador</option><option value="operator">Operador</option></select></label><label class="span-3">Loja<select name="store"></select></label><button class="btn btn-primary align-end">Criar usuário</button></form><div id="usersList" class="user-list"></div></article></section>
     </div>
   </div>
 
-  <script type="module" src="app.js"></script>
+  <script type="module" src="app.js?v=1.1.0"></script>
 </body>
 </html>
