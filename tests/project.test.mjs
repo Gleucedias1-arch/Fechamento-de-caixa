@@ -62,9 +62,17 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.0.1');
-  assert.match(html,/app\.js\?v=2\.0\.1/);
-  assert.match(html,/styles\.css\?v=2\.0\.1/);
+  assert.equal(JSON.parse(packageJson).version,'2.1.0');
+  assert.match(html,/app\.js\?v=2\.1\.0/);
+  assert.match(html,/styles\.css\?v=2\.1\.0/);
+});
+
+test('identidade visual usa base clara e destaques profissionais',()=>{
+  assert.match(css,/Refresh visual leve e profissional/);
+  assert.match(css,/\.sidebar \{ background: #fff; color: var\(--ink\);/);
+  assert.match(css,/\.sheet-titlebar,[\s\S]*background: #fff; color: var\(--ink\);/);
+  assert.match(css,/\.sheet-section \.section-number[\s\S]*background: var\(--blue-soft\); color: var\(--blue\);/);
+  assert.match(css,/\.btn-primary \{ background: var\(--blue\); color: #fff;/);
 });
 
 test('celular não usa tabelas largas nem força zoom nos campos',()=>{
