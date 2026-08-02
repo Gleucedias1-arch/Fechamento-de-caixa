@@ -9,7 +9,7 @@ test('converte valores brasileiros',()=>{
 });
 
 test('caixa conciliado por forma de pagamento',()=>{
-  const result=calculateClosing({system_cash:100,system_pix:50,counted_cash:100,counted_pix:50});
+  const result=calculateClosing({system_cash:100,system_pix:50,counted_cash:100,stone_pix:50});
   assert.equal(result.systemTotal,150);
   assert.equal(result.countedTotal,150);
   assert.equal(result.difference,0);
@@ -57,7 +57,7 @@ test('financeiro concilia dinheiro, débito e crédito por máquina e Pix',()=>{
   };
   const review={
     finance_cash:95,finance_stone_credit:200,finance_stone_debit:60,
-    finance_sipag_debit:40,finance_pix:50
+    finance_sipag_debit:40,finance_stone_pix:50
   };
   const result=calculateFinanceReview(record,review);
   assert.equal(result.totalDifference,0);
@@ -68,12 +68,23 @@ test('financeiro concilia dinheiro, débito e crédito por máquina e Pix',()=>{
 
 test('saídas detalhadas reduzem somente o dinheiro esperado',()=>{
   const result=calculateClosing({
-    system_cash:300,system_pix:200,counted_cash:220,counted_pix:200,
+    system_cash:300,system_pix:200,counted_cash:220,stone_pix:120,sipag_pix:80,
     outflows:[{description:'Motoboy',amount:50},{description:'Compra',amount:30}]
   });
   assert.equal(result.expenseTotal,80);
   assert.equal(result.expectedCash,220);
   assert.equal(result.differences.cash,0);
+});
+
+test('soma Pix separadamente por máquina',()=>{
+  const result=calculateClosing({
+    system_credit:100,system_debit:50,system_pix:90,
+    stone_credit:100,stone_debit:20,stone_pix:40,
+    sipag_debit:30,sipag_pix:50
+  });
+  assert.equal(result.countedByMethod.card,150);
+  assert.equal(result.countedByMethod.pix,90);
+  assert.equal(result.difference,0);
 });
 
 test('Pix de motoboy ou freelancer só vira saída após confirmação do financeiro',()=>{

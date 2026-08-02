@@ -14,13 +14,17 @@ test('área financeira e indicadores existem na interface',()=>{
     'financeView','financeRows','financeReviewPanel','financeReviewForm','kpiEntries',
     'kpiOutflows','kpiAvailable','kpiDiff','kpiReviewed','kpiPending','reviewSystemValues',
     'reviewCardMachines','financeCardFields','financePixRequests','outflowRows','pixRequestRows'
+    ,'machineSelection','selectedMachineCards','pixConferenceTotal','selectedMachineCount'
   ]) assert.match(html,new RegExp(`id="${id}"`));
 });
 
 test('conferência se limita a dinheiro, cartão e Pix, com cartão por máquina',()=>{
   assert.match(html,/Confira somente Dinheiro, Cartão e Pix/);
-  assert.match(html,/Stone crédito/);
-  assert.match(html,/Stone débito/);
+  assert.match(app,/Stone: \['stone_credit','stone_debit','stone_pix'\]/);
+  assert.match(html,/Escolha as máquinas utilizadas/);
+  assert.match(html,/Crédito, Débito e Pix/);
+  assert.match(app,/stone_pix/);
+  assert.match(app,/selectedMachines/);
   assert.doesNotMatch(html,/Diferença cartão/i);
   assert.doesNotMatch(html,/name="counted_ifood"/);
   assert.doesNotMatch(html,/name="counted_other"/);
@@ -48,7 +52,7 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'1.2.0');
-  assert.match(html,/app\.js\?v=1\.2\.0/);
-  assert.match(html,/styles\.css\?v=1\.2\.0/);
+  assert.equal(JSON.parse(packageJson).version,'1.3.0');
+  assert.match(html,/app\.js\?v=1\.3\.0/);
+  assert.match(html,/styles\.css\?v=1\.3\.0/);
 });
