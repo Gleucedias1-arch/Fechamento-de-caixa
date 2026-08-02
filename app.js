@@ -305,12 +305,56 @@ function addOutflowRow(item={}) {
   $('#outflowRows').append(row);
 }
 
-function addPixRequestRow(item={}) {
+function pixRequestIsComplete(row) {
+  return Boolean(
+    $('[data-pix-field="name"]',row).value.trim()
+    && $('[data-pix-field="key"]',row).value.trim()
+    && numberFrom($('[data-pix-field="amount"]',row).value) > 0
+  );
+}
+
+function refreshPixRequestSummary(row) {
+  const type = $('[data-pix-field="type"]',row).value;
+  const name = $('[data-pix-field="name"]',row).value.trim() || 'Favorecido não informado';
+  const key = $('[data-pix-field="key"]',row).value.trim() || 'Chave não informada';
+  const amount = numberFrom($('[data-pix-field="amount"]',row).value);
+  const notes = $('[data-pix-field="notes"]',row).value.trim() || 'Sem observação';
+  $('[data-pix-summary="type"]',row).textContent = type;
+  $('[data-pix-summary="name"]',row).textContent = name;
+  $('[data-pix-summary="key"]',row).textContent = key;
+  $('[data-pix-summary="amount"]',row).textContent = formatBRL(amount);
+  $('[data-pix-summary="notes"]',row).textContent = notes;
+}
+
+function setPixRequestEditing(row, editing) {
+  row.classList.toggle('is-editing',editing);
+  row.classList.toggle('is-collapsed',!editing);
+  const editButton = $('[data-pix-action="edit"]',row);
+  if (editButton) editButton.setAttribute('aria-expanded',String(editing));
+  refreshPixRequestSummary(row);
+}
+
+function refreshPixRequestList() {
+  const rows = $$('.pix-request-row');
+  rows.forEach((row,index) => {
+    const number = $('[data-pix-summary="number"]',row);
+    if (number) number.textContent = String(index + 1).padStart(2,'0');
+    refreshPixRequestSummary(row);
+  });
+  const count = $('#pixRequestCount');
+  if (count) count.textContent = `${rows.length} ${rows.length === 1 ? 'solicitação' : 'solicitações'}`;
+}
+
+function addPixRequestRow(item={}, editing = null) {
   const row = document.createElement('div');
-  row.className = 'entry-row pix-request-row';
-  row.innerHTML = `<label>Pagamento para<select data-pix-field="type"><option>Motoboy</option><option>Freelancer</option></select></label><label>Nome<input data-pix-field="name" value="${escapeHtml(item.name || '')}" placeholder="Nome do favorecido" /></label><label>Chave Pix<input data-pix-field="key" value="${escapeHtml(item.pixKey || '')}" placeholder="CPF, telefone, e-mail..." /></label><label>Valor<input data-pix-field="amount" inputmode="decimal" value="${numberFrom(item.amount)}" /></label><label class="entry-description">Observação<input data-pix-field="notes" value="${escapeHtml(item.notes || '')}" placeholder="Motivo ou turno" /></label>${entryRemoveButton()}`;
+  row.className = 'entry-row pix-request-row pix-request-card';
+  row.innerHTML = `<div class="pix-request-summary"><span class="pix-request-number" data-pix-summary="number">01</span><div class="pix-request-identity"><span class="badge draft" data-pix-summary="type">Motoboy</span><strong data-pix-summary="name">Favorecido não informado</strong><small>Chave: <span data-pix-summary="key">não informada</span></small></div><div class="pix-request-value"><strong data-pix-summary="amount">R$ 0,00</strong><small data-pix-summary="notes">Sem observação</small></div><button class="pix-request-edit" data-pix-action="edit" type="button" aria-expanded="false">Editar</button>${entryRemoveButton()}</div><div class="pix-request-editor"><label>Pagamento para<select data-pix-field="type"><option>Motoboy</option><option>Freelancer</option></select></label><label>Nome<input data-pix-field="name" value="${escapeHtml(item.name || '')}" placeholder="Nome do favorecido" /></label><label>Chave Pix<input data-pix-field="key" value="${escapeHtml(item.pixKey || '')}" placeholder="CPF, telefone, e-mail..." /></label><label>Valor<input data-pix-field="amount" inputmode="decimal" value="${numberFrom(item.amount)}" /></label><label class="entry-description">Observação<input data-pix-field="notes" value="${escapeHtml(item.notes || '')}" placeholder="Motivo ou turno" /></label><div class="pix-request-editor-actions"><button class="btn btn-primary btn-small" data-pix-action="finish" type="button">Concluir Pix</button>${entryRemoveButton()}</div></div>`;
   $('[data-pix-field="type"]',row).value = item.type || 'Motoboy';
   $('#pixRequestRows').append(row);
+  const shouldEdit = editing ?? !pixRequestIsComplete(row);
+  setPixRequestEditing(row,shouldEdit);
+  refreshPixRequestList();
+  if (shouldEdit) $('[data-pix-field="name"]',row).focus();
 }
 
 function safeFileName(name) {
@@ -373,11 +417,54 @@ async function uploadPendingAttachments(closingId) {
 }
 
 $('#addOutflow').onclick = () => { addOutflowRow(); updateClosingCalculation(); };
-$('#addPixRequest').onclick = () => { addPixRequestRow(); updateClosingCalculation(); };
+$('#addPixRequest').onclick = () => {
+  const openRow = $('.pix-request-row.is-editing');
+  if (openRow && !pixRequestIsComplete(openRow)) {
+    toast('Conclua o Pix atual antes de adicionar outro.',true);
+    $('[data-pix-field="name"]',openRow).focus();
+    return;
+  }
+  if (openRow) setPixRequestEditing(openRow,false);
+  addPixRequestRow({},true);
+  updateClosingCalculation();
+};
 ['#outflowRows','#pixRequestRows'].forEach(selector => $(selector).addEventListener('click', event => {
   const button = event.target.closest('.entry-remove');
-  if (button) { button.closest('.entry-row').remove(); updateClosingCalculation(); }
+  if (button) {
+    button.closest('.entry-row').remove();
+    refreshPixRequestList();
+    updateClosingCalculation();
+  }
 }));
+
+$('#pixRequestRows').addEventListener('click', event => {
+  const action = event.target.closest('[data-pix-action]');
+  if (!action) return;
+  const row = action.closest('.pix-request-row');
+  if (action.dataset.pixAction === 'edit') {
+    const otherOpen = $('.pix-request-row.is-editing');
+    if (otherOpen && otherOpen !== row && !pixRequestIsComplete(otherOpen)) {
+      toast('Conclua o Pix aberto antes de editar outro.',true);
+      return;
+    }
+    if (otherOpen && otherOpen !== row) setPixRequestEditing(otherOpen,false);
+    setPixRequestEditing(row,true);
+    $('[data-pix-field="name"]',row).focus();
+  }
+  if (action.dataset.pixAction === 'finish') {
+    if (!pixRequestIsComplete(row)) {
+      toast('Preencha nome, chave Pix e valor para concluir.',true);
+      return;
+    }
+    setPixRequestEditing(row,false);
+    updateClosingCalculation();
+  }
+});
+
+$('#pixRequestRows').addEventListener('input', event => {
+  const row = event.target.closest('.pix-request-row');
+  if (row) refreshPixRequestSummary(row);
+});
 
 $('[name="sangria_delivered"]').addEventListener('change', event => {
   $('#sangriaDetails').classList.toggle('hidden',!event.target.checked);
@@ -396,6 +483,7 @@ function updateClosingCalculation() {
   $('#pixConferenceTotal').textContent = formatBRL(result.countedByMethod.pix);
   $('#outflowTotal').textContent = formatBRL(result.expenseTotal);
   $('#pixRequestTotal').textContent = formatBRL(data.pixRequests.reduce((sum,item) => sum + item.amount,0));
+  refreshPixRequestList();
   activeMachineEntries(data).forEach(([machine,fields]) => {
     const total = fields.reduce((sum,field) => sum + numberFrom(data[field]),0);
     const output = $(`[data-machine-total="${machine}"]`);
