@@ -16,6 +16,7 @@
         "$machine": {
           "credit": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
           "debit": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+          "pix": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
           "$other": { ".validate": false }
         }
       }
