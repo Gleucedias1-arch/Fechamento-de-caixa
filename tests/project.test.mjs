@@ -17,7 +17,7 @@ test('área financeira e indicadores existem na interface',()=>{
     'reviewCardMachines','financeCardFields','financePixRequests','outflowRows','pixRequestRows'
     ,'machineSelection','selectedMachineCards','pixConferenceTotal','selectedMachineCount',
     'kpiSangria','financeSangria','cardFeeSettings','financeGrossCard','financeCardFees',
-    'financeNetCard','financeConfirmedPix','financeNetAvailable','reviewSangriaAlert'
+    'financeNetCard','financeGrossPix','financePixFees','financeNetPix','financeNetAvailable','reviewSangriaAlert'
   ]) assert.match(html,new RegExp(`id="${id}"`));
 });
 
@@ -50,33 +50,38 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
   const parsed=JSON.parse(rules);
   assert.ok(parsed.rules.closings.$id.financeReview);
   assert.ok(parsed.rules.settings.cardFeeRates);
+  assert.ok(parsed.rules.settings.cardFeeRates.$machine.pix);
   assert.match(rules,/role'\)\.val\(\) === 'finance'/);
   assert.match(rules,/approved/);
   assert.match(rules,/returned/);
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'1.8.0');
-  assert.match(html,/app\.js\?v=1\.8\.0/);
-  assert.match(html,/styles\.css\?v=1\.8\.0/);
+  assert.equal(JSON.parse(packageJson).version,'1.8.1');
+  assert.match(html,/app\.js\?v=1\.8\.1/);
+  assert.match(html,/styles\.css\?v=1\.8\.1/);
 });
 
 test('dashboard separa disponível bancário e sangria física',()=>{
-  assert.match(html,/Cartão líquido \+ Pix conferidos/);
+  assert.match(html,/Cartão líquido \+ Pix líquido conferidos/);
   assert.match(html,/id="kpiSangriaCard"/);
   assert.match(app,/approvedRows\.reduce/);
   assert.match(app,/function sangriaAvailable/);
   assert.match(css,/\.sangria-kpi\.sangria-active/);
 });
 
-test('financeiro configura taxas e visualiza a conciliação líquida',()=>{
+test('financeiro configura taxas de cartão e Pix e visualiza a conciliação líquida',()=>{
   assert.match(html,/Taxas por maquininha/);
   assert.match(html,/id="toggleRateSettings"/);
   assert.match(app,/settings\/cardFeeRates/);
   assert.match(app,/data-machine-fee/);
+  assert.match(app,/data-rate-type="pix"/);
   assert.match(html,/Cartão bruto/);
   assert.match(html,/Cartão líquido/);
-  assert.match(html,/Somente cartão líquido \+ Pix/);
+  assert.match(html,/Pix bruto/);
+  assert.match(html,/Taxas Pix/);
+  assert.match(html,/Pix líquido/);
+  assert.match(html,/Somente cartão líquido \+ Pix líquido/);
   assert.match(css,/\.finance-workbench/);
 });
 
