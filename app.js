@@ -3,8 +3,8 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, creat
 import { getDatabase, ref, get, set, push, update, query, orderByChild, startAt, endAt } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
 import { firebaseConfig, ADMIN_EMAIL } from './firebase-config.js';
 import {
-  SYSTEM_FIELDS, COUNTED_FIELDS, EXPENSE_FIELDS, FINANCE_OPERATOR_FIELDS,
-  numberFrom, sumFields, calculateClosing, calculateFinanceReview, formatBRL
+  SYSTEM_FIELDS, COUNTED_FIELDS, EXPENSE_FIELDS, CARD_FIELDS, FINANCE_CARD_FIELDS, FINANCE_CONFIRM_FIELDS,
+  numberFrom, calculateClosing, calculateFinanceReview, formatBRL
 } from './calculations.js';
 
 const STORES = ['House 190 Teixeira','House 190 Eunápolis','House Food Park Teixeira'];
@@ -14,9 +14,7 @@ const OPERATOR_GROUPS = {
   Laranjinha: ['laranjinha_credit','laranjinha_debit'], Wise: ['wise_credit','wise_debit'],
 };
 const FINANCE_FIELDS = [
-  'finance_cash','finance_card_fees','finance_pix','finance_ifood','finance_other',
-  ...FINANCE_OPERATOR_FIELDS,'finance_coupon_issued','finance_motoboy_system',
-  'finance_free_delivery','finance_adjustments'
+  'finance_cash','finance_pix',...FINANCE_CARD_FIELDS,'finance_adjustments'
 ];
 const OPERATION_FIELDS = [
   ...SYSTEM_FIELDS,...COUNTED_FIELDS,...EXPENSE_FIELDS,'opening_float','withdrawals',
@@ -138,6 +136,19 @@ function closingFormData() {
   const raw = Object.fromEntries(new FormData($('#closingForm')));
   OPERATION_FIELDS.forEach(key => raw[key] = numberFrom(raw[key]));
   raw.sangria_delivered = $('[name="sangria_delivered"]').checked;
+  raw.outflows = $$('.outflow-row').map(row => ({
+    category:$('[data-outflow-field="category"]',row).value,
+    description:$('[data-outflow-field="description"]',row).value.trim(),
+    amount:numberFrom($('[data-outflow-field="amount"]',row).value)
+  })).filter(item => item.description || item.amount);
+  raw.pixRequests = $$('.pix-request-row').map(row => ({
+    type:$('[data-pix-field="type"]',row).value,
+    name:$('[data-pix-field="name"]',row).value.trim(),
+    pixKey:$('[data-pix-field="key"]',row).value.trim(),
+    amount:numberFrom($('[data-pix-field="amount"]',row).value),
+    notes:$('[data-pix-field="notes"]',row).value.trim(),
+    status:'pending'
+  })).filter(item => item.name || item.pixKey || item.amount);
   return raw;
 }
 
@@ -145,13 +156,45 @@ function financeFormData() {
   const raw = Object.fromEntries(new FormData($('#financeReviewForm')));
   FINANCE_FIELDS.forEach(key => raw[key] = numberFrom(raw[key]));
   raw.finance_sangria_received = $('[name="finance_sangria_received"]').checked;
+  FINANCE_CONFIRM_FIELDS.forEach(key => raw[key] = Boolean($(`[name="${key}"]`)?.checked));
+  raw.pixPaymentStatuses = $$('.pix-payment-status').map((select,index) => ({index,status:select.value}));
   return raw;
 }
+
+function entryRemoveButton() {
+  return '<button class="entry-remove" type="button" aria-label="Remover item">×</button>';
+}
+
+function addOutflowRow(item={}) {
+  const row = document.createElement('div');
+  row.className = 'entry-row outflow-row';
+  row.innerHTML = `<label>Tipo<select data-outflow-field="category"><option>Motoboy</option><option>Freelancer</option><option>Fornecedor</option><option>Compra</option><option>Outros</option></select></label><label class="entry-description">Descrição<input data-outflow-field="description" value="${escapeHtml(item.description || '')}" placeholder="Nome ou motivo da saída" /></label><label>Valor<input data-outflow-field="amount" inputmode="decimal" value="${numberFrom(item.amount)}" /></label>${entryRemoveButton()}`;
+  $('[data-outflow-field="category"]',row).value = item.category || 'Outros';
+  $('#outflowRows').append(row);
+}
+
+function addPixRequestRow(item={}) {
+  const row = document.createElement('div');
+  row.className = 'entry-row pix-request-row';
+  row.innerHTML = `<label>Pagamento para<select data-pix-field="type"><option>Motoboy</option><option>Freelancer</option></select></label><label>Nome<input data-pix-field="name" value="${escapeHtml(item.name || '')}" placeholder="Nome do favorecido" /></label><label>Chave Pix<input data-pix-field="key" value="${escapeHtml(item.pixKey || '')}" placeholder="CPF, telefone, e-mail..." /></label><label>Valor<input data-pix-field="amount" inputmode="decimal" value="${numberFrom(item.amount)}" /></label><label class="entry-description">Observação<input data-pix-field="notes" value="${escapeHtml(item.notes || '')}" placeholder="Motivo ou turno" /></label>${entryRemoveButton()}`;
+  $('[data-pix-field="type"]',row).value = item.type || 'Motoboy';
+  $('#pixRequestRows').append(row);
+}
+
+$('#addOutflow').onclick = () => { addOutflowRow(); updateClosingCalculation(); };
+$('#addPixRequest').onclick = () => { addPixRequestRow(); updateClosingCalculation(); };
+['#outflowRows','#pixRequestRows'].forEach(selector => $(selector).addEventListener('click', event => {
+  const button = event.target.closest('.entry-remove');
+  if (button) { button.closest('.entry-row').remove(); updateClosingCalculation(); }
+}));
 
 function updateClosingCalculation() {
   const result = calculateClosing(closingFormData());
   $('#systemTotal').textContent = formatBRL(result.systemTotal);
   $('#countedTotal').textContent = formatBRL(result.countedReceipts);
+  $('#cardConferenceTotal').textContent = formatBRL(result.countedByMethod.card);
+  $('#outflowTotal').textContent = formatBRL(result.expenseTotal);
+  $('#pixRequestTotal').textContent = formatBRL(closingFormData().pixRequests.reduce((sum,item) => sum + item.amount,0));
   $('#diffTotal').textContent = formatBRL(result.difference);
   const rec = $('.reconciliation');
   const icon = $('#diffBadge');
@@ -191,7 +234,18 @@ $('#saveDraft').onclick = async () => {
 };
 $('#closingForm').addEventListener('submit', async event => {
   event.preventDefault();
-  const result = calculateClosing(closingFormData());
+  const formData = closingFormData();
+  const invalidOutflow = formData.outflows.some(item => !item.description || item.amount <= 0);
+  const invalidPix = formData.pixRequests.some(item => !item.name || !item.pixKey || item.amount <= 0);
+  if (invalidOutflow) {
+    toast('Preencha a descrição e um valor maior que zero em todas as saídas.',true);
+    return;
+  }
+  if (invalidPix) {
+    toast('Preencha nome, chave Pix e valor em todas as solicitações.',true);
+    return;
+  }
+  const result = calculateClosing(formData);
   if (!nearZero(result.difference) && !$('[name="notes"]').value.trim()) {
     toast('Descreva a divergência nas observações antes de enviar.',true);
     return;
@@ -205,6 +259,9 @@ function resetClosing() {
   delete form.dataset.id;
   initDates();
   $$('input[inputmode="decimal"]',form).forEach(input => input.value='0');
+  $('#outflowRows').innerHTML = '';
+  $('#pixRequestRows').innerHTML = '';
+  addOutflowRow();
   $('#formStatus').textContent='Rascunho';
   $('#formStatus').className='badge draft';
   updateClosingCalculation();
@@ -292,8 +349,8 @@ function renderDivergences(rows) {
   $('#divergenceRows').innerHTML = divergent.length ? divergent.map(item => {
     const diff = item.financeCalc?.differences || item.differences || {};
     const total = item.financeCalc?.totalDifference ?? item.difference;
-    return `<tr><td>${escapeHtml(item.store)}</td><td>${escapeHtml(item.operator)}</td><td>${formatBRL(diff.cash)}</td><td>${formatBRL(diff.card)}</td><td>${formatBRL(diff.pix)}</td><td>${formatBRL(diff.ifood)}</td><td class="${nearZero(total)?'positive':numberFrom(total)>0?'warning-text':'negative'}">${formatBRL(total)}</td><td>${stateBadge(item)}</td></tr>`;
-  }).join('') : '<tr><td colspan="8" class="empty">Nenhuma divergência encontrada.</td></tr>';
+    return `<tr><td>${escapeHtml(item.store)}</td><td>${escapeHtml(item.operator)}</td><td>${formatBRL(diff.cash)}</td><td>${formatBRL(diff.card)}</td><td>${formatBRL(diff.pix)}</td><td class="${nearZero(total)?'positive':numberFrom(total)>0?'warning-text':'negative'}">${formatBRL(total)}</td><td>${stateBadge(item)}</td></tr>`;
+  }).join('') : '<tr><td colspan="7" class="empty">Nenhuma divergência encontrada.</td></tr>';
 }
 $('#refreshDash').onclick = loadDashboard;
 $('#dashDate').onchange = loadDashboard;
@@ -310,6 +367,10 @@ async function loadFinance() {
     const rows = scoped.filter(item => status === 'all' || financeState(item) === status);
     $('#financePending').textContent = scoped.filter(item => financeState(item) === 'pending').length;
     $('#financeApproved').textContent = scoped.filter(item => financeState(item) === 'approved').length;
+    $('#financePixPending').textContent = scoped.reduce((sum,item) => {
+      const statuses = item.financeReview?.pixPaymentStatuses || [];
+      return sum + (item.pixRequests || []).filter((request,index) => (statuses[index]?.status || request.status || 'pending') === 'pending').length;
+    },0);
     $('#financeDivergent').textContent = scoped.filter(item => !nearZero(item.financeCalc?.totalDifference ?? item.difference)).length;
     const totalDiff = scoped.reduce((sum,item) => sum + numberFrom(item.financeCalc?.totalDifference ?? item.difference),0);
     $('#financeTotalDiff').textContent = formatBRL(totalDiff);
@@ -331,7 +392,7 @@ $('#financeRows').addEventListener('click', event => {
 });
 
 function methodRows(record) {
-  const labels = {cash:'Dinheiro',card:'Cartões',pix:'Pix',ifood:'iFood',other:'Outros'};
+  const labels = {cash:'Dinheiro',card:'Cartão',pix:'Pix'};
   return Object.keys(labels).map(key => {
     const expected = key === 'cash' ? record.expectedCash : record.systemByMethod[key];
     const informed = record.countedByMethod[key];
@@ -342,6 +403,40 @@ function methodRows(record) {
 
 function metric(label, value, asMoney=true) {
   return `<div><span>${escapeHtml(label)}</span><b>${asMoney ? formatBRL(value) : escapeHtml(value)}</b></div>`;
+}
+
+function renderSystemValues(record) {
+  const items = [
+    ['Dinheiro',record.system_cash],['Crédito',record.system_credit],['Débito',record.system_debit],
+    ['Pix',record.system_pix],['iFood Online',record.system_ifood_online],['iFood Voucher',record.system_ifood_voucher],
+    ['Notas a prazo',record.system_term],['Resgate Clube',record.system_club],['Acréscimos',record.system_accrual]
+  ];
+  return items.map(([label,value]) => `<div><span>${escapeHtml(label)}</span><strong>${formatBRL(value)}</strong></div>`).join('');
+}
+
+function renderCardMachines(record) {
+  return Object.entries(OPERATOR_GROUPS).map(([machine,[credit,debit]]) => `<div class="machine-summary"><b>${escapeHtml(machine)}</b><span>Crédito <strong>${formatBRL(record[credit])}</strong></span><span>Débito <strong>${formatBRL(record[debit])}</strong></span><em>Total ${formatBRL(numberFrom(record[credit])+numberFrom(record[debit]))}</em></div>`).join('');
+}
+
+function renderOutflows(record) {
+  if (Array.isArray(record.outflows) && record.outflows.length) {
+    return record.outflows.map(item => metric(`${item.category || 'Saída'} · ${item.description || 'Sem descrição'}`,item.amount)).join('');
+  }
+  return [
+    ['Motoboy',record.expense_motoboy],['Freelancer',record.expense_freelancer],
+    ['Entrega grátis',record.expense_free_delivery],['Outras despesas',record.expenses],
+    ['Ajustes/saídas',record.expense_other]
+  ].filter(item => numberFrom(item[1])).map(item => metric(item[0],item[1])).join('') || metric('Saídas declaradas',0);
+}
+
+function renderFinancePixRequests(record, existing={}) {
+  const requests = Array.isArray(record.pixRequests) ? record.pixRequests : [];
+  if (!requests.length) return '<p class="empty-inline">Nenhuma solicitação de pagamento via Pix.</p>';
+  const statuses = existing.pixPaymentStatuses || [];
+  return requests.map((request,index) => {
+    const selected = statuses[index]?.status || request.status || 'pending';
+    return `<div class="pix-approval-row"><div><span class="badge warn">${escapeHtml(request.type)}</span><b>${escapeHtml(request.name || 'Sem nome')}</b><small>Chave: ${escapeHtml(request.pixKey || 'não informada')} · ${escapeHtml(request.notes || 'sem observação')}</small></div><strong>${formatBRL(request.amount)}</strong><label>Situação<select class="pix-payment-status"><option value="pending" ${selected==='pending'?'selected':''}>Pendente</option><option value="paid" ${selected==='paid'?'selected':''}>Pago</option><option value="rejected" ${selected==='rejected'?'selected':''}>Recusado</option></select></label></div>`;
+  }).join('');
 }
 
 function openFinanceReview(id) {
@@ -355,13 +450,9 @@ function openFinanceReview(id) {
   $('#reviewEntries').textContent = formatBRL(currentReviewRecord.systemTotal);
   $('#reviewOutflows').textContent = formatBRL(currentReviewRecord.totalOutflows);
   $('#reviewMethodRows').innerHTML = methodRows(currentReviewRecord);
-  $('#reviewOperators').innerHTML = Object.entries(OPERATOR_GROUPS).map(([label,fields]) => metric(label,sumFields(currentReviewRecord,fields))).join('');
-  $('#reviewExpenses').innerHTML = [
-    ['Motoboy',currentReviewRecord.expense_motoboy],['Freelancer',currentReviewRecord.expense_freelancer],
-    ['Entrega grátis',currentReviewRecord.expense_free_delivery],['Outras despesas',currentReviewRecord.expenses],
-    ['Ajustes/saídas',currentReviewRecord.expense_other],['Sangrias',currentReviewRecord.withdrawals]
-  ].map(item => metric(item[0],item[1])).join('');
-  $('#reviewExpenseNotes').textContent = currentReviewRecord.expense_notes || 'Nenhum detalhamento informado.';
+  $('#reviewSystemValues').innerHTML = renderSystemValues(currentReviewRecord);
+  $('#reviewCardMachines').innerHTML = renderCardMachines(currentReviewRecord);
+  $('#reviewExpenses').innerHTML = renderOutflows(currentReviewRecord) + metric('Sangrias',currentReviewRecord.withdrawals);
   $('#reviewControls').innerHTML = metric('Saldo inicial',currentReviewRecord.opening_float)
     + metric('Troco final',currentReviewRecord.closing_float)
     + metric('Sangria entregue',currentReviewRecord.sangria_delivered ? 'Sim' : 'Não',false)
@@ -371,9 +462,16 @@ function openFinanceReview(id) {
   form.reset();
   $$('input[inputmode="decimal"]',form).forEach(input => input.value='0');
   const existing = currentReviewRecord.financeReview || {};
-  FINANCE_FIELDS.forEach(key => { if (form.elements[key] && existing[key] !== undefined) form.elements[key].value = existing[key]; });
+  const defaults = {finance_cash:currentReviewRecord.counted_cash,finance_pix:currentReviewRecord.counted_pix};
+  CARD_FIELDS.forEach(key => defaults[`finance_${key}`] = currentReviewRecord[key]);
+  FINANCE_FIELDS.forEach(key => {
+    if (!form.elements[key]) return;
+    form.elements[key].value = existing[key] !== undefined ? existing[key] : numberFrom(defaults[key]);
+  });
+  FINANCE_CONFIRM_FIELDS.forEach(key => { if (form.elements[key]) form.elements[key].checked = Boolean(existing[key]); });
   form.elements.finance_notes.value = existing.finance_notes || '';
   form.elements.finance_sangria_received.checked = Boolean(existing.finance_sangria_received);
+  $('#financePixRequests').innerHTML = renderFinancePixRequests(currentReviewRecord,existing);
   updateFinanceCalculation();
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -388,12 +486,14 @@ function updateFinanceCalculation() {
   if (!currentReviewRecord) return;
   const result = calculateFinanceReview(currentReviewRecord, financeFormData());
   $('#reviewAvailable').textContent = formatBRL(result.totalAvailable);
+  $('#reviewOutflows').textContent = formatBRL(result.totalOutflows);
   $('#reviewDifference').textContent = formatBRL(result.totalDifference);
   $('#financeReviewDiff').textContent = formatBRL(result.totalDifference);
   $('#financeReviewDiff').style.color = nearZero(result.totalDifference) ? 'var(--green)' : result.totalDifference > 0 ? 'var(--orange)' : 'var(--red)';
   $('#financeReviewMessage').textContent = nearZero(result.totalDifference) ? 'Valores financeiros conciliados.' : result.totalDifference > 0 ? 'Foi encontrada sobra na conferência.' : 'Foi encontrada falta na conferência.';
-  $('#financeFiscalDiff').textContent = formatBRL(result.fiscalDifference);
-  $('#financeMotoboyDiff').textContent = formatBRL(result.motoboyDifference);
+  $('#financePaidPix').textContent = formatBRL(result.paidPixRequests);
+  const confirmed = FINANCE_CONFIRM_FIELDS.filter(key => financeFormData()[key]).length;
+  $('#financeConfirmedCount').textContent = `${confirmed}/${FINANCE_CONFIRM_FIELDS.length}`;
 }
 $('#financeReviewForm').addEventListener('input',updateFinanceCalculation);
 
@@ -401,6 +501,14 @@ async function saveFinanceReview(decision) {
   if (!currentReviewRecord || !isFinance()) return;
   const data = financeFormData();
   const calc = calculateFinanceReview(currentReviewRecord,data);
+  if (decision === 'approved' && FINANCE_CONFIRM_FIELDS.some(key => !data[key])) {
+    toast('Confirme todos os campos de Dinheiro, Cartão, Pix e saídas antes de aprovar.',true);
+    return;
+  }
+  if (decision === 'approved' && data.pixPaymentStatuses.some(item => item.status === 'pending')) {
+    toast('Confirme como Pago ou Recusado cada solicitação de Pix.',true);
+    return;
+  }
   if (decision === 'approved' && !data.finance_sangria_received) {
     toast('Confirme o recebimento da sangria/fechamento antes de aprovar.',true);
     return;
@@ -474,4 +582,14 @@ async function loadUsers() {
   $('#usersList').innerHTML = users.map(([,user]) => `<div class="user-row"><div><b>${escapeHtml(user.name)}</b><div class="muted">${escapeHtml(user.email)} · ${escapeHtml(user.role)} · ${escapeHtml((user.stores || [user.store]).filter(Boolean).join(', '))}</div></div><span class="badge ${user.active===false?'bad':'ok'}">${user.active===false?'Inativo':'Ativo'}</span></div>`).join('');
 }
 
+function buildFinanceCardFields() {
+  $('#financeCardFields').innerHTML = Object.entries(OPERATOR_GROUPS).map(([machine,[credit,debit]]) => {
+    const financeCredit = `finance_${credit}`;
+    const financeDebit = `finance_${debit}`;
+    return `<div class="machine-finance-card"><h4>${escapeHtml(machine)}</h4><div class="machine-pair"><div class="confirm-field"><label>Crédito<input name="${financeCredit}" inputmode="decimal" value="0" /></label><label class="confirm-check"><input name="finance_confirm_${credit}" type="checkbox" /> Confirmado</label></div><div class="confirm-field"><label>Débito<input name="${financeDebit}" inputmode="decimal" value="0" /></label><label class="confirm-check"><input name="finance_confirm_${debit}" type="checkbox" /> Confirmado</label></div></div></div>`;
+  }).join('');
+}
+
+buildFinanceCardFields();
+addOutflowRow();
 updateClosingCalculation();

@@ -10,16 +10,23 @@ export const CARD_FIELDS = [
 ];
 
 export const COUNTED_FIELDS = [
-  'counted_cash',...CARD_FIELDS,'counted_pix','counted_ifood','counted_other'
+  'counted_cash',...CARD_FIELDS,'counted_pix'
 ];
 
 export const EXPENSE_FIELDS = [
   'expenses','expense_motoboy','expense_freelancer','expense_free_delivery','expense_other'
 ];
 
-export const FINANCE_OPERATOR_FIELDS = [
-  'finance_stone','finance_sipag','finance_cielo','finance_cappta',
-  'finance_laranjinha','finance_wise'
+export const FINANCE_CARD_FIELDS = [
+  'finance_sipag_credit','finance_sipag_debit','finance_cappta_credit','finance_cappta_debit',
+  'finance_stone_credit','finance_stone_debit','finance_cielo_credit','finance_cielo_debit',
+  'finance_laranjinha_credit','finance_laranjinha_debit','finance_wise_credit','finance_wise_debit'
+];
+
+export const FINANCE_CONFIRM_FIELDS = [
+  'finance_confirm_cash','finance_confirm_pix',
+  ...FINANCE_CARD_FIELDS.map(field => `finance_confirm_${field.replace('finance_','')}`),
+  'finance_confirm_outflows'
 ];
 
 export function numberFrom(value) {
@@ -39,6 +46,21 @@ export function statusFromDifference(value) {
   return Math.abs(numberFrom(value)) < 0.01 ? 'balanced' : numberFrom(value) > 0 ? 'surplus' : 'shortage';
 }
 
+export function sumOutflows(data = {}) {
+  if (Array.isArray(data.outflows)) {
+    return data.outflows.reduce((sum, item) => sum + numberFrom(item?.amount), 0);
+  }
+  return sumFields(data, EXPENSE_FIELDS);
+}
+
+export function sumPixRequests(data = {}, statuses = []) {
+  const requests = Array.isArray(data.pixRequests) ? data.pixRequests : [];
+  return requests.reduce((sum, request, index) => {
+    const status = statuses[index]?.status || request?.status;
+    return sum + (status === 'paid' ? numberFrom(request?.amount) : 0);
+  }, 0);
+}
+
 export function calculateClosing(data = {}) {
   const system = {
     cash: numberFrom(data.system_cash),
@@ -49,25 +71,21 @@ export function calculateClosing(data = {}) {
   };
   const counted = {
     cash: numberFrom(data.counted_cash),
-    card: sumFields(data, CARD_FIELDS),
+    card: data.counted_card !== undefined ? numberFrom(data.counted_card) : sumFields(data, CARD_FIELDS),
     pix: numberFrom(data.counted_pix),
-    ifood: numberFrom(data.counted_ifood),
-    other: numberFrom(data.counted_other),
   };
-  const expenseTotal = sumFields(data, EXPENSE_FIELDS);
+  const expenseTotal = sumOutflows(data);
   const expectedCash = numberFrom(data.opening_float) + system.cash + numberFrom(data.cash_in)
     - numberFrom(data.withdrawals) - expenseTotal - numberFrom(data.closing_float);
   const differences = {
     cash: counted.cash - expectedCash,
     card: counted.card - system.card,
     pix: counted.pix - system.pix,
-    ifood: counted.ifood - system.ifood,
-    other: counted.other - system.other,
   };
   const systemTotal = Object.values(system).reduce((sum, value) => sum + value, 0);
-  const countedReceipts = Object.values(counted).reduce((sum, value) => sum + value, 0);
+  const countedReceipts = counted.cash + counted.card + counted.pix;
   const difference = Object.values(differences).reduce((sum, value) => sum + value, 0) - numberFrom(data.adjustments);
-  const countedTotal = systemTotal + difference;
+  const countedTotal = countedReceipts;
   const totalOutflows = numberFrom(data.withdrawals) + expenseTotal;
   const totalAvailable = numberFrom(data.closing_float) + counted.card + counted.pix;
   return {
@@ -88,43 +106,32 @@ export function calculateClosing(data = {}) {
 
 export function calculateFinanceReview(record = {}, review = {}) {
   const operational = calculateClosing(record);
-  const cardFees = numberFrom(review.finance_card_fees);
   const expected = {
     cash: operational.expectedCash,
-    card: operational.systemByMethod.card - cardFees,
+    card: operational.systemByMethod.card,
     pix: operational.systemByMethod.pix,
-    ifood: operational.systemByMethod.ifood,
-    other: operational.systemByMethod.other,
   };
+  const legacyFinanceCard = sumFields(review, [
+    'finance_stone','finance_sipag','finance_cielo','finance_cappta','finance_laranjinha','finance_wise'
+  ]);
   const actual = {
     cash: numberFrom(review.finance_cash),
-    card: sumFields(review, FINANCE_OPERATOR_FIELDS),
+    card: FINANCE_CARD_FIELDS.some(field => review[field] !== undefined)
+      ? sumFields(review, FINANCE_CARD_FIELDS) : legacyFinanceCard,
     pix: numberFrom(review.finance_pix),
-    ifood: numberFrom(review.finance_ifood),
-    other: numberFrom(review.finance_other),
   };
   const differences = Object.fromEntries(Object.keys(expected).map(key => [key, actual[key] - expected[key]]));
   const totalDifference = Object.values(differences).reduce((sum, value) => sum + value, 0)
     - numberFrom(review.finance_adjustments);
-  const fiscalExpected = operational.systemByMethod.card + operational.systemByMethod.pix
-    + operational.systemByMethod.ifood + numberFrom(record.system_term);
-  const fiscalDifference = numberFrom(review.finance_coupon_issued) - fiscalExpected;
-  const motoboyExpected = numberFrom(record.expense_motoboy);
-  const motoboyActual = numberFrom(review.finance_motoboy_system) + numberFrom(review.finance_free_delivery);
-  const motoboyDifference = motoboyActual - motoboyExpected;
+  const paidPixRequests = sumPixRequests(record, review.pixPaymentStatuses);
   return {
     expected,
     actual,
     differences,
-    cardFees,
     totalDifference,
-    fiscalExpected,
-    fiscalDifference,
-    motoboyExpected,
-    motoboyActual,
-    motoboyDifference,
-    totalAvailable: actual.cash + actual.card + actual.pix,
-    totalOutflows: operational.totalOutflows,
+    paidPixRequests,
+    totalAvailable: actual.cash + actual.card + actual.pix - paidPixRequests,
+    totalOutflows: operational.totalOutflows + paidPixRequests,
     status: statusFromDifference(totalDifference),
   };
 }

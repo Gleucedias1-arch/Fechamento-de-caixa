@@ -7,14 +7,17 @@ Sistema web responsivo para fechamento diário, conciliação e acompanhamento d
 - Login por e-mail e senha com Firebase Authentication
 - Perfis de administrador, gerente e operador
 - Fechamento por loja, data e turno
-- Conferência de dinheiro, Pix, iFood, Sipag, Cappta e Stone
-- Sangrias, despesas, suprimentos, troco e ajustes
+- Informações do sistema exibidas antes da conferência da loja
+- Conferência restrita a Dinheiro, Cartão e Pix
+- Crédito e débito separados por Stone, Sipag, Cappta, Cielo, Laranjinha e Wise
+- Saídas detalhadas, sangrias, suprimentos, troco e ajustes
+- Solicitação de pagamento Pix para motoboy ou freelancer
 - Cálculo automático de falta ou sobra
 - Dashboard diário e histórico
 - Dashboard consolidado com entradas, saídas, disponível, pendências e divergências por forma de pagamento
 - Área exclusiva do financeiro com fila de conferência, aprovação e devolução
-- Conciliação líquida de Stone, Sipag, Cielo, Cappta, Laranjinha e Wise
-- Auditoria de cupom fiscal, iFood, motoboy, entrega grátis e sangria
+- Confirmação individual dos campos pelo financeiro
+- Confirmação ou recusa dos pagamentos Pix solicitados pela loja
 - Resultado financeiro registrado com responsável, parecer e data da conferência
 - Banco Firebase Realtime Database
 
