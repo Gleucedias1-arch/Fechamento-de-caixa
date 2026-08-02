@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 
-const [html,app,rules,packageJson] = await Promise.all([
+const [html,app,css,rules,packageJson] = await Promise.all([
   fs.readFile(new URL('../index.html',import.meta.url),'utf8'),
   fs.readFile(new URL('../app.js',import.meta.url),'utf8'),
+  fs.readFile(new URL('../styles.css',import.meta.url),'utf8'),
   fs.readFile(new URL('../database.rules.json',import.meta.url),'utf8'),
   fs.readFile(new URL('../package.json',import.meta.url),'utf8'),
 ]);
@@ -52,14 +53,19 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'1.4.0');
-  assert.match(html,/app\.js\?v=1\.4\.0/);
-  assert.match(html,/styles\.css\?v=1\.4\.0/);
+  assert.equal(JSON.parse(packageJson).version,'1.5.0');
+  assert.match(html,/app\.js\?v=1\.5\.0/);
+  assert.match(html,/styles\.css\?v=1\.5\.0/);
 });
 
 test('fechamento usa hierarquia compacta inspirada na planilha',()=>{
   assert.match(html,/class="sheet-titlebar"/);
   assert.match(html,/class="form-grid money-grid sheet-value-grid"/);
+  assert.match(css,/#closingForm \{ width: min\(760px, 100%\); margin: 0 auto; \}/);
+  assert.match(css,/\.sheet-value-grid \{ grid-template-columns: 1fr;/);
+  assert.match(css,/\.selected-machine-grid \{ display: grid; grid-template-columns: 1fr;/);
+  assert.match(css,/\.machine-entry-fields \{ display: grid; grid-template-columns: 1fr;/);
+  assert.match(css,/\.movement-values \{ grid-template-columns: 1fr; \}/);
   assert.match(html,/Nenhuma máquina selecionada/);
   assert.match(html,/Marque apenas as máquinas usadas neste fechamento/);
 });
