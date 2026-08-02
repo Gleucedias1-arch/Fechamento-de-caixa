@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#171717" />
+  <title>House 190 | Fechamento de Caixa</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="toast" class="toast" aria-live="polite"></div>
+
+  <main id="loginView" class="login-shell">
+    <section class="login-card">
+      <div class="brand-mark">H<span>190</span></div>
+      <p class="eyebrow">GESTÃO FINANCEIRA</p>
+      <h1>Fechamento de Caixa</h1>
+      <p class="muted">Entre para registrar e acompanhar os caixas das lojas.</p>
+      <form id="loginForm" class="stack">
+        <label>E-mail<input id="loginEmail" type="email" autocomplete="username" required /></label>
+        <label>Senha<input id="loginPassword" type="password" autocomplete="current-password" required /></label>
+        <button class="btn btn-primary" type="submit">Entrar</button>
+      </form>
+      <p id="loginError" class="error" role="alert"></p>
+    </section>
+  </main>
+
+  <div id="appView" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="side-brand"><div class="brand-mark small">H<span>190</span></div><div><b>House 190</b><small>Fechamento de Caixa</small></div></div>
+      <nav>
+        <button class="nav-item active" data-view="dashboard">▦ <span>Dashboard</span></button>
+        <button class="nav-item" data-view="closing">＋ <span>Novo fechamento</span></button>
+        <button class="nav-item" data-view="history">◷ <span>Histórico</span></button>
+        <button class="nav-item admin-only" data-view="users">♙ <span>Usuários</span></button>
+      </nav>
+      <button id="logoutBtn" class="nav-item logout">↪ <span>Sair</span></button>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <button id="menuBtn" class="icon-btn">☰</button>
+        <div><h2 id="pageTitle">Dashboard</h2><p id="todayLabel"></p></div>
+        <div class="user-chip"><span id="userInitial">G</span><div><b id="userName">Usuário</b><small id="userRole">Administrador</small></div></div>
+      </header>
+
+      <section id="dashboardView" class="view active-view">
+        <div class="filters card compact">
+          <label>Data<input id="dashDate" type="date" /></label>
+          <label>Loja<select id="dashStore"></select></label>
+          <button id="refreshDash" class="btn btn-secondary">Atualizar</button>
+        </div>
+        <div class="kpi-grid">
+          <article class="kpi card"><span>Venda informada</span><strong id="kpiSales">R$ 0,00</strong><small>Total do sistema</small></article>
+          <article class="kpi card"><span>Valor conferido</span><strong id="kpiCounted">R$ 0,00</strong><small>Recebimentos apurados</small></article>
+          <article class="kpi card"><span>Divergência</span><strong id="kpiDiff">R$ 0,00</strong><small id="kpiDiffText">Caixa conciliado</small></article>
+          <article class="kpi card"><span>Fechamentos</span><strong id="kpiClosings">0/0</strong><small>Concluídos no dia</small></article>
+        </div>
+        <div class="dashboard-grid">
+          <article class="card"><div class="card-title"><div><h3>Situação por loja</h3><p>Conferência do dia selecionado</p></div></div><div id="storeStatus" class="store-list"></div></article>
+          <article class="card"><div class="card-title"><div><h3>Composição das vendas</h3><p>Valores por canal</p></div></div><div id="channelBars" class="bars"></div></article>
+        </div>
+        <article class="card"><div class="card-title"><div><h3>Divergências encontradas</h3><p>Priorize os caixas que precisam de revisão</p></div></div><div class="table-wrap"><table><thead><tr><th>Loja</th><th>Operador</th><th>Venda</th><th>Conferido</th><th>Divergência</th><th>Status</th></tr></thead><tbody id="divergenceRows"></tbody></table></div></article>
+      </section>
+
+      <section id="closingView" class="view">
+        <form id="closingForm">
+          <div class="form-heading"><div><h3>Novo fechamento</h3><p>Preencha os valores do sistema e da conferência.</p></div><span id="formStatus" class="badge draft">Rascunho</span></div>
+          <article class="card form-section"><h3>Identificação</h3><div class="form-grid cols-4">
+            <label>Data<input name="date" type="date" required /></label><label>Loja<select name="store" required></select></label><label>Turno<select name="shift"><option>Noite</option><option>Almoço</option><option>Integral</option></select></label><label>Operador<input name="operator" required /></label>
+          </div></article>
+          <article class="card form-section"><h3>Valores informados pelo sistema</h3><p class="section-note">Informe o total vendido em cada canal.</p><div class="form-grid money-grid">
+            <label>Dinheiro<input name="system_cash" inputmode="decimal" value="0" /></label><label>Crédito<input name="system_credit" inputmode="decimal" value="0" /></label><label>Débito<input name="system_debit" inputmode="decimal" value="0" /></label><label>Pix<input name="system_pix" inputmode="decimal" value="0" /></label><label>iFood Online<input name="system_ifood_online" inputmode="decimal" value="0" /></label><label>iFood Voucher<input name="system_ifood_voucher" inputmode="decimal" value="0" /></label><label>Nota a prazo<input name="system_term" inputmode="decimal" value="0" /></label><label>Resgate Clube<input name="system_club" inputmode="decimal" value="0" /></label>
+          </div><div class="subtotal">Total informado <strong id="systemTotal">R$ 0,00</strong></div></article>
+          <article class="card form-section"><h3>Conferência dos recebimentos</h3><p class="section-note">Registre os extratos e o dinheiro efetivamente contado.</p><div class="form-grid money-grid">
+            <label>Dinheiro contado<input name="counted_cash" inputmode="decimal" value="0" /></label><label>Sipag crédito<input name="sipag_credit" inputmode="decimal" value="0" /></label><label>Sipag débito<input name="sipag_debit" inputmode="decimal" value="0" /></label><label>Cappta crédito<input name="cappta_credit" inputmode="decimal" value="0" /></label><label>Cappta débito<input name="cappta_debit" inputmode="decimal" value="0" /></label><label>Stone crédito<input name="stone_credit" inputmode="decimal" value="0" /></label><label>Stone débito<input name="stone_debit" inputmode="decimal" value="0" /></label><label>Pix conferido<input name="counted_pix" inputmode="decimal" value="0" /></label><label>iFood conferido<input name="counted_ifood" inputmode="decimal" value="0" /></label><label>Outros conferidos<input name="counted_other" inputmode="decimal" value="0" /></label>
+          </div><div class="subtotal">Total conferido <strong id="countedTotal">R$ 0,00</strong></div></article>
+          <article class="card form-section"><h3>Movimentações do caixa</h3><div class="form-grid money-grid">
+            <label>Fundo/troco inicial<input name="opening_float" inputmode="decimal" value="0" /></label><label>Sangrias<input name="withdrawals" inputmode="decimal" value="0" /></label><label>Despesas pagas<input name="expenses" inputmode="decimal" value="0" /></label><label>Suprimentos/entradas<input name="cash_in" inputmode="decimal" value="0" /></label><label>Troco final separado<input name="closing_float" inputmode="decimal" value="0" /></label><label>Taxas/ajustes<input name="adjustments" inputmode="decimal" value="0" /></label>
+          </div></article>
+          <article class="card reconciliation"><div><span>Resultado da conferência</span><strong id="diffTotal">R$ 0,00</strong><p id="diffExplanation">Os valores estão conciliados.</p></div><div id="diffBadge" class="result-icon ok">✓</div></article>
+          <article class="card form-section"><h3>Observações</h3><textarea name="notes" rows="4" placeholder="Descreva divergências, comprovantes pendentes ou ocorrências do turno..."></textarea></article>
+          <div class="form-actions"><button type="button" id="saveDraft" class="btn btn-secondary">Salvar rascunho</button><button type="submit" class="btn btn-primary">Fechar caixa</button></div>
+        </form>
+      </section>
+
+      <section id="historyView" class="view"><article class="card"><div class="card-title"><div><h3>Histórico de fechamentos</h3><p>Consulte os registros por período e loja.</p></div></div><div class="filters inline"><label>De<input id="historyFrom" type="date" /></label><label>Até<input id="historyTo" type="date" /></label><label>Loja<select id="historyStore"></select></label><button id="loadHistory" class="btn btn-secondary">Buscar</button></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Loja</th><th>Operador</th><th>Informado</th><th>Conferido</th><th>Divergência</th><th>Status</th></tr></thead><tbody id="historyRows"></tbody></table></div></article></section>
+
+      <section id="usersView" class="view admin-only"><article class="card"><div class="card-title"><div><h3>Usuários</h3><p>Crie acessos e defina as lojas permitidas.</p></div></div><form id="userForm" class="form-grid cols-4"><label>Nome<input name="name" required /></label><label>E-mail<input name="email" type="email" required /></label><label>Senha temporária<input name="password" type="password" minlength="6" required /></label><label>Perfil<select name="role"><option value="manager">Gerente</option><option value="admin">Administrador</option><option value="operator">Operador</option></select></label><label class="span-3">Loja<select name="store"></select></label><button class="btn btn-primary align-end">Criar usuário</button></form><div id="usersList" class="user-list"></div></article></section>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
