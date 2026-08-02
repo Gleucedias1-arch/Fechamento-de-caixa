@@ -30,7 +30,7 @@ let profile = null;
 let currentClosings = [];
 let financeClosings = [];
 let currentReviewRecord = null;
-let cardFeeRates = Object.fromEntries(Object.keys(OPERATOR_GROUPS).map(machine => [machine,{credit:0,debit:0}]));
+let cardFeeRates = Object.fromEntries(Object.keys(OPERATOR_GROUPS).map(machine => [machine,{credit:0,debit:0,pix:0}]));
 
 const $ = (selector, root=document) => root.querySelector(selector);
 const $$ = (selector, root=document) => [...root.querySelectorAll(selector)];
@@ -186,7 +186,7 @@ function activeMachineEntries(record = {}) {
 function normalizedFeeRates(source = {}) {
   return Object.fromEntries(Object.keys(OPERATOR_GROUPS).map(machine => {
     const saved = source[machine] || source[machine.toLowerCase()] || {};
-    return [machine,{credit:numberFrom(saved.credit),debit:numberFrom(saved.debit)}];
+    return [machine,{credit:numberFrom(saved.credit),debit:numberFrom(saved.debit),pix:numberFrom(saved.pix)}];
   }));
 }
 
@@ -199,7 +199,7 @@ function renderCardFeeSettings() {
   if (!container) return;
   container.innerHTML = Object.keys(OPERATOR_GROUPS).map(machine => {
     const rates = cardFeeRates[machine];
-    return `<article class="rate-machine-card"><div><span>Maquininha</span><strong>${escapeHtml(machine)}</strong></div><label>Crédito (%)<input data-rate-machine="${escapeHtml(machine)}" data-rate-type="credit" inputmode="decimal" value="${rates.credit}" /></label><label>Débito (%)<input data-rate-machine="${escapeHtml(machine)}" data-rate-type="debit" inputmode="decimal" value="${rates.debit}" /></label></article>`;
+    return `<article class="rate-machine-card"><div><span>Maquininha</span><strong>${escapeHtml(machine)}</strong></div><label>Crédito (%)<input data-rate-machine="${escapeHtml(machine)}" data-rate-type="credit" inputmode="decimal" value="${rates.credit}" /></label><label>Débito (%)<input data-rate-machine="${escapeHtml(machine)}" data-rate-type="debit" inputmode="decimal" value="${rates.debit}" /></label><label>Pix (%)<input data-rate-machine="${escapeHtml(machine)}" data-rate-type="pix" inputmode="decimal" value="${rates.pix}" /></label></article>`;
   }).join('');
 }
 
@@ -221,7 +221,9 @@ async function saveCardFeeRates() {
   $$('[data-rate-machine]').forEach(input => {
     next[input.dataset.rateMachine][input.dataset.rateType] = numberFrom(input.value);
   });
-  const invalid = Object.values(next).some(rates => rates.credit < 0 || rates.credit > 100 || rates.debit < 0 || rates.debit > 100);
+  const invalid = Object.values(next).some(rates =>
+    rates.credit < 0 || rates.credit > 100 || rates.debit < 0 || rates.debit > 100 || rates.pix < 0 || rates.pix > 100
+  );
   if (invalid) throw new Error('As taxas devem ficar entre 0% e 100%.');
   await set(ref(db,'settings/cardFeeRates'),next);
   cardFeeRates = next;
@@ -625,17 +627,21 @@ function updateFinanceCalculation() {
   $('#financeGrossCard').textContent = formatBRL(result.grossCard);
   $('#financeCardFees').textContent = `− ${formatBRL(result.cardFeeTotal)}`;
   $('#financeNetCard').textContent = formatBRL(result.netCard);
-  $('#financeConfirmedPix').textContent = formatBRL(result.actual.pix);
+  $('#financeGrossPix').textContent = formatBRL(result.grossPix);
+  $('#financePixFees').textContent = `− ${formatBRL(result.pixFeeTotal)}`;
+  $('#financeNetPix').textContent = formatBRL(result.netPix);
   $('#financeNetAvailable').textContent = formatBRL(result.totalAvailable);
   Object.entries(result.machineSettlements).forEach(([machine,settlement]) => {
     const fee = $(`[data-finance-machine-fees="${machine}"]`);
     const net = $(`[data-finance-machine-net="${machine}"]`);
     const creditFee = $(`[data-machine-fee="${machine}-credit"]`);
     const debitFee = $(`[data-machine-fee="${machine}-debit"]`);
+    const pixFee = $(`[data-machine-fee="${machine}-pix"]`);
     if (fee) fee.textContent = `− ${formatBRL(settlement.fees)}`;
     if (net) net.textContent = formatBRL(settlement.totalNet);
     if (creditFee) creditFee.textContent = `${settlement.creditRate.toFixed(2).replace('.',',')}% · − ${formatBRL(settlement.creditFee)}`;
     if (debitFee) debitFee.textContent = `${settlement.debitRate.toFixed(2).replace('.',',')}% · − ${formatBRL(settlement.debitFee)}`;
+    if (pixFee) pixFee.textContent = `${settlement.pixRate.toFixed(2).replace('.',',')}% · − ${formatBRL(settlement.pixFee)}`;
   });
   const required = requiredFinanceConfirmFields(currentReviewRecord);
   const financeData = financeFormData();
@@ -746,7 +752,7 @@ function buildFinanceCardFields(record = {}) {
     const financeDebit = `finance_${debit}`;
     const financePix = `finance_${pix}`;
     const row = (label,field,financeField,rateType=null) => `<div class="finance-verify-row"><div class="verify-method"><span>${label}</span>${rateType ? `<small>${numberFrom(rates[machine][rateType]).toFixed(2).replace('.',',')}% configurado</small>` : '<small>Sem desconto</small>'}</div><div class="verify-value"><small>Loja</small><strong>${formatBRL(record[field])}</strong></div><label class="verify-input"><small>Financeiro</small><input name="${financeField}" inputmode="decimal" value="0" /></label><div class="verify-fee"><small>${rateType ? 'Taxa' : 'Líquido'}</small><strong ${rateType ? `data-machine-fee="${escapeHtml(machine)}-${rateType}"` : ''}>${rateType ? 'R$ 0,00' : formatBRL(record[field])}</strong></div><label class="verify-check" title="Confirmar ${label}"><input name="finance_confirm_${field}" type="checkbox" /><span>✓</span></label></div>`;
-    return `<article class="machine-finance-card"><div class="machine-sheet-title"><span>Conferência financeira</span><h4>${escapeHtml(machine)}</h4></div><div class="machine-sheet-subtitle">LOJA × FINANCEIRO × LÍQUIDO</div><div class="machine-verify-head"><span>Forma</span><span>Informado</span><span>Encontrado</span><span>Desconto</span><span>OK</span></div><div class="machine-pair">${row('Crédito',credit,financeCredit,'credit')}${row('Débito',debit,financeDebit,'debit')}${row('Pix',pix,financePix)}</div><footer class="machine-settlement-footer"><span>Taxas <b data-finance-machine-fees="${escapeHtml(machine)}">R$ 0,00</b></span><span>Total líquido <strong data-finance-machine-net="${escapeHtml(machine)}">R$ 0,00</strong></span></footer></article>`;
+    return `<article class="machine-finance-card"><div class="machine-sheet-title"><span>Conferência financeira</span><h4>${escapeHtml(machine)}</h4></div><div class="machine-sheet-subtitle">LOJA × FINANCEIRO × LÍQUIDO</div><div class="machine-verify-head"><span>Forma</span><span>Informado</span><span>Encontrado</span><span>Desconto</span><span>OK</span></div><div class="machine-pair">${row('Crédito',credit,financeCredit,'credit')}${row('Débito',debit,financeDebit,'debit')}${row('Pix',pix,financePix,'pix')}</div><footer class="machine-settlement-footer"><span>Taxas <b data-finance-machine-fees="${escapeHtml(machine)}">R$ 0,00</b></span><span>Total líquido <strong data-finance-machine-net="${escapeHtml(machine)}">R$ 0,00</strong></span></footer></article>`;
   }).join('') : '<p class="empty-inline">A loja não selecionou nenhuma máquina.</p>';
 }
 
