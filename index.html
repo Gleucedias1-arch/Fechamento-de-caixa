@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=1.5.0" />
+  <link rel="stylesheet" href="styles.css?v=1.6.0" />
 </head>
 <body>
   <div id="toast" class="toast" aria-live="polite"></div>
@@ -75,6 +75,7 @@
           <article class="card form-section identification-card"><div class="compact-card-heading"><h3>Identificação do caixa</h3><span>Preenchimento da loja</span></div><div class="form-grid cols-4">
             <label>Data<input name="date" type="date" required /></label><label>Loja<select name="store" required></select></label><label>Turno<select name="shift"><option>Noite</option><option>Almoço</option><option>Integral</option></select></label><label>Operador<input name="operator" required /></label>
           </div></article>
+          <div class="closing-card-grid">
           <article class="card form-section sheet-section site-information-card"><div class="sheet-titlebar"><div><span class="sheet-step">ETAPA 1</span><h3>Informações do site</h3><p class="section-note">Primeiro, copie os valores brutos apresentados no sistema de vendas.</p></div><div class="section-number">1</div></div><div class="form-grid money-grid sheet-value-grid">
             <label>Dinheiro<input name="system_cash" inputmode="decimal" value="0" /></label><label>Crédito<input name="system_credit" inputmode="decimal" value="0" /></label><label>Débito<input name="system_debit" inputmode="decimal" value="0" /></label><label>Pix<input name="system_pix" inputmode="decimal" value="0" /></label><label>iFood Online<input name="system_ifood_online" inputmode="decimal" value="0" /></label><label>iFood Voucher<input name="system_ifood_voucher" inputmode="decimal" value="0" /></label><label>Notas a prazo/boleto<input name="system_term" inputmode="decimal" value="0" /></label><label>Resgate Clube<input name="system_club" inputmode="decimal" value="0" /></label><label>Acréscimos<input name="system_accrual" inputmode="decimal" value="0" /></label>
           </div><div class="subtotal sheet-grand-total"><span>Entrada total</span><strong id="systemTotal">R$ 0,00</strong></div></article>
@@ -85,8 +86,11 @@
             <label>Saldo inicial/troco<input name="opening_float" inputmode="decimal" value="0" /></label><label>Suprimentos/entradas<input name="cash_in" inputmode="decimal" value="0" /></label><label>Sangrias/retiradas<input name="withdrawals" inputmode="decimal" value="0" /></label><label>Troco final separado<input name="closing_float" inputmode="decimal" value="0" /></label><label>Ajustes autorizados<input name="adjustments" inputmode="decimal" value="0" /></label>
           </div><div class="subsection-heading"><div><h4 class="subsection-title">Saídas pagas em dinheiro</h4><p>Declare cada pagamento retirado do caixa.</p></div><button id="addOutflow" class="btn btn-secondary btn-small" type="button">+ Adicionar saída</button></div><div id="outflowRows" class="entry-list"></div><div class="subtotal">Total de saídas declaradas <strong id="outflowTotal">R$ 0,00</strong></div><label class="check-field"><input name="sangria_delivered" type="checkbox" /> Sangria/fechamento entregue ao responsável</label></article>
           <article class="card form-section sheet-section pix-request-section"><div class="sheet-titlebar"><div><span class="sheet-step">ETAPA 4</span><h3>Pagamento via Pix</h3><p class="section-note">Use quando não houver dinheiro em caixa para pagar motoboy ou freelancer.</p></div><div class="section-number">4</div></div><div class="pix-action-row"><span>A solicitação ficará pendente até a confirmação do financeiro.</span><button id="addPixRequest" class="btn btn-secondary btn-small" type="button">+ Solicitar Pix</button></div><div id="pixRequestRows" class="entry-list"></div><div class="subtotal sheet-grand-total"><span>Total solicitado ao financeiro</span><strong id="pixRequestTotal">R$ 0,00</strong></div></article>
+          </div>
+          <div class="closing-summary-grid">
           <article class="card reconciliation"><div><span>Resultado operacional</span><strong id="diffTotal">R$ 0,00</strong><p id="diffExplanation">Os valores estão conciliados.</p></div><div id="diffBadge" class="result-icon ok">✓</div></article>
           <article class="card form-section"><h3>Observações</h3><textarea name="notes" rows="4" placeholder="Descreva divergências, comprovantes pendentes ou ocorrências do turno..."></textarea></article>
+          </div>
           <div class="form-actions"><button type="button" id="saveDraft" class="btn btn-secondary">Salvar rascunho</button><button type="submit" class="btn btn-primary">Enviar ao financeiro</button></div>
         </form>
       </section>
@@ -121,6 +125,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=1.5.0"></script>
+  <script type="module" src="app.js?v=1.6.0"></script>
 </body>
 </html>
