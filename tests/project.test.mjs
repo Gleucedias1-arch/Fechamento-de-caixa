@@ -15,7 +15,9 @@ test('área financeira e indicadores existem na interface',()=>{
     'financeView','financeRows','financeReviewPanel','financeReviewForm','kpiEntries',
     'kpiOutflows','kpiAvailable','kpiDiff','kpiReviewed','kpiPending','reviewSystemValues',
     'reviewCardMachines','financeCardFields','financePixRequests','outflowRows','pixRequestRows'
-    ,'machineSelection','selectedMachineCards','pixConferenceTotal','selectedMachineCount'
+    ,'machineSelection','selectedMachineCards','pixConferenceTotal','selectedMachineCount',
+    'kpiSangria','financeSangria','cardFeeSettings','financeGrossCard','financeCardFees',
+    'financeNetCard','financeConfirmedPix','financeNetAvailable','reviewSangriaAlert'
   ]) assert.match(html,new RegExp(`id="${id}"`));
 });
 
@@ -47,15 +49,35 @@ test('todos os elementos acessados pelo JavaScript existem no HTML',()=>{
 test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
   const parsed=JSON.parse(rules);
   assert.ok(parsed.rules.closings.$id.financeReview);
+  assert.ok(parsed.rules.settings.cardFeeRates);
   assert.match(rules,/role'\)\.val\(\) === 'finance'/);
   assert.match(rules,/approved/);
   assert.match(rules,/returned/);
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'1.7.1');
-  assert.match(html,/app\.js\?v=1\.7\.1/);
-  assert.match(html,/styles\.css\?v=1\.7\.1/);
+  assert.equal(JSON.parse(packageJson).version,'1.8.0');
+  assert.match(html,/app\.js\?v=1\.8\.0/);
+  assert.match(html,/styles\.css\?v=1\.8\.0/);
+});
+
+test('dashboard separa disponível bancário e sangria física',()=>{
+  assert.match(html,/Cartão líquido \+ Pix conferidos/);
+  assert.match(html,/id="kpiSangriaCard"/);
+  assert.match(app,/approvedRows\.reduce/);
+  assert.match(app,/function sangriaAvailable/);
+  assert.match(css,/\.sangria-kpi\.sangria-active/);
+});
+
+test('financeiro configura taxas e visualiza a conciliação líquida',()=>{
+  assert.match(html,/Taxas por maquininha/);
+  assert.match(html,/id="toggleRateSettings"/);
+  assert.match(app,/settings\/cardFeeRates/);
+  assert.match(app,/data-machine-fee/);
+  assert.match(html,/Cartão bruto/);
+  assert.match(html,/Cartão líquido/);
+  assert.match(html,/Somente cartão líquido \+ Pix/);
+  assert.match(css,/\.finance-workbench/);
 });
 
 test('fechamento usa hierarquia compacta inspirada na planilha',()=>{
@@ -72,7 +94,7 @@ test('fechamento usa hierarquia compacta inspirada na planilha',()=>{
   assert.match(css,/\.movement-values \{ grid-template-columns: 1fr; \}/);
   assert.match(html,/Nenhuma máquina selecionada/);
   assert.match(html,/Marque apenas as máquinas usadas neste fechamento/);
-  assert.match(css,/@media \(max-width: 440px\)[\s\S]*\.selected-machine-grid, \.machine-summary-grid, \.machine-finance-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(css,/@media \(max-width: 440px\)[\s\S]*\.selected-machine-grid, \.machine-summary-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
 });
 
 test('identificação e finalização são compactas e bem agrupadas',()=>{

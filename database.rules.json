@@ -9,6 +9,17 @@
         ".validate": "newData.hasChildren(['name','email','role','active']) && (newData.child('role').val() === 'admin' || newData.child('role').val() === 'finance' || newData.child('role').val() === 'manager' || newData.child('role').val() === 'operator')"
       }
     },
+    "settings": {
+      ".read": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance')",
+      ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance')",
+      "cardFeeRates": {
+        "$machine": {
+          "credit": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+          "debit": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
     "closings": {
       ".read": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('active').val() === true)",
       ".indexOn": ["date", "searchDateStore", "financeStatus"],

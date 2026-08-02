@@ -30,6 +30,7 @@ let profile = null;
 let currentClosings = [];
 let financeClosings = [];
 let currentReviewRecord = null;
+let cardFeeRates = Object.fromEntries(Object.keys(OPERATOR_GROUPS).map(machine => [machine,{credit:0,debit:0}]));
 
 const $ = (selector, root=document) => root.querySelector(selector);
 const $$ = (selector, root=document) => [...root.querySelectorAll(selector)];
@@ -89,6 +90,7 @@ onAuthStateChanged(auth, async user => {
     $$('.finance-only').forEach(el => el.classList.toggle('hidden', !isFinance()));
     fillStores();
     initDates();
+    await loadCardFeeRates(false);
     await loadDashboard();
     if (profile.role === 'admin') loadUsers();
   } catch (error) {
@@ -179,6 +181,53 @@ function activeMachineEntries(record = {}) {
     .filter(([,fields]) => fields.some(field => !nearZero(record[field]) || !nearZero(record[`finance_${field}`])))
     .map(([name]) => name);
   return names.map(name => [name,OPERATOR_GROUPS[name]]);
+}
+
+function normalizedFeeRates(source = {}) {
+  return Object.fromEntries(Object.keys(OPERATOR_GROUPS).map(machine => {
+    const saved = source[machine] || source[machine.toLowerCase()] || {};
+    return [machine,{credit:numberFrom(saved.credit),debit:numberFrom(saved.debit)}];
+  }));
+}
+
+function effectiveFeeRates(record = {}) {
+  return normalizedFeeRates(record.financeReview?.cardFeeRates || cardFeeRates);
+}
+
+function renderCardFeeSettings() {
+  const container = $('#cardFeeSettings');
+  if (!container) return;
+  container.innerHTML = Object.keys(OPERATOR_GROUPS).map(machine => {
+    const rates = cardFeeRates[machine];
+    return `<article class="rate-machine-card"><div><span>Maquininha</span><strong>${escapeHtml(machine)}</strong></div><label>Crédito (%)<input data-rate-machine="${escapeHtml(machine)}" data-rate-type="credit" inputmode="decimal" value="${rates.credit}" /></label><label>Débito (%)<input data-rate-machine="${escapeHtml(machine)}" data-rate-type="debit" inputmode="decimal" value="${rates.debit}" /></label></article>`;
+  }).join('');
+}
+
+async function loadCardFeeRates(showMessage = false) {
+  if (!isFinance()) return;
+  try {
+    const snap = await get(ref(db,'settings/cardFeeRates'));
+    cardFeeRates = normalizedFeeRates(snap.exists() ? snap.val() : {});
+    renderCardFeeSettings();
+  } catch {
+    cardFeeRates = normalizedFeeRates(cardFeeRates);
+    renderCardFeeSettings();
+    if (showMessage) toast('Não foi possível carregar as taxas das maquininhas.',true);
+  }
+}
+
+async function saveCardFeeRates() {
+  const next = normalizedFeeRates(cardFeeRates);
+  $$('[data-rate-machine]').forEach(input => {
+    next[input.dataset.rateMachine][input.dataset.rateType] = numberFrom(input.value);
+  });
+  const invalid = Object.values(next).some(rates => rates.credit < 0 || rates.credit > 100 || rates.debit < 0 || rates.debit > 100);
+  if (invalid) throw new Error('As taxas devem ficar entre 0% e 100%.');
+  await set(ref(db,'settings/cardFeeRates'),next);
+  cardFeeRates = next;
+  renderCardFeeSettings();
+  toast('Taxas das maquininhas salvas. Os próximos cálculos usarão esses percentuais.');
+  await loadDashboard();
 }
 
 function machineInputCard(machine, fields) {
@@ -328,8 +377,15 @@ async function fetchClosings(from, to) {
 
 function enrichedClosing(record) {
   const calc = calculateClosing(record);
-  const finance = record.financeReview ? calculateFinanceReview(record, record.financeReview) : null;
+  const finance = record.financeReview
+    ? calculateFinanceReview(record,{...record.financeReview,cardFeeRates:effectiveFeeRates(record)}) : null;
   return {...record,...calc,financeCalc:finance};
+}
+
+function sangriaAvailable(record) {
+  const delivered = Boolean(record.sangria_delivered);
+  const received = Boolean(record.financeReview?.finance_sangria_received);
+  return delivered && !received ? numberFrom(record.withdrawals) : 0;
 }
 
 function financeState(record) {
@@ -356,13 +412,21 @@ async function loadDashboard() {
     const total = key => rows.reduce((sum,item) => sum + numberFrom(item[key]),0);
     const entries = total('systemTotal');
     const outflows = total('totalOutflows');
-    const available = rows.reduce((sum,item) => sum + numberFrom(item.financeCalc?.totalAvailable ?? item.totalAvailable),0);
+    const approvedRows = rows.filter(item => financeState(item) === 'approved' && item.financeCalc);
+    const available = approvedRows.reduce((sum,item) => sum + numberFrom(item.financeCalc.totalAvailable),0);
+    const sangria = rows.reduce((sum,item) => sum + sangriaAvailable(item),0);
+    const sangriaCount = rows.filter(item => sangriaAvailable(item) > 0).length;
     const diff = rows.reduce((sum,item) => sum + numberFrom(item.financeCalc?.totalDifference ?? item.difference),0);
     const reviewed = rows.filter(item => financeState(item) === 'approved').length;
     const pending = rows.filter(item => financeState(item) === 'pending').length;
     $('#kpiEntries').textContent = formatBRL(entries);
     $('#kpiOutflows').textContent = formatBRL(outflows);
     $('#kpiAvailable').textContent = formatBRL(available);
+    $('#kpiSangria').textContent = formatBRL(sangria);
+    $('#kpiSangriaText').textContent = sangriaCount
+      ? `${sangriaCount} ${sangriaCount === 1 ? 'caixa aguardando recebimento' : 'caixas aguardando recebimento'}`
+      : 'Nenhuma sangria disponível';
+    $('#kpiSangriaCard').classList.toggle('sangria-active',sangria > 0);
     $('#kpiDiff').textContent = formatBRL(diff);
     $('#kpiDiff').style.color = nearZero(diff) ? 'var(--green)' : diff > 0 ? 'var(--orange)' : 'var(--red)';
     $('#kpiDiffText').textContent = nearZero(diff) ? 'Sem divergência' : diff > 0 ? 'Sobra acumulada' : 'Falta acumulada';
@@ -413,6 +477,7 @@ $('#dashStore').onchange = loadDashboard;
 async function loadFinance() {
   if (!isFinance()) return;
   try {
+    await loadCardFeeRates(false);
     const date = $('#financeDate').value || isoToday();
     financeClosings = (await fetchClosings(date,date)).map(enrichedClosing);
     const store = $('#financeStore').value || 'all';
@@ -426,10 +491,13 @@ async function loadFinance() {
       return sum + (item.pixRequests || []).filter((request,index) => (statuses[index]?.status || request.status || 'pending') === 'pending').length;
     },0);
     $('#financeDivergent').textContent = scoped.filter(item => !nearZero(item.financeCalc?.totalDifference ?? item.difference)).length;
+    const sangria = scoped.reduce((sum,item) => sum + sangriaAvailable(item),0);
+    $('#financeSangria').textContent = formatBRL(sangria);
+    $('#financeSangriaCard').classList.toggle('sangria-active',sangria > 0);
     const totalDiff = scoped.reduce((sum,item) => sum + numberFrom(item.financeCalc?.totalDifference ?? item.difference),0);
     $('#financeTotalDiff').textContent = formatBRL(totalDiff);
     $('#financeTotalDiff').style.color = nearZero(totalDiff) ? 'var(--green)' : totalDiff > 0 ? 'var(--orange)' : 'var(--red)';
-    $('#financeRows').innerHTML = rows.length ? rows.sort((a,b) => numberFrom(b.submittedAt) - numberFrom(a.submittedAt)).map(item => `<tr><td>${formatDate(item.date)}</td><td>${escapeHtml(item.store)}</td><td>${escapeHtml(item.operator)}</td><td>${formatBRL(item.systemTotal)}</td><td>${formatBRL(item.totalOutflows)}</td><td>${formatBRL(item.difference)}</td><td>${stateBadge(item)}</td><td><button class="table-action" data-review-id="${escapeHtml(item.id)}">Conferir</button></td></tr>`).join('') : '<tr><td colspan="8" class="empty">Nenhum fechamento neste filtro.</td></tr>';
+    $('#financeRows').innerHTML = rows.length ? rows.sort((a,b) => numberFrom(b.submittedAt) - numberFrom(a.submittedAt)).map(item => `<tr><td>${formatDate(item.date)}</td><td>${escapeHtml(item.store)}</td><td>${escapeHtml(item.operator)}</td><td>${formatBRL(item.systemTotal)}</td><td>${formatBRL(item.totalOutflows)}</td><td>${sangriaAvailable(item) ? `<span class="sangria-table-value">${formatBRL(sangriaAvailable(item))}</span>` : '—'}</td><td>${formatBRL(item.difference)}</td><td>${stateBadge(item)}</td><td><button class="table-action" data-review-id="${escapeHtml(item.id)}">Conferir</button></td></tr>`).join('') : '<tr><td colspan="9" class="empty">Nenhum fechamento neste filtro.</td></tr>';
     $('#financeReviewPanel').classList.add('hidden');
     $('#financeQueueCard').classList.remove('hidden');
   } catch {
@@ -505,6 +573,9 @@ function openFinanceReview(id) {
   $('#reviewStatus').outerHTML = `<span id="reviewStatus" class="badge ${financeState(currentReviewRecord)==='approved'?'ok':financeState(currentReviewRecord)==='returned'?'bad':'warn'}">${financeState(currentReviewRecord)==='approved'?'Conferido':financeState(currentReviewRecord)==='returned'?'Devolvido':'Aguardando financeiro'}</span>`;
   $('#reviewEntries').textContent = formatBRL(currentReviewRecord.systemTotal);
   $('#reviewOutflows').textContent = formatBRL(currentReviewRecord.totalOutflows);
+  const sangria = sangriaAvailable(currentReviewRecord);
+  $('#reviewSangriaAlert').classList.toggle('hidden',sangria <= 0);
+  $('#reviewSangriaAmount').textContent = formatBRL(sangria);
   $('#reviewMethodRows').innerHTML = methodRows(currentReviewRecord);
   $('#reviewSystemValues').innerHTML = renderSystemValues(currentReviewRecord);
   $('#reviewCardMachines').innerHTML = renderCardMachines(currentReviewRecord);
@@ -541,7 +612,9 @@ $('#closeReview').onclick = () => {
 
 function updateFinanceCalculation() {
   if (!currentReviewRecord) return;
-  const result = calculateFinanceReview(currentReviewRecord, financeFormData());
+  const result = calculateFinanceReview(currentReviewRecord,{
+    ...financeFormData(),cardFeeRates:effectiveFeeRates(currentReviewRecord)
+  });
   $('#reviewAvailable').textContent = formatBRL(result.totalAvailable);
   $('#reviewOutflows').textContent = formatBRL(result.totalOutflows);
   $('#reviewDifference').textContent = formatBRL(result.totalDifference);
@@ -549,6 +622,21 @@ function updateFinanceCalculation() {
   $('#financeReviewDiff').style.color = nearZero(result.totalDifference) ? 'var(--green)' : result.totalDifference > 0 ? 'var(--orange)' : 'var(--red)';
   $('#financeReviewMessage').textContent = nearZero(result.totalDifference) ? 'Valores financeiros conciliados.' : result.totalDifference > 0 ? 'Foi encontrada sobra na conferência.' : 'Foi encontrada falta na conferência.';
   $('#financePaidPix').textContent = formatBRL(result.paidPixRequests);
+  $('#financeGrossCard').textContent = formatBRL(result.grossCard);
+  $('#financeCardFees').textContent = `− ${formatBRL(result.cardFeeTotal)}`;
+  $('#financeNetCard').textContent = formatBRL(result.netCard);
+  $('#financeConfirmedPix').textContent = formatBRL(result.actual.pix);
+  $('#financeNetAvailable').textContent = formatBRL(result.totalAvailable);
+  Object.entries(result.machineSettlements).forEach(([machine,settlement]) => {
+    const fee = $(`[data-finance-machine-fees="${machine}"]`);
+    const net = $(`[data-finance-machine-net="${machine}"]`);
+    const creditFee = $(`[data-machine-fee="${machine}-credit"]`);
+    const debitFee = $(`[data-machine-fee="${machine}-debit"]`);
+    if (fee) fee.textContent = `− ${formatBRL(settlement.fees)}`;
+    if (net) net.textContent = formatBRL(settlement.totalNet);
+    if (creditFee) creditFee.textContent = `${settlement.creditRate.toFixed(2).replace('.',',')}% · − ${formatBRL(settlement.creditFee)}`;
+    if (debitFee) debitFee.textContent = `${settlement.debitRate.toFixed(2).replace('.',',')}% · − ${formatBRL(settlement.debitFee)}`;
+  });
   const required = requiredFinanceConfirmFields(currentReviewRecord);
   const financeData = financeFormData();
   const confirmed = required.filter(key => financeData[key]).length;
@@ -566,6 +654,7 @@ function requiredFinanceConfirmFields(record) {
 async function saveFinanceReview(decision) {
   if (!currentReviewRecord || !isFinance()) return;
   const data = financeFormData();
+  data.cardFeeRates = effectiveFeeRates(currentReviewRecord);
   const calc = calculateFinanceReview(currentReviewRecord,data);
   const requiredConfirmations = requiredFinanceConfirmFields(currentReviewRecord);
   if (decision === 'approved' && requiredConfirmations.some(key => !data[key])) {
@@ -651,13 +740,25 @@ async function loadUsers() {
 
 function buildFinanceCardFields(record = {}) {
   const machines = activeMachineEntries(record);
+  const rates = effectiveFeeRates(record);
   $('#financeCardFields').innerHTML = machines.length ? machines.map(([machine,[credit,debit,pix]]) => {
     const financeCredit = `finance_${credit}`;
     const financeDebit = `finance_${debit}`;
     const financePix = `finance_${pix}`;
-    return `<div class="machine-finance-card"><div class="machine-sheet-title"><span>Conferência financeira</span><h4>${escapeHtml(machine)}</h4></div><div class="machine-sheet-subtitle">CONFIRMAR RECEBIMENTOS</div><div class="machine-pair"><div class="confirm-field"><label>Crédito<input name="${financeCredit}" inputmode="decimal" value="0" /></label><label class="confirm-check"><input name="finance_confirm_${credit}" type="checkbox" /> Confirmado</label></div><div class="confirm-field"><label>Débito<input name="${financeDebit}" inputmode="decimal" value="0" /></label><label class="confirm-check"><input name="finance_confirm_${debit}" type="checkbox" /> Confirmado</label></div><div class="confirm-field"><label>Pix<input name="${financePix}" inputmode="decimal" value="0" /></label><label class="confirm-check"><input name="finance_confirm_${pix}" type="checkbox" /> Confirmado</label></div></div></div>`;
+    const row = (label,field,financeField,rateType=null) => `<div class="finance-verify-row"><div class="verify-method"><span>${label}</span>${rateType ? `<small>${numberFrom(rates[machine][rateType]).toFixed(2).replace('.',',')}% configurado</small>` : '<small>Sem desconto</small>'}</div><div class="verify-value"><small>Loja</small><strong>${formatBRL(record[field])}</strong></div><label class="verify-input"><small>Financeiro</small><input name="${financeField}" inputmode="decimal" value="0" /></label><div class="verify-fee"><small>${rateType ? 'Taxa' : 'Líquido'}</small><strong ${rateType ? `data-machine-fee="${escapeHtml(machine)}-${rateType}"` : ''}>${rateType ? 'R$ 0,00' : formatBRL(record[field])}</strong></div><label class="verify-check" title="Confirmar ${label}"><input name="finance_confirm_${field}" type="checkbox" /><span>✓</span></label></div>`;
+    return `<article class="machine-finance-card"><div class="machine-sheet-title"><span>Conferência financeira</span><h4>${escapeHtml(machine)}</h4></div><div class="machine-sheet-subtitle">LOJA × FINANCEIRO × LÍQUIDO</div><div class="machine-verify-head"><span>Forma</span><span>Informado</span><span>Encontrado</span><span>Desconto</span><span>OK</span></div><div class="machine-pair">${row('Crédito',credit,financeCredit,'credit')}${row('Débito',debit,financeDebit,'debit')}${row('Pix',pix,financePix)}</div><footer class="machine-settlement-footer"><span>Taxas <b data-finance-machine-fees="${escapeHtml(machine)}">R$ 0,00</b></span><span>Total líquido <strong data-finance-machine-net="${escapeHtml(machine)}">R$ 0,00</strong></span></footer></article>`;
   }).join('') : '<p class="empty-inline">A loja não selecionou nenhuma máquina.</p>';
 }
+
+$('#toggleRateSettings').onclick = () => {
+  $('#rateSettingsCard').classList.toggle('hidden');
+  $('#toggleRateSettings').textContent = $('#rateSettingsCard').classList.contains('hidden')
+    ? 'Configurar taxas' : 'Fechar taxas';
+};
+$('#saveRateSettings').onclick = async () => {
+  try { await saveCardFeeRates(); }
+  catch (error) { toast(error.message || 'Não foi possível salvar as taxas.',true); }
+};
 
 buildMachineSelection();
 addOutflowRow();

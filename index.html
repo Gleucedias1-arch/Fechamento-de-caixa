@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=1.7.1" />
+  <link rel="stylesheet" href="styles.css?v=1.8.0" />
 </head>
 <body>
   <div id="toast" class="toast" aria-live="polite"></div>
@@ -54,10 +54,11 @@
           <label>Loja<select id="dashStore"></select></label>
           <button id="refreshDash" class="btn btn-secondary">Atualizar</button>
         </div>
-        <div class="kpi-grid kpi-grid-6">
+        <div class="kpi-grid kpi-grid-dashboard">
           <article class="kpi card"><span>Entradas do dia</span><strong id="kpiEntries">R$ 0,00</strong><small>Vendas informadas</small></article>
           <article class="kpi card"><span>Saídas</span><strong id="kpiOutflows">R$ 0,00</strong><small>Despesas e sangrias</small></article>
-          <article class="kpi card"><span>Total disponível</span><strong id="kpiAvailable">R$ 0,00</strong><small>Caixa, cartões líquidos e Pix</small></article>
+          <article class="kpi card available-kpi"><span>Total disponível</span><strong id="kpiAvailable">R$ 0,00</strong><small>Cartão líquido + Pix conferidos</small></article>
+          <article id="kpiSangriaCard" class="kpi card sangria-kpi"><span>Sangria disponível</span><strong id="kpiSangria">R$ 0,00</strong><small id="kpiSangriaText">Nenhuma sangria disponível</small></article>
           <article class="kpi card"><span>Divergência</span><strong id="kpiDiff">R$ 0,00</strong><small id="kpiDiffText">Sem divergência</small></article>
           <article class="kpi card"><span>Conferidos</span><strong id="kpiReviewed">0</strong><small>Aprovados pelo financeiro</small></article>
           <article class="kpi card"><span>Pendentes</span><strong id="kpiPending">0</strong><small>Aguardando conferência</small></article>
@@ -103,24 +104,26 @@
       </section>
 
       <section id="financeView" class="view finance-only">
-        <div class="filters card compact"><label>Data<input id="financeDate" type="date" /></label><label>Loja<select id="financeStore"></select></label><label>Status<select id="financeStatus"><option value="pending">Pendentes</option><option value="all">Todos</option><option value="approved">Aprovados</option><option value="returned">Devolvidos</option></select></label><button id="loadFinance" class="btn btn-secondary">Buscar</button></div>
+        <div class="filters card compact"><label>Data<input id="financeDate" type="date" /></label><label>Loja<select id="financeStore"></select></label><label>Status<select id="financeStatus"><option value="pending">Pendentes</option><option value="all">Todos</option><option value="approved">Aprovados</option><option value="returned">Devolvidos</option></select></label><button id="loadFinance" class="btn btn-secondary">Buscar</button><button id="toggleRateSettings" class="btn btn-primary" type="button">Configurar taxas</button></div>
+        <article id="rateSettingsCard" class="card rate-settings-card hidden"><div class="card-title"><div><span class="block-label">CONFIGURAÇÃO FINANCEIRA</span><h3>Taxas por maquininha</h3><p>Informe o percentual contratado no Crédito e no Débito. O sistema calculará o líquido automaticamente.</p></div><button id="saveRateSettings" class="btn btn-primary" type="button">Salvar taxas</button></div><div id="cardFeeSettings" class="rate-settings-grid"></div></article>
         <div class="kpi-grid finance-kpis">
-          <article class="kpi card"><span>Aguardando</span><strong id="financePending">0</strong><small>Caixas para conferir</small></article><article class="kpi card"><span>Conferidos</span><strong id="financeApproved">0</strong><small>Aprovações no período</small></article><article class="kpi card"><span>Pix pendentes</span><strong id="financePixPending">0</strong><small>Motoboys e freelancers</small></article><article class="kpi card"><span>Com divergência</span><strong id="financeDivergent">0</strong><small>Exigem justificativa</small></article><article class="kpi card"><span>Divergência acumulada</span><strong id="financeTotalDiff">R$ 0,00</strong><small>Resultado das conferências</small></article>
+          <article class="kpi card"><span>Aguardando</span><strong id="financePending">0</strong><small>Caixas para conferir</small></article><article class="kpi card"><span>Conferidos</span><strong id="financeApproved">0</strong><small>Aprovações no período</small></article><article class="kpi card"><span>Pix pendentes</span><strong id="financePixPending">0</strong><small>Motoboys e freelancers</small></article><article id="financeSangriaCard" class="kpi card sangria-kpi"><span>Sangria disponível</span><strong id="financeSangria">R$ 0,00</strong><small>Aguardando recebimento</small></article><article class="kpi card"><span>Com divergência</span><strong id="financeDivergent">0</strong><small>Exigem justificativa</small></article><article class="kpi card"><span>Divergência acumulada</span><strong id="financeTotalDiff">R$ 0,00</strong><small>Resultado das conferências</small></article>
         </div>
-        <article class="card" id="financeQueueCard"><div class="card-title"><div><h3>Fila de conferência</h3><p>Selecione um fechamento para analisar e apresentar o resultado.</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Loja</th><th>Operador</th><th>Entradas</th><th>Saídas</th><th>Divergência operacional</th><th>Status</th><th></th></tr></thead><tbody id="financeRows"></tbody></table></div></article>
+        <article class="card" id="financeQueueCard"><div class="card-title"><div><h3>Fila de conferência</h3><p>Priorize sangrias disponíveis e caixas ainda não conciliados.</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Loja</th><th>Operador</th><th>Entradas</th><th>Saídas</th><th>Sangria</th><th>Divergência operacional</th><th>Status</th><th></th></tr></thead><tbody id="financeRows"></tbody></table></div></article>
 
         <div id="financeReviewPanel" class="hidden">
           <div class="review-heading"><div><button id="closeReview" class="back-button" type="button">← Voltar à fila</button><h3 id="reviewRecordTitle">Conferência do caixa</h3><p id="reviewRecordMeta" class="muted"></p></div><span id="reviewStatus" class="badge draft">Pendente</span></div>
-          <div class="kpi-grid finance-review-kpis"><article class="kpi card"><span>Entradas</span><strong id="reviewEntries">R$ 0,00</strong></article><article class="kpi card"><span>Saídas</span><strong id="reviewOutflows">R$ 0,00</strong></article><article class="kpi card"><span>Disponível</span><strong id="reviewAvailable">R$ 0,00</strong></article><article class="kpi card"><span>Divergência</span><strong id="reviewDifference">R$ 0,00</strong></article></div>
+          <div id="reviewSangriaAlert" class="sangria-review-alert hidden"><div><span>SANGRIA DISPONÍVEL</span><strong id="reviewSangriaAmount">R$ 0,00</strong></div><p>Confirme o recebimento deste valor antes de aprovar o fechamento.</p></div>
+          <div class="kpi-grid finance-review-kpis"><article class="kpi card"><span>Entradas</span><strong id="reviewEntries">R$ 0,00</strong></article><article class="kpi card"><span>Saídas</span><strong id="reviewOutflows">R$ 0,00</strong></article><article class="kpi card available-kpi"><span>Disponível líquido</span><strong id="reviewAvailable">R$ 0,00</strong><small>Cartão líquido + Pix</small></article><article class="kpi card"><span>Divergência</span><strong id="reviewDifference">R$ 0,00</strong></article></div>
           <article class="card finance-data-block"><div class="card-title"><div><span class="block-label">1 · INFORMAÇÕES DO SITE</span><h3>Valores enviados pela loja</h3><p>Dados brutos do sistema de vendas.</p></div></div><div id="reviewSystemValues" class="finance-summary-grid"></div></article>
           <article class="card finance-data-block"><div class="card-title"><div><span class="block-label">2 · CONFERÊNCIA DA LOJA</span><h3>Dinheiro, Cartão e Pix</h3><p>Somente as máquinas escolhidas pela loja, com Crédito, Débito e Pix.</p></div></div><div class="table-wrap"><table><thead><tr><th>Forma</th><th>Site</th><th>Conferido pela loja</th><th>Diferença</th></tr></thead><tbody id="reviewMethodRows"></tbody></table></div><div id="reviewCardMachines" class="machine-summary-grid"></div></article>
           <div class="dashboard-grid review-grid"><article class="card"><div class="card-title"><div><h3>Saídas declaradas</h3><p>Pagamentos retirados do dinheiro do caixa</p></div></div><div id="reviewExpenses" class="metric-list"></div></article><article class="card"><div class="card-title"><div><h3>Controles</h3><p>Entrega e observações da loja</p></div></div><div id="reviewControls" class="metric-list"></div><p id="reviewNotes" class="note-box"></p></article></div>
           <form id="financeReviewForm">
             <article class="card form-section finance-confirm-section"><div class="card-title"><div><span class="block-label">3 · CONFERÊNCIA DO FINANCEIRO</span><h3>Confirmar Dinheiro, Cartão e Pix</h3><p>Revise o dinheiro e confirme Crédito, Débito e Pix em cada máquina utilizada.</p></div></div><div class="finance-confirm-grid cash-confirm-grid">
               <div class="confirm-field"><label>Dinheiro<input name="finance_cash" inputmode="decimal" value="0" /></label><label class="confirm-check"><input name="finance_confirm_cash" type="checkbox" /> Confirmado</label></div>
-            </div><h4 class="subsection-title">Máquinas utilizadas pela loja</h4><div id="financeCardFields" class="machine-finance-grid"></div></article>
+            </div><div class="finance-workbench"><div class="finance-machine-work"><h4 class="subsection-title">Máquinas utilizadas pela loja</h4><div id="financeCardFields" class="machine-finance-grid"></div></div><aside class="settlement-summary"><div class="settlement-summary-title"><span>RESUMO LÍQUIDO</span><h4>Valor encontrado</h4></div><div class="settlement-summary-list"><div><span>Cartão bruto</span><strong id="financeGrossCard">R$ 0,00</strong></div><div class="fee-line"><span>Taxas descontadas</span><strong id="financeCardFees">R$ 0,00</strong></div><div><span>Cartão líquido</span><strong id="financeNetCard">R$ 0,00</strong></div><div><span>Pix confirmado</span><strong id="financeConfirmedPix">R$ 0,00</strong></div><div><span>Pagamentos via Pix</span><strong id="financePaidPix">R$ 0,00</strong></div></div><div class="settlement-total"><span>Total disponível</span><strong id="financeNetAvailable">R$ 0,00</strong><small>Somente cartão líquido + Pix</small></div></aside></div></article>
             <article class="card form-section"><div class="card-title"><div><h3>Saídas e solicitações Pix</h3><p>Confirme as saídas e informe o pagamento de motoboy/freelancer.</p></div></div><label class="check-field confirmation-highlight"><input name="finance_confirm_outflows" type="checkbox" /> Confirmo que conferi todas as saídas declaradas</label><div id="financePixRequests" class="pix-approval-list"></div><label class="check-field"><input name="finance_sangria_received" type="checkbox" /> Confirmo o recebimento da sangria/fechamento</label><label class="wide-label">Parecer do financeiro<textarea name="finance_notes" rows="4" placeholder="Explique diferenças, documentos pendentes, pagamentos Pix ou a razão da devolução..."></textarea></label></article>
-            <article class="card finance-result"><div><span>Resultado financeiro</span><strong id="financeReviewDiff">R$ 0,00</strong><p id="financeReviewMessage">Preencha e confirme os valores.</p></div><div class="audit-result"><small>Pix pagos pelo financeiro</small><b id="financePaidPix">R$ 0,00</b><small>Campos confirmados</small><b id="financeConfirmedCount">0/15</b></div></article>
+            <article class="card finance-result"><div><span>Resultado financeiro</span><strong id="financeReviewDiff">R$ 0,00</strong><p id="financeReviewMessage">Preencha e confirme os valores.</p></div><div class="audit-result"><small>Campos confirmados</small><b id="financeConfirmedCount">0/15</b></div></article>
             <div class="form-actions"><button type="button" id="returnClosing" class="btn btn-danger">Devolver para correção</button><button type="submit" class="btn btn-primary">Aprovar conferência</button></div>
           </form>
         </div>
@@ -132,6 +135,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=1.7.1"></script>
+  <script type="module" src="app.js?v=1.8.0"></script>
 </body>
 </html>

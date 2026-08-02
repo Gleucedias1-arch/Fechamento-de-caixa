@@ -36,6 +36,15 @@ export const FINANCE_MACHINE_FIELDS = [
   ...FINANCE_CARD_FIELDS,...FINANCE_PIX_FIELDS
 ];
 
+export const MACHINE_SETTLEMENT_FIELDS = {
+  Stone: {credit:'finance_stone_credit',debit:'finance_stone_debit',pix:'finance_stone_pix'},
+  Sipag: {credit:'finance_sipag_credit',debit:'finance_sipag_debit',pix:'finance_sipag_pix'},
+  Cielo: {credit:'finance_cielo_credit',debit:'finance_cielo_debit',pix:'finance_cielo_pix'},
+  Cappta: {credit:'finance_cappta_credit',debit:'finance_cappta_debit',pix:'finance_cappta_pix'},
+  Laranjinha: {credit:'finance_laranjinha_credit',debit:'finance_laranjinha_debit',pix:'finance_laranjinha_pix'},
+  Wise: {credit:'finance_wise_credit',debit:'finance_wise_debit',pix:'finance_wise_pix'},
+};
+
 export const FINANCE_CONFIRM_FIELDS = [
   'finance_confirm_cash',
   ...FINANCE_MACHINE_FIELDS.map(field => `finance_confirm_${field.replace('finance_','')}`),
@@ -134,6 +143,25 @@ export function calculateFinanceReview(record = {}, review = {}) {
     pix: FINANCE_PIX_FIELDS.some(field => review[field] !== undefined)
       ? sumFields(review, FINANCE_PIX_FIELDS) : numberFrom(review.finance_pix),
   };
+  const feeRates = review.cardFeeRates || record.cardFeeRates || {};
+  const machineSettlements = Object.fromEntries(Object.entries(MACHINE_SETTLEMENT_FIELDS).map(([machine,fields]) => {
+    const rates = feeRates[machine] || feeRates[machine.toLowerCase()] || {};
+    const credit = numberFrom(review[fields.credit]);
+    const debit = numberFrom(review[fields.debit]);
+    const pix = numberFrom(review[fields.pix]);
+    const creditRate = numberFrom(rates.credit);
+    const debitRate = numberFrom(rates.debit);
+    const creditFee = credit * creditRate / 100;
+    const debitFee = debit * debitRate / 100;
+    const fees = creditFee + debitFee;
+    const grossCard = credit + debit;
+    return [machine,{
+      credit,debit,pix,creditRate,debitRate,creditFee,debitFee,
+      grossCard,fees,netCard:grossCard-fees,totalNet:grossCard-fees+pix,
+    }];
+  }));
+  const cardFeeTotal = Object.values(machineSettlements).reduce((sum,item) => sum + item.fees,0);
+  const netCard = actual.card - cardFeeTotal;
   const differences = Object.fromEntries(Object.keys(expected).map(key => [key, actual[key] - expected[key]]));
   const totalDifference = Object.values(differences).reduce((sum, value) => sum + value, 0)
     - numberFrom(review.finance_adjustments);
@@ -144,7 +172,11 @@ export function calculateFinanceReview(record = {}, review = {}) {
     differences,
     totalDifference,
     paidPixRequests,
-    totalAvailable: actual.cash + actual.card + actual.pix - paidPixRequests,
+    grossCard: actual.card,
+    cardFeeTotal,
+    netCard,
+    machineSettlements,
+    totalAvailable: netCard + actual.pix - paidPixRequests,
     totalOutflows: operational.totalOutflows + paidPixRequests,
     status: statusFromDifference(totalDifference),
   };
