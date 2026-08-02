@@ -2,7 +2,7 @@
 
 Sistema web responsivo para fechamento diário, conciliação e acompanhamento de divergências das lojas House 190.
 
-Versão 2.0.1 com divergências por tolerância, fila financeira priorizada, comprovantes,
+Versão 2.1.0 com visual mais leve e profissional, divergências por tolerância, fila financeira priorizada, comprovantes,
 sangria rastreável, resumo líquido, bloqueio após aprovação, reabertura administrativa,
 justificativas e histórico de alterações.
 
@@ -20,6 +20,7 @@ justificativas e histórico de alterações.
 - Cálculo automático de falta ou sobra
 - Dashboard diário e histórico
 - Layout mobile sem zoom involuntário, com fechamento em coluna e tabelas convertidas em cartões
+- Interface clara em azul, branco e cinza, com amarelo reservado para alertas e sangria
 - Dashboard consolidado com entradas, saídas, disponível, pendências e divergências por forma de pagamento
 - Área exclusiva do financeiro com fila de conferência, aprovação e devolução
 - Confirmação individual de Crédito, Débito e Pix por máquina pelo financeiro
