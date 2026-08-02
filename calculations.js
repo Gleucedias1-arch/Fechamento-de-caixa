@@ -151,17 +151,24 @@ export function calculateFinanceReview(record = {}, review = {}) {
     const pix = numberFrom(review[fields.pix]);
     const creditRate = numberFrom(rates.credit);
     const debitRate = numberFrom(rates.debit);
+    const pixRate = numberFrom(rates.pix);
     const creditFee = credit * creditRate / 100;
     const debitFee = debit * debitRate / 100;
-    const fees = creditFee + debitFee;
+    const pixFee = pix * pixRate / 100;
+    const cardFees = creditFee + debitFee;
+    const fees = cardFees + pixFee;
     const grossCard = credit + debit;
+    const netPix = pix - pixFee;
     return [machine,{
-      credit,debit,pix,creditRate,debitRate,creditFee,debitFee,
-      grossCard,fees,netCard:grossCard-fees,totalNet:grossCard-fees+pix,
+      credit,debit,pix,creditRate,debitRate,pixRate,creditFee,debitFee,pixFee,
+      grossCard,cardFees,fees,netCard:grossCard-cardFees,netPix,
+      totalNet:grossCard-cardFees+netPix,
     }];
   }));
-  const cardFeeTotal = Object.values(machineSettlements).reduce((sum,item) => sum + item.fees,0);
+  const cardFeeTotal = Object.values(machineSettlements).reduce((sum,item) => sum + item.cardFees,0);
+  const pixFeeTotal = Object.values(machineSettlements).reduce((sum,item) => sum + item.pixFee,0);
   const netCard = actual.card - cardFeeTotal;
+  const netPix = actual.pix - pixFeeTotal;
   const differences = Object.fromEntries(Object.keys(expected).map(key => [key, actual[key] - expected[key]]));
   const totalDifference = Object.values(differences).reduce((sum, value) => sum + value, 0)
     - numberFrom(review.finance_adjustments);
@@ -174,9 +181,13 @@ export function calculateFinanceReview(record = {}, review = {}) {
     paidPixRequests,
     grossCard: actual.card,
     cardFeeTotal,
+    grossPix: actual.pix,
+    pixFeeTotal,
     netCard,
+    netPix,
+    feeTotal: cardFeeTotal + pixFeeTotal,
     machineSettlements,
-    totalAvailable: netCard + actual.pix - paidPixRequests,
+    totalAvailable: netCard + netPix - paidPixRequests,
     totalOutflows: operational.totalOutflows + paidPixRequests,
     status: statusFromDifference(totalDifference),
   };
