@@ -1,20 +1,20 @@
 :root {
-  --yellow: #f8c400;
-  --yellow-dark: #d9aa00;
-  --yellow-soft: #fff4bf;
-  --black: #171717;
-  --ink: #202124;
-  --muted: #68707d;
-  --line: #e2e5e9;
-  --bg: #f3f5f7;
+  --yellow: #e7b928;
+  --yellow-dark: #b98b08;
+  --yellow-soft: #fff9e8;
+  --black: #18364d;
+  --ink: #243746;
+  --muted: #71808d;
+  --line: #e4eaf0;
+  --bg: #f7f9fb;
   --white: #fff;
-  --blue: #285b84;
-  --blue-soft: #dcebf7;
-  --green: #168a52;
-  --green-soft: #e8f6ee;
-  --red: #d94141;
-  --orange: #d97706;
-  --shadow: 0 8px 28px rgba(18, 24, 40, .07);
+  --blue: #286184;
+  --blue-soft: #edf4f8;
+  --green: #23845d;
+  --green-soft: #edf8f3;
+  --red: #c94a4a;
+  --orange: #c67a1d;
+  --shadow: 0 8px 24px rgba(24, 54, 77, .055);
 }
 
 * { box-sizing: border-box; }
@@ -640,4 +640,143 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
   .verify-input input { min-height: 44px; padding: 9px; font-size: 16px !important; }
   .rate-machine-card { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rate-machine-card > div:first-child { grid-column: 1 / -1; }
+}
+
+/* Refresh visual leve e profissional — versão 2.1.0 */
+body { background: linear-gradient(180deg, #fbfcfd 0, var(--bg) 220px); }
+.login-shell { background: radial-gradient(circle at 18% 12%, #fff7d9 0, transparent 34%), linear-gradient(145deg, #edf4f8, #f9fbfc); }
+.login-card { border: 1px solid var(--line); box-shadow: 0 24px 70px rgba(24, 54, 77, .12); }
+
+.sidebar { background: #fff; color: var(--ink); border-right: 1px solid var(--line); box-shadow: 10px 0 30px rgba(24, 54, 77, .025); }
+.side-brand { border-bottom-color: var(--line); }
+.side-brand b { color: var(--ink); }
+.side-brand small { color: var(--muted); }
+.nav-item { color: #667783; transition: background .18s ease, color .18s ease, transform .18s ease; }
+.nav-item:hover { background: #f4f7f9; color: var(--blue); transform: translateX(2px); }
+.nav-item.active { background: var(--blue-soft); color: var(--blue); box-shadow: inset 3px 0 var(--blue); }
+.logout { color: #7d8992; }
+.topbar { height: 76px; background: rgba(255,255,255,.94); backdrop-filter: blur(12px); }
+.user-chip > span { background: var(--blue-soft); color: var(--blue); }
+
+.card { border-color: var(--line); border-radius: 16px; box-shadow: var(--shadow); }
+.card-title h3, .form-heading h3 { color: #20384a; }
+input, select, textarea { border-color: #dfe6ec; background: #fcfdfe; }
+input:focus, select:focus, textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(40, 97, 132, .11); }
+.btn { border-radius: 11px; }
+.btn-primary { background: var(--blue); color: #fff; box-shadow: 0 5px 14px rgba(40, 97, 132, .16); }
+.btn-primary:hover { background: #1f5476; }
+.btn-secondary { border-color: var(--line); color: var(--blue); }
+.badge.sangria { background: var(--yellow-soft); color: #7d6007; }
+.bar-fill { background: var(--blue); }
+
+.available-kpi { border-left-width: 3px; background: linear-gradient(135deg, #fff 60%, var(--blue-soft)); }
+.sangria-kpi { border-color: #eee1b5; border-left-width: 3px; background: #fffdf7; }
+.sangria-kpi.sangria-active { background: #fff8df; border-color: #e7cf79; box-shadow: 0 8px 24px rgba(185,139,8,.09); animation: none; }
+
+.identification-card { border-left: 0; }
+.compact-card-heading,
+.sheet-titlebar,
+.closing-final-heading,
+.finance-confirm-section > .card-title,
+.settlement-summary-title { background: #fff; color: var(--ink); border-bottom: 1px solid var(--line); }
+.compact-card-heading { padding: 12px 16px; }
+.compact-card-heading h3,
+.sheet-titlebar h3,
+.closing-final-heading h3,
+.finance-confirm-section > .card-title h3,
+.settlement-summary-title h4 { color: #20384a; }
+.compact-card-heading span,
+.sheet-step,
+.finance-confirm-section > .card-title .block-label,
+.settlement-summary-title span { color: var(--blue); }
+.sheet-titlebar { min-height: 72px; padding: 14px 16px; }
+.sheet-titlebar .section-note,
+.finance-confirm-section > .card-title p { color: var(--muted); }
+.sheet-section .section-number { width: 34px; height: 34px; border: 1px solid #d8e7ef; border-radius: 10px; background: var(--blue-soft); color: var(--blue); }
+.sheet-section { border-color: var(--line); border-radius: 16px; box-shadow: var(--shadow); }
+.identification-card .form-grid,
+.sheet-value-grid,
+.conference-main-grid { gap: 0; padding: 0; background: #fff; }
+.identification-card .form-grid > label,
+.sheet-value-grid label { border-bottom: 1px solid #edf1f4; }
+.identification-card .form-grid > label:last-child,
+.sheet-value-grid label:last-child { border-bottom: 0; }
+.sheet-value-grid input,
+.machine-entry-fields input,
+.verify-input input,
+.rate-machine-card input { background: #f4f8fa; color: #214b67; box-shadow: inset 0 0 0 1px #e0e9ee; }
+.sheet-grand-total,
+.machine-card-total,
+.machine-settlement-footer,
+.settlement-total { background: #eaf2f7; color: var(--blue); }
+.sheet-grand-total strong,
+.machine-card-total strong,
+.machine-settlement-footer strong,
+.settlement-total strong { color: var(--blue); }
+.settlement-total small { color: var(--muted); }
+.cash-count-card { background: #fffaf0; color: #715b18; }
+.conference-total { background: var(--blue-soft); }
+.conference-total.pix-total { background: var(--green-soft); }
+
+.machine-choice input:checked + span { border-color: #9fc2d6; background: var(--blue-soft); color: var(--blue); box-shadow: none; }
+.machine-choice span:hover { border-color: #9fc2d6; background: #f7fafc; }
+.selection-count { background: var(--blue-soft); color: var(--blue); }
+.machine-entry-card,
+.machine-finance-card,
+.machine-summary,
+.settlement-summary { border-color: var(--line); border-radius: 12px; box-shadow: 0 5px 16px rgba(24,54,77,.045); }
+.machine-sheet-title { background: #f7fafc; color: var(--ink); text-align: left; border-bottom: 1px solid var(--line); }
+.machine-sheet-title span { color: var(--blue); }
+.machine-sheet-title h5,
+.machine-sheet-title h4 { color: #20384a; }
+.machine-sheet-subtitle { background: #fff; color: var(--muted); text-align: left; border-bottom: 1px solid var(--line); }
+.machine-entry-fields,
+.machine-pair { gap: 0; background: #fff; }
+.machine-entry-fields label,
+.finance-verify-row { border-bottom: 1px solid #edf1f4; }
+.machine-summary { border-top: 3px solid #9fc2d6; }
+.machine-summary-head span { background: var(--blue-soft); color: var(--blue); }
+
+.entry-row { border-left-width: 3px; border-left-color: #9fc2d6; box-shadow: 0 4px 14px rgba(24,54,77,.035); }
+.pix-request-row { border-left-color: #8cc8ac; }
+.pix-request-section .sheet-titlebar { border-bottom-color: var(--line); }
+.closing-final-card { border: 1px solid var(--line); }
+.reconciliation { border-left-width: 3px; }
+.closing-final-footer { background: #fafcfd; }
+
+.rate-settings-card,
+.finance-consolidated-card,
+.finance-data-block { border-top: 3px solid #a9c8da; }
+.tolerance-setting,
+.confirmation-highlight,
+.reopen-panel { border-color: #eee1b5; background: #fffaf0; }
+.rate-machine-card,
+.review-attachment,
+.note-box,
+.empty-inline { background: #fafcfd; }
+.sangria-review-alert { border: 1px solid #e9d582; background: #fff9e5; box-shadow: 0 8px 22px rgba(185,139,8,.07); }
+.finance-consolidated-grid,
+.finance-summary-grid { gap: 0; border-color: var(--line); background: #fff; }
+.finance-consolidated-grid > div,
+.finance-summary-grid > div { background: #f5f9fb; border-right: 1px solid #e6edf1; }
+.finance-consolidated-grid .summary-highlight { background: #e6f0f5; }
+.finance-consolidated-grid .summary-highlight span,
+.finance-consolidated-grid .summary-highlight strong { color: var(--blue); }
+.finance-confirm-section { border-color: var(--line); }
+.machine-verify-head { background: #f7f9fb; }
+.settlement-summary { border-color: var(--line); }
+.settlement-summary-list .pix-fee-line { background: #f4faf7; }
+.audit-entry > span { background: var(--blue); box-shadow: 0 0 0 2px #dbe9f1; }
+.finance-result { border-left: 3px solid #8fb9d0; }
+.toast { background: #24475f; }
+
+@media (max-width: 600px) {
+  body { background: var(--bg); }
+  .topbar { height: 70px; }
+  .view { padding: 12px 10px 18px; }
+  .card, .sheet-section { border-radius: 14px; }
+  .sheet-titlebar { min-height: 66px; padding: 12px; }
+  .sheet-section .section-number { width: 30px; height: 30px; }
+  .mobile-card-table tbody tr { border-top: 3px solid #9fc2d6; box-shadow: 0 5px 15px rgba(24,54,77,.045); }
+  .sidebar { box-shadow: 14px 0 36px rgba(24,54,77,.12); }
 }
