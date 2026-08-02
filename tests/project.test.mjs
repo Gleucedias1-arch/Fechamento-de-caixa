@@ -53,9 +53,9 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'1.7.0');
-  assert.match(html,/app\.js\?v=1\.7\.0/);
-  assert.match(html,/styles\.css\?v=1\.7\.0/);
+  assert.equal(JSON.parse(packageJson).version,'1.7.1');
+  assert.match(html,/app\.js\?v=1\.7\.1/);
+  assert.match(html,/styles\.css\?v=1\.7\.1/);
 });
 
 test('fechamento usa hierarquia compacta inspirada na planilha',()=>{
@@ -80,5 +80,6 @@ test('identificação e finalização são compactas e bem agrupadas',()=>{
   assert.match(html,/class="card closing-final-card"/);
   assert.match(html,/class="closing-final-main"/);
   assert.match(html,/class="closing-final-footer"/);
-  assert.match(css,/\.closing-final-main \{ display: grid; grid-template-columns: minmax\(220px, \.72fr\) minmax\(0, 1\.28fr\);/);
+  assert.match(css,/\.closing-final-main \{ display: grid; grid-template-columns: 1fr;/);
+  assert.match(html,/pix-request-section[\s\S]*closing-final-card[\s\S]*<\/div>\s*<\/div>\s*<\/form>/);
 });
