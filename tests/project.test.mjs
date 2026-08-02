@@ -53,19 +53,22 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'1.5.0');
-  assert.match(html,/app\.js\?v=1\.5\.0/);
-  assert.match(html,/styles\.css\?v=1\.5\.0/);
+  assert.equal(JSON.parse(packageJson).version,'1.6.0');
+  assert.match(html,/app\.js\?v=1\.6\.0/);
+  assert.match(html,/styles\.css\?v=1\.6\.0/);
 });
 
 test('fechamento usa hierarquia compacta inspirada na planilha',()=>{
   assert.match(html,/class="sheet-titlebar"/);
   assert.match(html,/class="form-grid money-grid sheet-value-grid"/);
-  assert.match(css,/#closingForm \{ width: min\(760px, 100%\); margin: 0 auto; \}/);
+  assert.match(css,/#closingForm \{ width: min\(1180px, 100%\); margin: 0 auto; \}/);
+  assert.match(html,/class="closing-card-grid"/);
+  assert.match(css,/\.closing-card-grid, \.closing-summary-grid \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
   assert.match(css,/\.sheet-value-grid \{ grid-template-columns: 1fr;/);
-  assert.match(css,/\.selected-machine-grid \{ display: grid; grid-template-columns: 1fr;/);
+  assert.match(css,/\.selected-machine-grid \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
   assert.match(css,/\.machine-entry-fields \{ display: grid; grid-template-columns: 1fr;/);
   assert.match(css,/\.movement-values \{ grid-template-columns: 1fr; \}/);
   assert.match(html,/Nenhuma máquina selecionada/);
   assert.match(html,/Marque apenas as máquinas usadas neste fechamento/);
+  assert.match(css,/@media \(max-width: 440px\)[\s\S]*\.selected-machine-grid, \.machine-summary-grid, \.machine-finance-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
 });
