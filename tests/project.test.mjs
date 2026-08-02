@@ -62,9 +62,19 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.0.0');
-  assert.match(html,/app\.js\?v=2\.0\.0/);
-  assert.match(html,/styles\.css\?v=2\.0\.0/);
+  assert.equal(JSON.parse(packageJson).version,'2.0.1');
+  assert.match(html,/app\.js\?v=2\.0\.1/);
+  assert.match(html,/styles\.css\?v=2\.0\.1/);
+});
+
+test('celular não usa tabelas largas nem força zoom nos campos',()=>{
+  assert.match(html,/class="mobile-card-table divergence-table"/);
+  assert.match(html,/class="mobile-card-table finance-queue-table"/);
+  assert.match(app,/data-label="Divergência"/);
+  assert.match(app,/data-label="Comprovantes"/);
+  assert.match(css,/@media \(max-width: 600px\)[\s\S]*\.closing-card-grid[\s\S]*grid-template-columns: 1fr/);
+  assert.match(css,/input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\)[\s\S]*font-size: 16px !important/);
+  assert.match(css,/\.mobile-card-table tbody tr[\s\S]*display: grid/);
 });
 
 test('dashboard separa disponível bancário e sangria física',()=>{

@@ -633,7 +633,7 @@ function renderDivergences(rows) {
     const diff = item.financeCalc?.differences || item.differences || {};
     const total = item.financeCalc?.totalDifference ?? item.difference;
     const label = differenceLabel(total);
-    return `<tr><td>${escapeHtml(item.store)}</td><td>${escapeHtml(item.operator)}</td><td class="${differenceClass(diff.cash)}">${formatBRL(diff.cash)}</td><td class="${differenceClass(diff.card)}">${formatBRL(diff.card)}</td><td class="${differenceClass(diff.pix)}">${formatBRL(diff.pix)}</td><td class="${differenceClass(total)}">${formatBRL(total)}</td><td><span class="badge ${label[0]}">${label[1]}</span></td></tr>`;
+    return `<tr><td data-label="Loja">${escapeHtml(item.store)}</td><td data-label="Operador">${escapeHtml(item.operator)}</td><td data-label="Dinheiro" class="${differenceClass(diff.cash)}">${formatBRL(diff.cash)}</td><td data-label="Cartão" class="${differenceClass(diff.card)}">${formatBRL(diff.card)}</td><td data-label="Pix" class="${differenceClass(diff.pix)}">${formatBRL(diff.pix)}</td><td data-label="Total" class="${differenceClass(total)}">${formatBRL(total)}</td><td data-label="Status"><span class="badge ${label[0]}">${label[1]}</span></td></tr>`;
   }).join('') : '<tr><td colspan="7" class="empty">Nenhuma divergência encontrada.</td></tr>';
 }
 $('#refreshDash').onclick = loadDashboard;
@@ -672,7 +672,7 @@ async function loadFinance() {
       const priority = queueCategory(item) === 'sangria' ? ['sangria','Sangria']
         : differenceSeverity(diff,divergenceTolerance) === 'critical' ? ['bad','Alta']
         : differenceSeverity(diff,divergenceTolerance) === 'warning' ? ['warn','Média'] : ['draft','Normal'];
-      return `<tr><td><span class="badge ${priority[0]}">${priority[1]}</span></td><td>${formatDate(item.date)}</td><td>${escapeHtml(item.store)}</td><td>${escapeHtml(item.operator)}</td><td>${sangriaAvailable(item) ? `<span class="sangria-table-value">${formatBRL(sangriaAvailable(item))}</span>` : '—'}</td><td class="${differenceClass(diff)}">${formatBRL(diff)}<small class="cell-note">${diffLabel[1]}</small></td><td>${(item.attachments || []).length}</td><td>${queueBadge(item)}</td><td><button class="table-action" data-review-id="${escapeHtml(item.id)}">${financeState(item)==='approved'?'Ver':'Conferir'}</button></td></tr>`;
+      return `<tr><td data-label="Prioridade"><span class="badge ${priority[0]}">${priority[1]}</span></td><td data-label="Data">${formatDate(item.date)}</td><td data-label="Loja">${escapeHtml(item.store)}</td><td data-label="Operador">${escapeHtml(item.operator)}</td><td data-label="Sangria">${sangriaAvailable(item) ? `<span class="sangria-table-value">${formatBRL(sangriaAvailable(item))}</span>` : '—'}</td><td data-label="Divergência" class="${differenceClass(diff)}">${formatBRL(diff)}<small class="cell-note">${diffLabel[1]}</small></td><td data-label="Comprovantes">${(item.attachments || []).length}</td><td data-label="Status">${queueBadge(item)}</td><td data-label="Ação"><button class="table-action" data-review-id="${escapeHtml(item.id)}">${financeState(item)==='approved'?'Ver':'Conferir'}</button></td></tr>`;
     }).join('') : '<tr><td colspan="9" class="empty">Nenhum fechamento neste filtro.</td></tr>';
     $('#financeReviewPanel').classList.add('hidden');
     $('#financeQueueCard').classList.remove('hidden');
