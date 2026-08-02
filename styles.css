@@ -509,3 +509,135 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
   .review-attachment-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
   .finance-consolidated-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
+
+/* Mobile estreito: leitura vertical, alvos de toque seguros e tabelas sem rolagem lateral. */
+@media (max-width: 600px) {
+  html { -webkit-text-size-adjust: 100%; }
+  body { overflow-x: hidden; }
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea { font-size: 16px !important; }
+
+  .topbar { min-width: 0; height: 76px; padding: 0 12px; gap: 12px; }
+  .topbar > div:nth-child(2) { min-width: 0; }
+  .topbar h2 { overflow: hidden; font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
+  .view { min-width: 0; padding: 12px; }
+  .card { min-width: 0; padding: 14px; border-radius: 12px; }
+  .form-heading { align-items: flex-start; gap: 10px; }
+  .form-heading h3 { font-size: 20px; }
+
+  .closing-card-grid { grid-template-columns: 1fr; gap: 12px; }
+  .closing-column { display: contents; }
+  .site-information-card { order: 1; }
+  .store-conference-card { order: 2; }
+  .movement-card { order: 3; }
+  .pix-request-section { order: 4; }
+  .closing-final-card { order: 5; }
+  .selected-machine-grid,
+  .machine-summary-grid { grid-template-columns: 1fr; }
+  .sheet-titlebar { min-height: 72px; }
+  .sheet-titlebar h3 { font-size: 15px; }
+  .sheet-titlebar .section-note { font-size: 9px; }
+  .sheet-value-grid label,
+  .machine-entry-fields label,
+  .machine-pair .confirm-field > label:first-child {
+    grid-template-columns: minmax(0, 1fr) minmax(135px, 44%);
+    align-items: center;
+    gap: 9px;
+  }
+  .sheet-value-grid input,
+  .machine-entry-fields input { min-height: 44px; }
+  .cash-count-card input { width: min(180px, 52%); min-height: 44px; }
+  .identification-card .form-grid input,
+  .identification-card .form-grid select { min-height: 44px; }
+  .attachment-controls,
+  .sangria-detail-grid { grid-template-columns: 1fr; }
+  .closing-final-footer { align-items: stretch; flex-direction: column; }
+  .closing-final-footer .form-actions { width: 100%; }
+  .closing-final-footer .form-actions .btn { min-width: 0; }
+
+  .mobile-card-table-wrap { overflow: visible; }
+  .mobile-card-table,
+  .mobile-card-table tbody { display: block; width: 100%; }
+  .mobile-card-table thead { display: none; }
+  .mobile-card-table tbody { display: grid; gap: 10px; }
+  .mobile-card-table tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-top: 4px solid var(--yellow);
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 5px 16px rgba(18, 24, 40, .06);
+  }
+  .mobile-card-table td {
+    min-width: 0;
+    min-height: 58px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px;
+    border: 0;
+    border-right: 1px solid #eef0f2;
+    border-bottom: 1px solid #eef0f2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .mobile-card-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: .45px;
+    text-transform: uppercase;
+  }
+  .mobile-card-table td:not([data-label])::before { display: none; }
+  .mobile-card-table td:nth-child(even) { border-right: 0; }
+  .mobile-card-table td:last-child {
+    grid-column: 1 / -1;
+    min-height: 50px;
+    border-right: 0;
+    border-bottom: 0;
+  }
+  .mobile-card-table td.empty {
+    grid-column: 1 / -1;
+    display: block;
+    min-height: 0;
+    padding: 24px 14px;
+    text-align: center;
+  }
+  .divergence-table td:nth-child(1),
+  .divergence-table td:nth-child(2),
+  .finance-queue-table td:nth-child(3),
+  .finance-queue-table td:nth-child(4) {
+    grid-column: 1 / -1;
+    min-height: 52px;
+    border-right: 0;
+  }
+  .finance-queue-table .table-action { width: 100%; min-height: 42px; font-size: 13px; }
+  .finance-queue-table .cell-note { font-size: 10px; }
+
+  .machine-verify-head { display: none; }
+  .finance-verify-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "method check"
+      "store found"
+      "fee fee";
+    gap: 10px;
+    padding: 11px;
+  }
+  .verify-method { grid-area: method; }
+  .verify-value { grid-area: store; text-align: left; }
+  .verify-input { grid-area: found; text-align: left; }
+  .verify-fee { grid-area: fee; text-align: left; }
+  .verify-check { grid-area: check; justify-self: end; }
+  .verify-value strong,
+  .verify-fee strong { font-size: 12px; }
+  .verify-input input { min-height: 44px; padding: 9px; font-size: 16px !important; }
+  .rate-machine-card { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rate-machine-card > div:first-child { grid-column: 1 / -1; }
+}
