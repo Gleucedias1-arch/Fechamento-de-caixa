@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 
-const [html,app,css,rules,packageJson] = await Promise.all([
+const [html,app,css,rules,storageRules,packageJson] = await Promise.all([
   fs.readFile(new URL('../index.html',import.meta.url),'utf8'),
   fs.readFile(new URL('../app.js',import.meta.url),'utf8'),
   fs.readFile(new URL('../styles.css',import.meta.url),'utf8'),
   fs.readFile(new URL('../database.rules.json',import.meta.url),'utf8'),
+  fs.readFile(new URL('../storage.rules',import.meta.url),'utf8'),
   fs.readFile(new URL('../package.json',import.meta.url),'utf8'),
 ]);
 
@@ -17,7 +18,9 @@ test('área financeira e indicadores existem na interface',()=>{
     'reviewCardMachines','financeCardFields','financePixRequests','outflowRows','pixRequestRows'
     ,'machineSelection','selectedMachineCards','pixConferenceTotal','selectedMachineCount',
     'kpiSangria','financeSangria','cardFeeSettings','financeGrossCard','financeCardFees',
-    'financeNetCard','financeGrossPix','financePixFees','financeNetPix','financeNetAvailable','reviewSangriaAlert'
+    'financeNetCard','financeGrossPix','financePixFees','financeNetPix','financeNetAvailable','reviewSangriaAlert',
+    'financeSummaryGrid','financeReopened','attachmentFiles','attachmentList','reviewAttachments',
+    'auditTimeline','reopenClosing','divergenceTolerance','closingDivergenceFields','financeDivergenceFields'
   ]) assert.match(html,new RegExp(`id="${id}"`));
 });
 
@@ -54,12 +57,14 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
   assert.match(rules,/role'\)\.val\(\) === 'finance'/);
   assert.match(rules,/approved/);
   assert.match(rules,/returned/);
+  assert.match(rules,/reopened/);
+  assert.match(rules,/auditLogs/);
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'1.8.1');
-  assert.match(html,/app\.js\?v=1\.8\.1/);
-  assert.match(html,/styles\.css\?v=1\.8\.1/);
+  assert.equal(JSON.parse(packageJson).version,'2.0.0');
+  assert.match(html,/app\.js\?v=2\.0\.0/);
+  assert.match(html,/styles\.css\?v=2\.0\.0/);
 });
 
 test('dashboard separa disponível bancário e sangria física',()=>{
@@ -109,4 +114,44 @@ test('identificação e finalização são compactas e bem agrupadas',()=>{
   assert.match(html,/class="closing-final-footer"/);
   assert.match(css,/\.closing-final-main \{ display: grid; grid-template-columns: 1fr;/);
   assert.match(html,/pix-request-section[\s\S]*closing-final-card[\s\S]*<\/div>\s*<\/div>\s*<\/form>/);
+});
+
+test('fila financeira possui todos os estados priorizados',()=>{
+  for (const status of ['open','pending','divergent','sangria','approved','reopened','returned','all']) {
+    assert.match(html,new RegExp(`<option value="${status}"`));
+  }
+  assert.match(app,/function queueCategory/);
+  assert.match(app,/function queuePriority/);
+  assert.match(css,/\.badge\.sangria/);
+});
+
+test('comprovantes aceitam fotos e PDF com regras de armazenamento',()=>{
+  assert.match(html,/accept="image\/\*,application\/pdf"/);
+  assert.match(app,/uploadPendingAttachments/);
+  assert.match(app,/getDownloadURL/);
+  assert.match(storageRules,/request\.resource\.size <= 2 \* 1024 \* 1024/);
+  assert.match(storageRules,/application\/pdf/);
+});
+
+test('sangria registra entrega e recebimento completos',()=>{
+  assert.match(html,/name="sangria_responsible"/);
+  assert.match(html,/name="sangria_delivered_at"/);
+  assert.match(app,/sangriaReceivedByName/);
+  assert.match(app,/sangriaReceivedAt/);
+});
+
+test('aprovação bloqueia o fechamento e reabertura exige administrador e motivo',()=>{
+  assert.match(app,/setFinanceReviewLocked/);
+  assert.match(app,/profile\?\.role !== 'admin'/);
+  assert.match(app,/Informe o motivo da reabertura/);
+  assert.match(app,/appendAudit\(id,'reopened'/);
+  assert.match(rules,/data\.child\('status'\)\.val\(\) !== 'approved'/);
+});
+
+test('divergências exigem motivo e usam tolerância configurável',()=>{
+  assert.match(html,/name="divergence_reason"/);
+  assert.match(html,/name="finance_divergence_reason"/);
+  assert.match(app,/differenceSeverity/);
+  assert.match(app,/settings\/divergenceTolerance/);
+  assert.match(rules,/divergenceTolerance/);
 });

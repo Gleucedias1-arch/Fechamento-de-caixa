@@ -19,22 +19,35 @@
           "pix": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
           "$other": { ".validate": false }
         }
+      },
+      "divergenceTolerance": {
+        ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() === true",
+        ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000"
       }
     },
     "closings": {
       ".read": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('active').val() === true)",
       ".indexOn": ["date", "searchDateStore", "financeStatus"],
       "$id": {
-        ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance' || (root.child('users').child(auth.uid).child('active').val() === true && root.child('users').child(auth.uid).child('store').val() === newData.child('store').val() && newData.child('createdBy').val() === auth.uid && (!data.exists() || data.child('status').val() === 'draft') && !newData.child('financeReview').exists() && (newData.child('status').val() === 'draft' || newData.child('status').val() === 'submitted'))) ",
+        ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'finance' && data.child('status').val() !== 'approved' && newData.child('status').val() !== 'reopened') || (root.child('users').child(auth.uid).child('active').val() === true && root.child('users').child(auth.uid).child('store').val() === newData.child('store').val() && newData.child('createdBy').val() === auth.uid && (!data.exists() || data.child('status').val() === 'draft') && !newData.child('financeReview').exists() && (newData.child('status').val() === 'draft' || newData.child('status').val() === 'submitted'))) ",
         ".validate": "newData.hasChildren(['date','store','operator','systemTotal','countedTotal','difference','status','createdBy','financeStatus'])",
         "status": {
-          ".validate": "newData.val() === 'draft' || newData.val() === 'submitted' || newData.val() === 'approved' || newData.val() === 'returned'"
+          ".validate": "newData.val() === 'draft' || newData.val() === 'submitted' || newData.val() === 'approved' || newData.val() === 'returned' || newData.val() === 'reopened'"
         },
         "financeStatus": {
-          ".validate": "newData.val() === 'not_submitted' || newData.val() === 'pending' || newData.val() === 'approved' || newData.val() === 'returned'"
+          ".validate": "newData.val() === 'not_submitted' || newData.val() === 'pending' || newData.val() === 'approved' || newData.val() === 'returned' || newData.val() === 'reopened'"
         },
         "financeReview": {
           ".validate": "!newData.exists() || auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance'"
+        }
+      }
+    },
+    "auditLogs": {
+      "$closingId": {
+        ".read": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance' || root.child('closings').child($closingId).child('createdBy').val() === auth.uid)",
+        "$auditId": {
+          ".write": "auth != null && !data.exists() && newData.child('actorId').val() === auth.uid && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance' || root.child('closings').child($closingId).child('createdBy').val() === auth.uid)",
+          ".validate": "newData.hasChildren(['action','timestamp','actorId','actorName','actorRole'])"
         }
       }
     }

@@ -2,6 +2,10 @@
 
 Sistema web responsivo para fechamento diário, conciliação e acompanhamento de divergências das lojas House 190.
 
+Versão 2.0.0 com divergências por tolerância, fila financeira priorizada, comprovantes,
+sangria rastreável, resumo líquido, bloqueio após aprovação, reabertura administrativa,
+justificativas e histórico de alterações.
+
 ## Recursos
 
 - Login por e-mail e senha com Firebase Authentication
@@ -26,8 +30,9 @@ Sistema web responsivo para fechamento diário, conciliação e acompanhamento d
 
 1. Ative Authentication por e-mail/senha no Firebase.
 2. Publique `database.rules.json` no Realtime Database para habilitar os perfis e a conferência financeira.
-3. O primeiro acesso de `glleucedias1@gmail.com` cria o perfil administrador.
-4. Publique os arquivos pelo GitHub Pages ou Firebase Hosting.
+3. Publique `storage.rules` no Firebase Storage para permitir fotos e PDFs.
+4. O primeiro acesso de `glleucedias1@gmail.com` cria o perfil administrador.
+5. Publique os arquivos pelo GitHub Pages ou Firebase Hosting.
 
 ## Segurança
 
