@@ -62,20 +62,36 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.1.3');
-  assert.match(html,/app\.js\?v=2\.1\.2/);
-  assert.match(html,/styles\.css\?v=2\.1\.2/);
+  assert.equal(JSON.parse(packageJson).version,'2.1.4');
+  assert.match(html,/app\.js\?v=2\.1\.4/);
+  assert.match(html,/styles\.css\?v=2\.1\.4/);
 });
 
 test('solicitação Pix mantém Nome e Chave amplos sem ultrapassar o cartão',()=>{
-  assert.match(css,/\.pix-request-row \{[\s\S]*grid-template-columns: repeat\(12, minmax\(0, 1fr\)\)/);
-  assert.match(css,/\.pix-request-row > label:nth-child\(1\) \{ grid-column: span 5; \}/);
-  assert.match(css,/\.pix-request-row > label:nth-child\(2\) \{ grid-column: span 7; \}/);
-  assert.match(css,/\.pix-request-row > label:nth-child\(3\) \{ grid-column: span 7; \}/);
-  assert.match(css,/\.pix-request-row > label:nth-child\(4\) \{ grid-column: span 3; \}/);
-  assert.match(css,/\.pix-request-row > \.entry-remove \{ grid-column: span 2; justify-self: end; \}/);
-  assert.match(css,/\.pix-request-row > label:nth-child\(5\) \{ grid-column: 1 \/ -1; \}/);
-  assert.match(css,/@media \(max-width: 600px\)[\s\S]*\.pix-request-row > label:nth-child\(n\),[\s\S]*grid-column: auto;/);
+  assert.match(css,/\.pix-request-editor \{ display: grid; grid-template-columns: repeat\(12,minmax\(0,1fr\)\)/);
+  assert.match(css,/\.pix-request-editor > label:nth-child\(2\) \{ grid-column: span 7; \}/);
+  assert.match(css,/\.pix-request-editor > label:nth-child\(3\) \{ grid-column: span 7; \}/);
+  assert.match(css,/\.pix-request-editor > label:nth-child\(4\) \{ grid-column: span 5; \}/);
+  assert.match(css,/\.pix-request-editor > label:nth-child\(5\) \{ grid-column: 1 \/ -1; \}/);
+  assert.match(css,/@media \(max-width: 600px\)[\s\S]*\.pix-request-editor > label:nth-child\(n\), \.pix-request-editor-actions \{ grid-column: auto; \}/);
+});
+
+test('múltiplas solicitações Pix ficam compactas e apenas uma permanece aberta',()=>{
+  assert.match(html,/id="pixRequestCount"/);
+  assert.match(app,/function pixRequestIsComplete/);
+  assert.match(app,/function setPixRequestEditing/);
+  assert.match(app,/Conclua o Pix atual antes de adicionar outro/);
+  assert.match(app,/data-pix-action="finish"/);
+  assert.match(app,/data-pix-action="edit"/);
+  assert.match(css,/\.pix-request-card\.is-collapsed \.pix-request-editor \{ display: none; \}/);
+  assert.match(css,/\.pix-request-card\.is-editing \.pix-request-summary \{ display: none; \}/);
+  assert.match(css,/\.pix-request-summary \{[\s\S]*min-height: 64px/);
+});
+
+test('rótulos de recebimentos permanecem inteiros em cartões estreitos',()=>{
+  assert.match(css,/\.machine-entry-fields label \{ min-width: 0; grid-template-columns: minmax\(72px, \.65fr\) minmax\(0, 1\.35fr\);/);
+  assert.match(css,/\.machine-entry-fields label > span \{ min-width: 0;[\s\S]*white-space: nowrap;/);
+  assert.match(css,/\.machine-entry-fields input \{ min-width: 0;/);
 });
 
 test('botão de excluir movimentação permanece visível em todas as larguras',()=>{
