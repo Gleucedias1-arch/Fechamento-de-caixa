@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2.0.0" />
+  <link rel="stylesheet" href="styles.css?v=2.0.1" />
 </head>
 <body>
   <div id="toast" class="toast" aria-live="polite"></div>
@@ -67,7 +67,7 @@
           <article class="card"><div class="card-title"><div><h3>Situação por loja</h3><p>Fechamento e conferência do dia selecionado</p></div></div><div id="storeStatus" class="store-list"></div></article>
           <article class="card"><div class="card-title"><div><h3>Composição das entradas</h3><p>Valores por forma de pagamento</p></div></div><div id="channelBars" class="bars"></div></article>
         </div>
-        <article class="card"><div class="card-title"><div><h3>Divergências encontradas</h3><p>A conferência considera somente Dinheiro, Cartão e Pix</p></div></div><div class="table-wrap"><table><thead><tr><th>Loja</th><th>Operador</th><th>Dinheiro</th><th>Cartão</th><th>Pix</th><th>Total</th><th>Status</th></tr></thead><tbody id="divergenceRows"></tbody></table></div></article>
+        <article class="card"><div class="card-title"><div><h3>Divergências encontradas</h3><p>A conferência considera somente Dinheiro, Cartão e Pix</p></div></div><div class="table-wrap mobile-card-table-wrap"><table class="mobile-card-table divergence-table"><thead><tr><th>Loja</th><th>Operador</th><th>Dinheiro</th><th>Cartão</th><th>Pix</th><th>Total</th><th>Status</th></tr></thead><tbody id="divergenceRows"></tbody></table></div></article>
       </section>
 
       <section id="closingView" class="view">
@@ -110,7 +110,7 @@
           <article class="kpi card"><span>Aguardando</span><strong id="financePending">0</strong><small>Caixas para conferir</small></article><article class="kpi card"><span>Conferidos</span><strong id="financeApproved">0</strong><small>Aprovações no período</small></article><article class="kpi card"><span>Reabertos</span><strong id="financeReopened">0</strong><small>Exigem nova análise</small></article><article class="kpi card"><span>Pix pendentes</span><strong id="financePixPending">0</strong><small>Motoboys e freelancers</small></article><article id="financeSangriaCard" class="kpi card sangria-kpi"><span>Sangria disponível</span><strong id="financeSangria">R$ 0,00</strong><small>Aguardando recebimento</small></article><article class="kpi card"><span>Com divergência</span><strong id="financeDivergent">0</strong><small>Exigem justificativa</small></article><article class="kpi card"><span>Divergência acumulada</span><strong id="financeTotalDiff">R$ 0,00</strong><small>Resultado das conferências</small></article>
         </div>
         <article class="card finance-consolidated-card"><div class="card-title"><div><span class="block-label">RESUMO DO PERÍODO</span><h3>Consolidado financeiro</h3><p>Valores brutos, taxas, líquidos, saídas Pix, sangrias e resultado.</p></div></div><div id="financeSummaryGrid" class="finance-consolidated-grid"></div></article>
-        <article class="card" id="financeQueueCard"><div class="card-title"><div><h3>Fila de conferência otimizada</h3><p>Ordenada por sangria, divergência crítica e tempo de espera.</p></div></div><div class="table-wrap"><table><thead><tr><th>Prioridade</th><th>Data</th><th>Loja</th><th>Operador</th><th>Sangria</th><th>Divergência</th><th>Comprovantes</th><th>Status</th><th></th></tr></thead><tbody id="financeRows"></tbody></table></div></article>
+        <article class="card" id="financeQueueCard"><div class="card-title"><div><h3>Fila de conferência otimizada</h3><p>Ordenada por sangria, divergência crítica e tempo de espera.</p></div></div><div class="table-wrap mobile-card-table-wrap"><table class="mobile-card-table finance-queue-table"><thead><tr><th>Prioridade</th><th>Data</th><th>Loja</th><th>Operador</th><th>Sangria</th><th>Divergência</th><th>Comprovantes</th><th>Status</th><th></th></tr></thead><tbody id="financeRows"></tbody></table></div></article>
 
         <div id="financeReviewPanel" class="hidden">
           <div class="review-heading"><div><button id="closeReview" class="back-button" type="button">← Voltar à fila</button><h3 id="reviewRecordTitle">Conferência do caixa</h3><p id="reviewRecordMeta" class="muted"></p></div><span id="reviewStatus" class="badge draft">Pendente</span></div>
@@ -138,6 +138,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=2.0.0"></script>
+  <script type="module" src="app.js?v=2.0.1"></script>
 </body>
 </html>
