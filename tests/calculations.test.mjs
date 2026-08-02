@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { numberFrom, calculateClosing, calculateFinanceReview } from '../calculations.js';
+import { numberFrom, calculateClosing, calculateFinanceReview, differenceSeverity, summarizeFinance } from '../calculations.js';
 
 test('converte valores brasileiros',()=>{
   assert.equal(numberFrom('1.234,56'),1234.56);
@@ -114,5 +114,26 @@ test('Pix de motoboy ou freelancer só vira saída após confirmação do financ
   const result=calculateFinanceReview(record,review);
   assert.equal(result.paidPixRequests,70);
   assert.equal(result.totalOutflows,70);
-  assert.equal(result.totalAvailable,-70);
+  assert.equal(result.totalAvailable,0);
+});
+
+test('classifica divergência por tolerância configurada',()=>{
+  assert.equal(differenceSeverity(0,1),'balanced');
+  assert.equal(differenceSeverity(0.75,1),'warning');
+  assert.equal(differenceSeverity(-1,1),'warning');
+  assert.equal(differenceSeverity(1.01,1),'critical');
+});
+
+test('consolida bruto, taxas, líquidos, Pix pago, sangria e divergência',()=>{
+  const rows=[{
+    withdrawals:50,sangria_delivered:true,financeReview:{finance_sangria_received:false},
+    financeCalc:{grossCard:300,cardFeeTotal:9,netCard:291,grossPix:100,pixFeeTotal:1,netPix:99,paidPixRequests:20,totalAvailable:370,totalDifference:-2}
+  },{
+    withdrawals:30,sangria_delivered:true,financeReview:{finance_sangria_received:true},
+    financeCalc:{grossCard:200,cardFeeTotal:4,netCard:196,grossPix:50,pixFeeTotal:.5,netPix:49.5,paidPixRequests:0,totalAvailable:245.5,totalDifference:2}
+  }];
+  assert.deepEqual(summarizeFinance(rows),{
+    grossCard:500,cardFees:13,netCard:487,grossPix:150,pixFees:1.5,netPix:148.5,
+    paidPix:20,pendingSangria:50,totalAvailable:615.5,totalDifference:0
+  });
 });

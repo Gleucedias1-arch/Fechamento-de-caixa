@@ -1,11 +1,13 @@
 import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
 import { getDatabase, ref, get, set, push, update, query, orderByChild, startAt, endAt } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js';
 import { firebaseConfig, ADMIN_EMAIL } from './firebase-config.js';
 import {
   SYSTEM_FIELDS, COUNTED_FIELDS, EXPENSE_FIELDS, CARD_FIELDS, MACHINE_PIX_FIELDS,
   FINANCE_MACHINE_FIELDS, FINANCE_CONFIRM_FIELDS,
-  numberFrom, calculateClosing, calculateFinanceReview, formatBRL
+  numberFrom, calculateClosing, calculateFinanceReview, summarizeFinance,
+  differenceSeverity, formatBRL
 } from './calculations.js';
 
 const STORES = ['House 190 Teixeira','House 190 Eunápolis','House Food Park Teixeira'];
@@ -26,11 +28,15 @@ const OPERATION_FIELDS = [
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
+const storage = getStorage(app);
 let profile = null;
 let currentClosings = [];
 let financeClosings = [];
 let currentReviewRecord = null;
 let cardFeeRates = Object.fromEntries(Object.keys(OPERATOR_GROUPS).map(machine => [machine,{credit:0,debit:0,pix:0}]));
+let divergenceTolerance = 1;
+let pendingAttachments = [];
+let savedAttachments = [];
 
 const $ = (selector, root=document) => root.querySelector(selector);
 const $$ = (selector, root=document) => [...root.querySelectorAll(selector)];
@@ -39,6 +45,28 @@ const isFinance = () => ['admin','finance'].includes(profile?.role);
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const formatDate = value => value?.includes('-') ? value.split('-').reverse().join('/') : '—';
 const nearZero = value => Math.abs(numberFrom(value)) < 0.01;
+const formatDateTime = value => value ? new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(numberFrom(value) || value)) : '—';
+
+function differenceClass(value) {
+  return {balanced:'positive',warning:'warning-text',critical:'negative'}[differenceSeverity(value,divergenceTolerance)];
+}
+
+function differenceLabel(value) {
+  const severity = differenceSeverity(value,divergenceTolerance);
+  if (severity === 'balanced') return ['ok','Correto'];
+  if (severity === 'warning') return ['warn','Pequena diferença'];
+  return ['bad','Diferença crítica'];
+}
+
+async function appendAudit(closingId, action, details = '') {
+  if (!closingId || !auth.currentUser) return;
+  const auditRef = push(ref(db,`auditLogs/${closingId}`));
+  await set(auditRef,{
+    action,details:String(details || ''),timestamp:Date.now(),
+    actorId:auth.currentUser.uid,actorName:profile?.name || auth.currentUser.email,
+    actorRole:profile?.role || 'unknown'
+  });
+}
 
 function toast(message, error=false) {
   const el = $('#toast');
@@ -204,10 +232,21 @@ function renderCardFeeSettings() {
 }
 
 async function loadCardFeeRates(showMessage = false) {
-  if (!isFinance()) return;
+  if (!isFinance()) {
+    try {
+      const toleranceSnap = await get(ref(db,'settings/divergenceTolerance'));
+      divergenceTolerance = toleranceSnap.exists() ? Math.max(0,numberFrom(toleranceSnap.val())) : 1;
+    } catch { divergenceTolerance = 1; }
+    return;
+  }
   try {
-    const snap = await get(ref(db,'settings/cardFeeRates'));
-    cardFeeRates = normalizedFeeRates(snap.exists() ? snap.val() : {});
+    const [rateSnap,toleranceSnap] = await Promise.all([
+      get(ref(db,'settings/cardFeeRates')),
+      get(ref(db,'settings/divergenceTolerance'))
+    ]);
+    cardFeeRates = normalizedFeeRates(rateSnap.exists() ? rateSnap.val() : {});
+    divergenceTolerance = toleranceSnap.exists() ? Math.max(0,numberFrom(toleranceSnap.val())) : 1;
+    if ($('#divergenceTolerance')) $('#divergenceTolerance').value = divergenceTolerance;
     renderCardFeeSettings();
   } catch {
     cardFeeRates = normalizedFeeRates(cardFeeRates);
@@ -225,10 +264,12 @@ async function saveCardFeeRates() {
     rates.credit < 0 || rates.credit > 100 || rates.debit < 0 || rates.debit > 100 || rates.pix < 0 || rates.pix > 100
   );
   if (invalid) throw new Error('As taxas devem ficar entre 0% e 100%.');
-  await set(ref(db,'settings/cardFeeRates'),next);
+  const nextTolerance = Math.max(0,numberFrom($('#divergenceTolerance').value));
+  await update(ref(db,'settings'),{cardFeeRates:next,divergenceTolerance:nextTolerance});
   cardFeeRates = next;
+  divergenceTolerance = nextTolerance;
   renderCardFeeSettings();
-  toast('Taxas das maquininhas salvas. Os próximos cálculos usarão esses percentuais.');
+  toast('Taxas e tolerância salvas. Os próximos cálculos usarão essa configuração.');
   await loadDashboard();
 }
 
@@ -272,12 +313,79 @@ function addPixRequestRow(item={}) {
   $('#pixRequestRows').append(row);
 }
 
+function safeFileName(name) {
+  return String(name || 'arquivo').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-zA-Z0-9._-]+/g,'-').slice(-90);
+}
+
+function renderAttachmentList() {
+  const saved = savedAttachments.map((item,index) => `<div class="attachment-item saved"><div><span>${escapeHtml(item.category || 'Comprovante')}</span><b>${escapeHtml(item.name)}</b><small>${Math.round(numberFrom(item.size)/1024)} KB · já salvo</small></div><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">Abrir</a></div>`);
+  const pending = pendingAttachments.map(item => `<div class="attachment-item"><div><span>${escapeHtml(item.category)}</span><b>${escapeHtml(item.file.name)}</b><small>${Math.round(item.file.size/1024)} KB · aguardando envio</small></div><button type="button" data-remove-attachment="${escapeHtml(item.id)}">×</button></div>`);
+  $('#attachmentList').innerHTML = [...saved,...pending].join('') || '<p class="empty-inline">Nenhum comprovante selecionado.</p>';
+}
+
+$('#attachmentFiles').addEventListener('change', event => {
+  const files = [...event.target.files];
+  const available = Math.max(0,5 - savedAttachments.length - pendingAttachments.length);
+  const accepted = files.slice(0,available);
+  if (files.length > available) toast('O limite é de 5 comprovantes por fechamento.',true);
+  accepted.forEach(file => {
+    if (file.size > 2*1024*1024) {
+      toast(`${file.name} ultrapassa o limite de 2 MB.`,true);
+      return;
+    }
+    if (!(file.type.startsWith('image/') || file.type === 'application/pdf')) {
+      toast(`${file.name} não é uma foto ou PDF válido.`,true);
+      return;
+    }
+    pendingAttachments.push({id:`file-${Date.now()}-${Math.random().toString(36).slice(2)}`,file,category:$('#attachmentCategory').value});
+  });
+  event.target.value = '';
+  renderAttachmentList();
+});
+
+$('#attachmentList').addEventListener('click', event => {
+  const button = event.target.closest('[data-remove-attachment]');
+  if (!button) return;
+  pendingAttachments = pendingAttachments.filter(item => item.id !== button.dataset.removeAttachment);
+  renderAttachmentList();
+});
+
+async function uploadPendingAttachments(closingId) {
+  const uploaded = [];
+  try {
+    for (const item of pendingAttachments) {
+      const path = `closings/${closingId}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeFileName(item.file.name)}`;
+      const target = storageRef(storage,path);
+      await uploadBytes(target,item.file,{contentType:item.file.type});
+      const url = await getDownloadURL(target);
+      uploaded.push({
+        name:item.file.name,category:item.category,type:item.file.type,size:item.file.size,
+        url,storagePath:path,uploadedAt:Date.now(),uploadedBy:auth.currentUser.uid,
+        uploadedByName:profile?.name || auth.currentUser.email
+      });
+    }
+    return uploaded;
+  } catch (error) {
+    await Promise.allSettled(uploaded.map(item => deleteObject(storageRef(storage,item.storagePath))));
+    throw new Error('Não foi possível enviar um dos comprovantes. Tente novamente.');
+  }
+}
+
 $('#addOutflow').onclick = () => { addOutflowRow(); updateClosingCalculation(); };
 $('#addPixRequest').onclick = () => { addPixRequestRow(); updateClosingCalculation(); };
 ['#outflowRows','#pixRequestRows'].forEach(selector => $(selector).addEventListener('click', event => {
   const button = event.target.closest('.entry-remove');
   if (button) { button.closest('.entry-row').remove(); updateClosingCalculation(); }
 }));
+
+$('[name="sangria_delivered"]').addEventListener('change', event => {
+  $('#sangriaDetails').classList.toggle('hidden',!event.target.checked);
+  if (event.target.checked && !$('[name="sangria_delivered_at"]').value) {
+    const now = new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+    $('[name="sangria_delivered_at"]').value = now;
+  }
+});
 
 function updateClosingCalculation() {
   const data = closingFormData();
@@ -296,10 +404,14 @@ function updateClosingCalculation() {
   $('#diffTotal').textContent = formatBRL(result.difference);
   const rec = $('.reconciliation');
   const icon = $('#diffBadge');
-  rec.style.borderLeftColor = result.status === 'balanced' ? 'var(--green)' : result.status === 'surplus' ? 'var(--orange)' : 'var(--red)';
-  icon.className = `result-icon ${result.status === 'balanced' ? 'ok' : 'bad'}`;
-  icon.textContent = result.status === 'balanced' ? '✓' : '!';
-  $('#diffExplanation').textContent = result.status === 'balanced' ? 'Os valores estão conciliados.' : result.status === 'surplus' ? 'Foi encontrada sobra no fechamento.' : 'Foi encontrada falta no fechamento.';
+  const severity = differenceSeverity(result.difference,divergenceTolerance);
+  rec.style.borderLeftColor = severity === 'balanced' ? 'var(--green)' : severity === 'warning' ? 'var(--orange)' : 'var(--red)';
+  icon.className = `result-icon ${severity === 'balanced' ? 'ok' : severity === 'warning' ? 'warn' : 'bad'}`;
+  icon.textContent = severity === 'balanced' ? '✓' : '!';
+  $('#diffExplanation').textContent = severity === 'balanced' ? 'Os valores estão conciliados.'
+    : severity === 'warning' ? `Pequena diferença dentro da tolerância de ${formatBRL(divergenceTolerance)}.`
+    : result.status === 'surplus' ? 'Foi encontrada sobra acima da tolerância.' : 'Foi encontrada falta acima da tolerância.';
+  $('#closingDivergenceFields').classList.toggle('hidden',nearZero(result.difference));
 }
 $('#closingForm').addEventListener('input', updateClosingCalculation);
 
@@ -310,17 +422,32 @@ async function persistClosing(finalStatus) {
   if (!allowedStores().includes(data.store)) throw new Error('Loja não autorizada.');
   const id = $('#closingForm').dataset.id || push(ref(db,'closings')).key;
   const now = Date.now();
+  const existingSnap = $('#closingForm').dataset.id ? await get(ref(db,`closings/${id}`)) : null;
+  const existingRecord = existingSnap?.exists() ? existingSnap.val() : {};
+  const uploaded = await uploadPendingAttachments(id);
+  const attachments = [...savedAttachments,...uploaded];
   const record = {
-    ...data,...calc,id,status:finalStatus,
+    ...data,...calc,id,attachments,status:finalStatus,locked:false,
     financeStatus: finalStatus === 'submitted' ? 'pending' : 'not_submitted',
-    createdBy:user.uid,createdByName:profile.name,updatedAt:now,
+    createdBy:existingRecord.createdBy || user.uid,createdByName:existingRecord.createdByName || profile.name,
+    createdAt:existingRecord.createdAt || now,updatedAt:now,
     submittedAt:finalStatus === 'submitted' ? now : null,
     searchDateStore:`${data.date}_${data.store}`
   };
-  await set(ref(db,`closings/${id}`),record);
+  try {
+    await set(ref(db,`closings/${id}`),record);
+  } catch (error) {
+    await Promise.allSettled(uploaded.map(item => deleteObject(storageRef(storage,item.storagePath))));
+    throw error;
+  }
+  savedAttachments = attachments;
+  pendingAttachments = [];
+  renderAttachmentList();
   $('#closingForm').dataset.id = id;
   $('#formStatus').textContent = finalStatus === 'submitted' ? 'Aguardando financeiro' : 'Rascunho';
   $('#formStatus').className = `badge ${finalStatus === 'submitted' ? 'warn' : 'draft'}`;
+  await appendAudit(id,finalStatus === 'submitted' ? 'submitted' : 'draft_saved',
+    finalStatus === 'submitted' ? `Fechamento enviado com ${attachments.length} comprovante(s).` : 'Rascunho salvo.').catch(()=>{});
   toast(finalStatus === 'submitted' ? 'Caixa enviado ao financeiro.' : 'Rascunho salvo.');
   if (finalStatus === 'submitted') {
     setTimeout(() => { resetClosing(); showView('dashboard'); loadDashboard(); }, 700);
@@ -349,8 +476,12 @@ $('#closingForm').addEventListener('submit', async event => {
     return;
   }
   const result = calculateClosing(formData);
-  if (!nearZero(result.difference) && !$('[name="notes"]').value.trim()) {
-    toast('Descreva a divergência nas observações antes de enviar.',true);
+  if (numberFrom(formData.withdrawals) > 0 && (!formData.sangria_delivered || !String(formData.sangria_responsible || '').trim() || !formData.sangria_delivered_at)) {
+    toast('Informe a entrega da sangria, o responsável e a data/horário.',true);
+    return;
+  }
+  if (!nearZero(result.difference) && (!String(formData.divergence_reason || '').trim() || !$('[name="notes"]').value.trim())) {
+    toast('Selecione o motivo e descreva a divergência antes de enviar.',true);
     return;
   }
   try { await persistClosing('submitted'); } catch (error) { toast(error.message,true); }
@@ -364,6 +495,11 @@ function resetClosing() {
   $$('input[inputmode="decimal"]',form).forEach(input => input.value='0');
   $('#outflowRows').innerHTML = '';
   $('#pixRequestRows').innerHTML = '';
+  pendingAttachments = [];
+  savedAttachments = [];
+  renderAttachmentList();
+  $('#sangriaDetails').classList.add('hidden');
+  $('#closingDivergenceFields').classList.add('hidden');
   $$('.machine-select').forEach(input => { input.checked = false; });
   renderSelectedMachineCards();
   addOutflowRow();
@@ -392,15 +528,42 @@ function sangriaAvailable(record) {
 
 function financeState(record) {
   if (record.financeStatus === 'approved' || record.status === 'approved') return 'approved';
+  if (record.financeStatus === 'reopened' || record.status === 'reopened') return 'reopened';
   if (record.financeStatus === 'returned' || record.status === 'returned') return 'returned';
   if (record.status === 'draft') return 'draft';
   return 'pending';
 }
 
+function queueCategory(record) {
+  const state = financeState(record);
+  if (['approved','reopened','returned','draft'].includes(state)) return state;
+  if (sangriaAvailable(record) > 0) return 'sangria';
+  const difference = record.financeCalc?.totalDifference ?? record.difference;
+  if (!nearZero(difference)) return 'divergent';
+  return 'pending';
+}
+
+function queueBadge(record) {
+  const map = {
+    approved:['ok','Conferido'],reopened:['warn','Reaberto'],returned:['bad','Devolvido'],
+    draft:['draft','Rascunho'],pending:['warn','Aguardando'],divergent:['bad','Com divergência'],
+    sangria:['sangria','Aguardando sangria']
+  };
+  const item = map[queueCategory(record)] || map.pending;
+  return `<span class="badge ${item[0]}">${item[1]}</span>`;
+}
+
+function queuePriority(record) {
+  const category = queueCategory(record);
+  const severity = differenceSeverity(record.financeCalc?.totalDifference ?? record.difference,divergenceTolerance);
+  const weights = {sangria:0,divergent:severity === 'critical' ? 1 : 2,reopened:3,pending:4,returned:5,approved:6,draft:7};
+  return weights[category] ?? 8;
+}
+
 function stateBadge(record) {
   const state = financeState(record);
   const map = {
-    approved:['ok','Conferido'], returned:['bad','Devolvido'], draft:['draft','Rascunho'], pending:['warn','Aguardando financeiro']
+    approved:['ok','Conferido'], reopened:['warn','Reaberto'], returned:['bad','Devolvido'], draft:['draft','Rascunho'], pending:['warn','Aguardando financeiro']
   };
   return `<span class="badge ${map[state][0]}">${map[state][1]}</span>`;
 }
@@ -469,7 +632,8 @@ function renderDivergences(rows) {
   $('#divergenceRows').innerHTML = divergent.length ? divergent.map(item => {
     const diff = item.financeCalc?.differences || item.differences || {};
     const total = item.financeCalc?.totalDifference ?? item.difference;
-    return `<tr><td>${escapeHtml(item.store)}</td><td>${escapeHtml(item.operator)}</td><td>${formatBRL(diff.cash)}</td><td>${formatBRL(diff.card)}</td><td>${formatBRL(diff.pix)}</td><td class="${nearZero(total)?'positive':numberFrom(total)>0?'warning-text':'negative'}">${formatBRL(total)}</td><td>${stateBadge(item)}</td></tr>`;
+    const label = differenceLabel(total);
+    return `<tr><td>${escapeHtml(item.store)}</td><td>${escapeHtml(item.operator)}</td><td class="${differenceClass(diff.cash)}">${formatBRL(diff.cash)}</td><td class="${differenceClass(diff.card)}">${formatBRL(diff.card)}</td><td class="${differenceClass(diff.pix)}">${formatBRL(diff.pix)}</td><td class="${differenceClass(total)}">${formatBRL(total)}</td><td><span class="badge ${label[0]}">${label[1]}</span></td></tr>`;
   }).join('') : '<tr><td colspan="7" class="empty">Nenhuma divergência encontrada.</td></tr>';
 }
 $('#refreshDash').onclick = loadDashboard;
@@ -483,11 +647,13 @@ async function loadFinance() {
     const date = $('#financeDate').value || isoToday();
     financeClosings = (await fetchClosings(date,date)).map(enrichedClosing);
     const store = $('#financeStore').value || 'all';
-    const status = $('#financeStatus').value || 'pending';
+    const status = $('#financeStatus').value || 'open';
     const scoped = financeClosings.filter(item => store === 'all' || item.store === store);
-    const rows = scoped.filter(item => status === 'all' || financeState(item) === status);
+    const openCategories = ['pending','divergent','sangria','reopened'];
+    const rows = scoped.filter(item => status === 'all' || (status === 'open' && openCategories.includes(queueCategory(item))) || queueCategory(item) === status);
     $('#financePending').textContent = scoped.filter(item => financeState(item) === 'pending').length;
     $('#financeApproved').textContent = scoped.filter(item => financeState(item) === 'approved').length;
+    $('#financeReopened').textContent = scoped.filter(item => financeState(item) === 'reopened').length;
     $('#financePixPending').textContent = scoped.reduce((sum,item) => {
       const statuses = item.financeReview?.pixPaymentStatuses || [];
       return sum + (item.pixRequests || []).filter((request,index) => (statuses[index]?.status || request.status || 'pending') === 'pending').length;
@@ -499,12 +665,31 @@ async function loadFinance() {
     const totalDiff = scoped.reduce((sum,item) => sum + numberFrom(item.financeCalc?.totalDifference ?? item.difference),0);
     $('#financeTotalDiff').textContent = formatBRL(totalDiff);
     $('#financeTotalDiff').style.color = nearZero(totalDiff) ? 'var(--green)' : totalDiff > 0 ? 'var(--orange)' : 'var(--red)';
-    $('#financeRows').innerHTML = rows.length ? rows.sort((a,b) => numberFrom(b.submittedAt) - numberFrom(a.submittedAt)).map(item => `<tr><td>${formatDate(item.date)}</td><td>${escapeHtml(item.store)}</td><td>${escapeHtml(item.operator)}</td><td>${formatBRL(item.systemTotal)}</td><td>${formatBRL(item.totalOutflows)}</td><td>${sangriaAvailable(item) ? `<span class="sangria-table-value">${formatBRL(sangriaAvailable(item))}</span>` : '—'}</td><td>${formatBRL(item.difference)}</td><td>${stateBadge(item)}</td><td><button class="table-action" data-review-id="${escapeHtml(item.id)}">Conferir</button></td></tr>`).join('') : '<tr><td colspan="9" class="empty">Nenhum fechamento neste filtro.</td></tr>';
+    renderFinanceSummary(scoped);
+    $('#financeRows').innerHTML = rows.length ? rows.sort((a,b) => queuePriority(a)-queuePriority(b) || numberFrom(a.submittedAt)-numberFrom(b.submittedAt)).map(item => {
+      const diff = item.financeCalc?.totalDifference ?? item.difference;
+      const diffLabel = differenceLabel(diff);
+      const priority = queueCategory(item) === 'sangria' ? ['sangria','Sangria']
+        : differenceSeverity(diff,divergenceTolerance) === 'critical' ? ['bad','Alta']
+        : differenceSeverity(diff,divergenceTolerance) === 'warning' ? ['warn','Média'] : ['draft','Normal'];
+      return `<tr><td><span class="badge ${priority[0]}">${priority[1]}</span></td><td>${formatDate(item.date)}</td><td>${escapeHtml(item.store)}</td><td>${escapeHtml(item.operator)}</td><td>${sangriaAvailable(item) ? `<span class="sangria-table-value">${formatBRL(sangriaAvailable(item))}</span>` : '—'}</td><td class="${differenceClass(diff)}">${formatBRL(diff)}<small class="cell-note">${diffLabel[1]}</small></td><td>${(item.attachments || []).length}</td><td>${queueBadge(item)}</td><td><button class="table-action" data-review-id="${escapeHtml(item.id)}">${financeState(item)==='approved'?'Ver':'Conferir'}</button></td></tr>`;
+    }).join('') : '<tr><td colspan="9" class="empty">Nenhum fechamento neste filtro.</td></tr>';
     $('#financeReviewPanel').classList.add('hidden');
     $('#financeQueueCard').classList.remove('hidden');
   } catch {
     toast('Não foi possível carregar a fila financeira.',true);
   }
+}
+
+function renderFinanceSummary(rows) {
+  const summary = summarizeFinance(rows.filter(item => item.financeCalc));
+  const values = [
+    ['Cartão bruto',summary.grossCard],['Taxas cartão',summary.cardFees,true],['Cartão líquido',summary.netCard],
+    ['Pix bruto',summary.grossPix],['Taxas Pix',summary.pixFees,true],['Pix líquido',summary.netPix],
+    ['Pagamentos Pix',summary.paidPix,true],['Sangrias pendentes',summary.pendingSangria],
+    ['Total disponível',summary.totalAvailable],['Divergências',summary.totalDifference]
+  ];
+  $('#financeSummaryGrid').innerHTML = values.map(([label,value,negative=false]) => `<div class="${label==='Total disponível'?'summary-highlight':''}"><span>${escapeHtml(label)}</span><strong class="${negative?'fee-value':label==='Divergências'?differenceClass(value):''}">${negative?'− ':''}${formatBRL(value)}</strong></div>`).join('');
 }
 $('#loadFinance').onclick = loadFinance;
 $('#financeDate').onchange = loadFinance;
@@ -521,7 +706,8 @@ function methodRows(record) {
     const expected = key === 'cash' ? record.expectedCash : record.systemByMethod[key];
     const informed = record.countedByMethod[key];
     const diff = record.differences[key];
-    return `<tr><td>${labels[key]}</td><td>${formatBRL(expected)}</td><td>${formatBRL(informed)}</td><td class="${nearZero(diff)?'positive':numberFrom(diff)>0?'warning-text':'negative'}">${formatBRL(diff)}</td></tr>`;
+    const status = differenceLabel(diff);
+    return `<tr><td>${labels[key]}</td><td>${formatBRL(expected)}</td><td>${formatBRL(informed)}</td><td class="${differenceClass(diff)}">${formatBRL(diff)} <span class="badge ${status[0]}">${status[1]}</span></td></tr>`;
   }).join('');
 }
 
@@ -565,6 +751,26 @@ function renderFinancePixRequests(record, existing={}) {
   }).join('');
 }
 
+function renderReviewAttachments(record) {
+  const attachments = Array.isArray(record.attachments) ? record.attachments : [];
+  $('#reviewAttachmentCount').textContent = `${attachments.length} ${attachments.length === 1 ? 'arquivo' : 'arquivos'}`;
+  $('#reviewAttachments').innerHTML = attachments.length ? attachments.map(item => `<a class="review-attachment" href="${escapeHtml(item.url)}" target="_blank" rel="noopener"><span>${escapeHtml(item.category || 'Comprovante')}</span><b>${escapeHtml(item.name || 'Arquivo')}</b><small>${Math.round(numberFrom(item.size)/1024)} KB · enviado por ${escapeHtml(item.uploadedByName || 'loja')}</small><em>Abrir comprovante ↗</em></a>`).join('') : '<p class="empty-inline">Nenhum comprovante foi anexado pela loja.</p>';
+}
+
+async function renderAuditTimeline(closingId) {
+  try {
+    const snap = await get(ref(db,`auditLogs/${closingId}`));
+    const entries = snap.exists() ? Object.values(snap.val()).sort((a,b) => numberFrom(b.timestamp)-numberFrom(a.timestamp)) : [];
+    const labels = {
+      draft_saved:'Rascunho salvo',submitted:'Enviado ao financeiro',approved:'Conferência aprovada',
+      returned:'Devolvido para correção',reopened:'Fechamento reaberto'
+    };
+    $('#auditTimeline').innerHTML = entries.length ? entries.map(entry => `<div class="audit-entry"><span></span><div><b>${escapeHtml(labels[entry.action] || entry.action)}</b><p>${escapeHtml(entry.details || 'Sem detalhes adicionais.')}</p><small>${escapeHtml(entry.actorName || 'Usuário')} · ${formatDateTime(entry.timestamp)}</small></div></div>`).join('') : '<p class="empty-inline">Nenhuma alteração registrada nesta versão do fechamento.</p>';
+  } catch {
+    $('#auditTimeline').innerHTML = '<p class="empty-inline">Não foi possível carregar o histórico de alterações.</p>';
+  }
+}
+
 function openFinanceReview(id) {
   currentReviewRecord = financeClosings.find(item => item.id === id);
   if (!currentReviewRecord) return;
@@ -572,12 +778,15 @@ function openFinanceReview(id) {
   $('#financeReviewPanel').classList.remove('hidden');
   $('#reviewRecordTitle').textContent = `${currentReviewRecord.store} · ${formatDate(currentReviewRecord.date)}`;
   $('#reviewRecordMeta').textContent = `${currentReviewRecord.shift || 'Turno não informado'} · Operador: ${currentReviewRecord.operator || '—'}`;
-  $('#reviewStatus').outerHTML = `<span id="reviewStatus" class="badge ${financeState(currentReviewRecord)==='approved'?'ok':financeState(currentReviewRecord)==='returned'?'bad':'warn'}">${financeState(currentReviewRecord)==='approved'?'Conferido':financeState(currentReviewRecord)==='returned'?'Devolvido':'Aguardando financeiro'}</span>`;
+  const state = financeState(currentReviewRecord);
+  const statusMap = {approved:['ok','Conferido'],returned:['bad','Devolvido'],reopened:['warn','Reaberto'],pending:['warn','Aguardando financeiro']};
+  $('#reviewStatus').outerHTML = `<span id="reviewStatus" class="badge ${statusMap[state]?.[0] || 'draft'}">${statusMap[state]?.[1] || 'Rascunho'}</span>`;
   $('#reviewEntries').textContent = formatBRL(currentReviewRecord.systemTotal);
   $('#reviewOutflows').textContent = formatBRL(currentReviewRecord.totalOutflows);
   const sangria = sangriaAvailable(currentReviewRecord);
   $('#reviewSangriaAlert').classList.toggle('hidden',sangria <= 0);
   $('#reviewSangriaAmount').textContent = formatBRL(sangria);
+  $('#reviewSangriaDetails').innerHTML = currentReviewRecord.withdrawals ? `<b>Entregue por: ${escapeHtml(currentReviewRecord.sangria_responsible || 'não informado')}</b><small>${formatDateTime(currentReviewRecord.sangria_delivered_at)}</small>${currentReviewRecord.financeReview?.sangriaReceivedByName ? `<small>Recebido por ${escapeHtml(currentReviewRecord.financeReview.sangriaReceivedByName)} em ${formatDateTime(currentReviewRecord.financeReview.sangriaReceivedAt)}</small>` : ''}` : '';
   $('#reviewMethodRows').innerHTML = methodRows(currentReviewRecord);
   $('#reviewSystemValues').innerHTML = renderSystemValues(currentReviewRecord);
   $('#reviewCardMachines').innerHTML = renderCardMachines(currentReviewRecord);
@@ -585,8 +794,11 @@ function openFinanceReview(id) {
   $('#reviewControls').innerHTML = metric('Saldo inicial',currentReviewRecord.opening_float)
     + metric('Troco final',currentReviewRecord.closing_float)
     + metric('Sangria entregue',currentReviewRecord.sangria_delivered ? 'Sim' : 'Não',false)
+    + metric('Responsável pela entrega',currentReviewRecord.sangria_responsible || '—',false)
+    + metric('Horário da entrega',formatDateTime(currentReviewRecord.sangria_delivered_at),false)
     + metric('Divergência operacional',currentReviewRecord.difference);
   $('#reviewNotes').textContent = currentReviewRecord.notes || 'Nenhuma observação informada.';
+  renderReviewAttachments(currentReviewRecord);
   buildFinanceCardFields(currentReviewRecord);
   const form = $('#financeReviewForm');
   form.reset();
@@ -600,10 +812,22 @@ function openFinanceReview(id) {
   });
   FINANCE_CONFIRM_FIELDS.forEach(key => { if (form.elements[key]) form.elements[key].checked = Boolean(existing[key]); });
   form.elements.finance_notes.value = existing.finance_notes || '';
+  form.elements.finance_divergence_reason.value = existing.finance_divergence_reason || '';
   form.elements.finance_sangria_received.checked = Boolean(existing.finance_sangria_received);
   $('#financePixRequests').innerHTML = renderFinancePixRequests(currentReviewRecord,existing);
+  $('#reopenPanel').classList.add('hidden');
+  $('#reopenReason').value = '';
   updateFinanceCalculation();
+  setFinanceReviewLocked(state === 'approved');
+  renderAuditTimeline(currentReviewRecord.id);
   window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function setFinanceReviewLocked(locked) {
+  $$('input,select,textarea',$('#financeReviewForm')).forEach(field => { field.disabled = locked; });
+  $('#approveClosing').classList.toggle('hidden',locked);
+  $('#returnClosing').classList.toggle('hidden',locked);
+  $('#reopenClosing').classList.toggle('hidden',!(locked && profile?.role === 'admin'));
 }
 
 $('#closeReview').onclick = () => {
@@ -621,8 +845,12 @@ function updateFinanceCalculation() {
   $('#reviewOutflows').textContent = formatBRL(result.totalOutflows);
   $('#reviewDifference').textContent = formatBRL(result.totalDifference);
   $('#financeReviewDiff').textContent = formatBRL(result.totalDifference);
-  $('#financeReviewDiff').style.color = nearZero(result.totalDifference) ? 'var(--green)' : result.totalDifference > 0 ? 'var(--orange)' : 'var(--red)';
-  $('#financeReviewMessage').textContent = nearZero(result.totalDifference) ? 'Valores financeiros conciliados.' : result.totalDifference > 0 ? 'Foi encontrada sobra na conferência.' : 'Foi encontrada falta na conferência.';
+  const severity = differenceSeverity(result.totalDifference,divergenceTolerance);
+  $('#financeReviewDiff').style.color = severity === 'balanced' ? 'var(--green)' : severity === 'warning' ? 'var(--orange)' : 'var(--red)';
+  $('#financeReviewMessage').textContent = severity === 'balanced' ? 'Valores financeiros conciliados.'
+    : severity === 'warning' ? `Pequena diferença dentro da tolerância de ${formatBRL(divergenceTolerance)}.`
+    : result.totalDifference > 0 ? 'Foi encontrada sobra crítica na conferência.' : 'Foi encontrada falta crítica na conferência.';
+  $('#financeDivergenceFields').classList.toggle('hidden',nearZero(result.totalDifference));
   $('#financePaidPix').textContent = formatBRL(result.paidPixRequests);
   $('#financeGrossCard').textContent = formatBRL(result.grossCard);
   $('#financeCardFees').textContent = `− ${formatBRL(result.cardFeeTotal)}`;
@@ -659,6 +887,10 @@ function requiredFinanceConfirmFields(record) {
 
 async function saveFinanceReview(decision) {
   if (!currentReviewRecord || !isFinance()) return;
+  if (financeState(currentReviewRecord) === 'approved') {
+    toast('Este fechamento está bloqueado. Somente o administrador pode reabri-lo.',true);
+    return;
+  }
   const data = financeFormData();
   data.cardFeeRates = effectiveFeeRates(currentReviewRecord);
   const calc = calculateFinanceReview(currentReviewRecord,data);
@@ -671,22 +903,28 @@ async function saveFinanceReview(decision) {
     toast('Confirme como Pago ou Recusado cada solicitação de Pix.',true);
     return;
   }
-  if (decision === 'approved' && !data.finance_sangria_received) {
+  if (decision === 'approved' && numberFrom(currentReviewRecord.withdrawals) > 0 && !data.finance_sangria_received) {
     toast('Confirme o recebimento da sangria/fechamento antes de aprovar.',true);
     return;
   }
-  if ((decision === 'returned' || !nearZero(calc.totalDifference)) && !String(data.finance_notes || '').trim()) {
-    toast('Registre o parecer do financeiro para justificar a diferença ou devolução.',true);
+  if ((decision === 'returned' || !nearZero(calc.totalDifference)) && (!String(data.finance_divergence_reason || '').trim() || !String(data.finance_notes || '').trim())) {
+    toast('Selecione o motivo e registre o parecer para justificar a diferença ou devolução.',true);
     return;
   }
   const now = Date.now();
   const review = {
     ...data,...calc,decision,reviewedAt:now,
-    reviewedBy:auth.currentUser.uid,reviewedByName:profile.name || auth.currentUser.email
+    reviewedBy:auth.currentUser.uid,reviewedByName:profile.name || auth.currentUser.email,
+    sangriaReceivedAt:data.finance_sangria_received ? now : null,
+    sangriaReceivedBy: data.finance_sangria_received ? auth.currentUser.uid : null,
+    sangriaReceivedByName:data.finance_sangria_received ? (profile.name || auth.currentUser.email) : null
   };
   await update(ref(db,`closings/${currentReviewRecord.id}`),{
-    financeReview:review,financeStatus:decision,status:decision,reviewedAt:now,updatedAt:now
+    financeReview:review,financeStatus:decision,status:decision,locked:decision === 'approved',reviewedAt:now,updatedAt:now
   });
+  await appendAudit(currentReviewRecord.id,decision,
+    decision === 'approved' ? `Conferência aprovada. Resultado: ${formatBRL(calc.totalDifference)}.`
+      : `${data.finance_divergence_reason}: ${data.finance_notes}`).catch(()=>{});
   toast(decision === 'approved' ? 'Conferência aprovada e resultado registrado.' : 'Caixa devolvido para correção.');
   currentReviewRecord = null;
   await loadFinance();
@@ -699,6 +937,40 @@ $('#financeReviewForm').addEventListener('submit', async event => {
 });
 $('#returnClosing').onclick = async () => {
   try { await saveFinanceReview('returned'); } catch (error) { toast(error.message || 'Erro ao devolver o caixa.',true); }
+};
+
+$('#reopenClosing').onclick = () => {
+  if (profile?.role !== 'admin' || !currentReviewRecord || financeState(currentReviewRecord) !== 'approved') return;
+  $('#reopenPanel').classList.remove('hidden');
+  $('#reopenReason').focus();
+};
+$('#cancelReopen').onclick = () => {
+  $('#reopenReason').value = '';
+  $('#reopenPanel').classList.add('hidden');
+};
+$('#confirmReopen').onclick = async () => {
+  const reason = $('#reopenReason').value.trim();
+  if (!reason) {
+    toast('Informe o motivo da reabertura.',true);
+    return;
+  }
+  if (profile?.role !== 'admin' || !currentReviewRecord || financeState(currentReviewRecord) !== 'approved') return;
+  const id = currentReviewRecord.id;
+  const now = Date.now();
+  try {
+    await update(ref(db,`closings/${id}`),{
+      status:'reopened',financeStatus:'reopened',locked:false,reopenReason:reason,
+      reopenedAt:now,reopenedBy:auth.currentUser.uid,reopenedByName:profile.name || auth.currentUser.email,updatedAt:now
+    });
+    await appendAudit(id,'reopened',reason).catch(()=>{});
+    toast('Fechamento reaberto e encaminhado para nova conferência.');
+    $('#financeStatus').value = 'reopened';
+    currentReviewRecord = null;
+    await loadFinance();
+    await loadDashboard();
+  } catch (error) {
+    toast(error.message || 'Não foi possível reabrir o fechamento.',true);
+  }
 };
 
 async function loadHistory() {

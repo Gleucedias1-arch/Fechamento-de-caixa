@@ -68,6 +68,12 @@ export function statusFromDifference(value) {
   return Math.abs(numberFrom(value)) < 0.01 ? 'balanced' : numberFrom(value) > 0 ? 'surplus' : 'shortage';
 }
 
+export function differenceSeverity(value, tolerance = 1) {
+  const difference = Math.abs(numberFrom(value));
+  if (difference < 0.01) return 'balanced';
+  return difference <= Math.max(0,numberFrom(tolerance)) ? 'warning' : 'critical';
+}
+
 export function sumOutflows(data = {}) {
   if (Array.isArray(data.outflows)) {
     return data.outflows.reduce((sum, item) => sum + numberFrom(item?.amount), 0);
@@ -187,10 +193,34 @@ export function calculateFinanceReview(record = {}, review = {}) {
     netPix,
     feeTotal: cardFeeTotal + pixFeeTotal,
     machineSettlements,
-    totalAvailable: netCard + netPix - paidPixRequests,
+    totalAvailable: netCard + netPix,
     totalOutflows: operational.totalOutflows + paidPixRequests,
     status: statusFromDifference(totalDifference),
   };
+}
+
+export function summarizeFinance(records = []) {
+  return records.reduce((summary, record) => {
+    const review = record.financeCalc || (record.financeReview
+      ? calculateFinanceReview(record,record.financeReview) : null);
+    const receivedSangria = Boolean(record.financeReview?.finance_sangria_received);
+    const pendingSangria = record.sangria_delivered && !receivedSangria
+      ? numberFrom(record.withdrawals) : 0;
+    summary.grossCard += numberFrom(review?.grossCard);
+    summary.cardFees += numberFrom(review?.cardFeeTotal);
+    summary.netCard += numberFrom(review?.netCard);
+    summary.grossPix += numberFrom(review?.grossPix);
+    summary.pixFees += numberFrom(review?.pixFeeTotal);
+    summary.netPix += numberFrom(review?.netPix);
+    summary.paidPix += numberFrom(review?.paidPixRequests);
+    summary.pendingSangria += pendingSangria;
+    summary.totalAvailable += numberFrom(review?.totalAvailable);
+    summary.totalDifference += numberFrom(review?.totalDifference ?? record.difference);
+    return summary;
+  },{
+    grossCard:0,cardFees:0,netCard:0,grossPix:0,pixFees:0,netPix:0,
+    paidPix:0,pendingSangria:0,totalAvailable:0,totalDifference:0,
+  });
 }
 
 export function formatBRL(value) {
