@@ -105,7 +105,11 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
 .form-grid { display: grid; gap: 12px; }
 .cols-4 { grid-template-columns: repeat(4, 1fr); }
 .money-grid { grid-template-columns: repeat(5, 1fr); }
-#closingForm { width: min(760px, 100%); margin: 0 auto; }
+#closingForm { width: min(1180px, 100%); margin: 0 auto; }
+.closing-card-grid, .closing-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.closing-card-grid > .form-section, .closing-summary-grid > .card { min-width: 0; margin-bottom: 0; }
+.closing-card-grid { margin-bottom: 16px; }
+.closing-summary-grid { margin-bottom: 16px; }
 .identification-card { border-left: 5px solid var(--yellow); padding: 0; overflow: hidden; }
 .compact-card-heading { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 12px 16px; background: var(--black); color: #fff; }
 .compact-card-heading h3 { color: #fff; }
@@ -167,7 +171,7 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
 .machine-choice span:hover { border-color: var(--yellow-dark); background: #fffaf0; }
 .machine-choice input:checked + span { border-color: var(--yellow); background: var(--yellow); color: var(--black); box-shadow: 0 4px 12px rgba(248, 196, 0, .22); }
 .machine-choice input:focus-visible + span { outline: 3px solid rgba(248, 196, 0, .28); outline-offset: 2px; }
-.selected-machine-grid { display: grid; grid-template-columns: 1fr; gap: 12px; padding: 2px 16px 16px; background: #fff; }
+.selected-machine-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 2px 16px 16px; background: #fff; }
 .machine-entry-card, .machine-finance-card { overflow: hidden; border: 1px solid #202124; border-radius: 8px; background: #fff; box-shadow: 0 5px 15px rgba(18, 24, 40, .07); }
 .machine-sheet-title { padding: 10px 12px; background: var(--black); color: #fff; text-align: center; }
 .machine-sheet-title span { display: block; color: var(--yellow); font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: .8px; }
@@ -229,7 +233,7 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
 .finance-summary-grid > div { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 12px; background: var(--blue-soft); border: 0; border-radius: 0; }
 .finance-summary-grid span, .machine-summary span { display: block; color: var(--muted); font-size: 9px; }
 .finance-summary-grid strong { display: block; margin-top: 5px; font-size: 14px; color: #173d5e; }
-.machine-summary-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 16px; }
+.machine-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
 .machine-summary { padding: 13px; border: 1px solid #1f2022; border-top: 4px solid var(--yellow); border-radius: 8px; background: #fff; }
 .machine-summary-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .machine-summary-head b { font-size: 13px; color: #202124; }
@@ -248,7 +252,7 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
 .confirm-field { border: 1px solid #dfe3e7; border-radius: 8px; padding: 10px; background: #fff; }
 .confirm-check { display: flex; grid-template-columns: auto 1fr; align-items: center; gap: 7px; margin-top: 9px; color: var(--blue); }
 .confirm-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--yellow-dark); }
-.machine-finance-grid { display: grid; grid-template-columns: 1fr; gap: 12px; padding: 0 16px 16px; }
+.machine-finance-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 0 16px 16px; }
 .machine-pair { display: grid; grid-template-columns: 1fr; gap: 1px; background: #202124; }
 .machine-pair .confirm-field { border: 0; border-radius: 0; min-width: 0; }
 .machine-pair .confirm-field > label:first-child {
@@ -289,7 +293,7 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
 
 @media (max-width: 1100px) {
   .kpi-grid, .finance-kpis, .finance-review-kpis { grid-template-columns: repeat(2, 1fr); }
-  .finance-summary-grid, .machine-finance-grid { grid-template-columns: 1fr; }
+  .finance-summary-grid { grid-template-columns: 1fr; }
   .entry-row, .pix-request-row { grid-template-columns: repeat(2, 1fr) auto; }
   .entry-description { grid-column: auto; }
 }
@@ -314,8 +318,7 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
   .finance-result { align-items: flex-start; gap: 20px; }
   .audit-result { grid-template-columns: 1fr; text-align: left; }
   .review-heading { gap: 12px; }
-  .conference-main-grid, .finance-summary-grid, .machine-summary-grid { grid-template-columns: 1fr; }
-  .selected-machine-grid, .machine-finance-grid { grid-template-columns: 1fr; }
+  .conference-main-grid, .finance-summary-grid { grid-template-columns: 1fr; }
   .machine-entry-fields, .machine-pair { grid-template-columns: 1fr; }
   .pix-approval-row { grid-template-columns: 1fr auto; }
   .pix-approval-row label { grid-column: 1 / -1; }
@@ -342,4 +345,27 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
   .entry-remove { width: 100%; }
   .pix-approval-row { grid-template-columns: 1fr; }
   .pix-approval-row strong { font-size: 16px; }
+  .closing-card-grid, .closing-summary-grid,
+  .selected-machine-grid, .machine-summary-grid, .machine-finance-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .sheet-titlebar { min-height: 82px; padding: 10px; gap: 8px; }
+  .sheet-titlebar h3 { font-size: 13px; }
+  .sheet-titlebar .section-note { font-size: 8px; line-height: 1.35; }
+  .sheet-section .section-number { width: 26px; height: 26px; font-size: 11px; }
+  .sheet-value-grid label,
+  .machine-entry-fields label,
+  .machine-pair .confirm-field > label:first-child { grid-template-columns: 1fr; align-items: stretch; gap: 5px; padding: 8px; }
+  .sheet-value-grid input, .machine-entry-fields input { width: 100%; min-width: 0; }
+  .machine-picker-heading { padding: 10px 9px 7px; }
+  .machine-selection { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0 9px 10px; gap: 6px; }
+  .machine-choice span { padding: 8px 5px; text-align: center; font-size: 9px; }
+  .selected-machine-grid, .machine-finance-grid { padding-left: 8px; padding-right: 8px; }
+  .machine-sheet-title { padding: 8px 5px; }
+  .machine-sheet-title h5, .machine-sheet-title h4 { font-size: 12px; }
+  .machine-card-total { padding: 8px 6px; }
+  .machine-card-total strong { font-size: 11px; }
+  .cash-count-card, .conference-total { padding: 9px; gap: 8px; }
+  .cash-count-card input { width: 46%; min-width: 0; }
+  .conference-total strong { font-size: 14px; }
+  .entry-list { padding-left: 8px; padding-right: 8px; }
+  .closing-summary-grid .reconciliation { min-height: 100%; }
 }
