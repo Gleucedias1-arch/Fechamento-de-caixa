@@ -66,19 +66,22 @@ test('financeiro concilia dinheiro, débito e crédito por máquina e Pix',()=>{
   assert.equal(result.status,'balanced');
 });
 
-test('financeiro encontra cartão líquido pelas taxas de cada maquininha',()=>{
+test('financeiro encontra cartão e Pix líquidos pelas taxas de cada maquininha',()=>{
   const record={system_credit:300,system_debit:200,system_pix:100};
   const review={
     finance_stone_credit:200,finance_stone_debit:100,finance_stone_pix:60,
     finance_sipag_credit:100,finance_sipag_debit:100,finance_sipag_pix:40,
-    cardFeeRates:{Stone:{credit:3,debit:1.5},Sipag:{credit:4,debit:2}}
+    cardFeeRates:{Stone:{credit:3,debit:1.5,pix:1},Sipag:{credit:4,debit:2,pix:0.5}}
   };
   const result=calculateFinanceReview(record,review);
   assert.equal(result.grossCard,500);
   assert.equal(result.cardFeeTotal,13.5);
   assert.equal(result.netCard,486.5);
-  assert.equal(result.totalAvailable,586.5);
+  assert.equal(result.pixFeeTotal,0.8);
+  assert.equal(result.netPix,99.2);
+  assert.equal(result.totalAvailable,585.7);
   assert.equal(result.machineSettlements.Stone.netCard,292.5);
+  assert.equal(result.machineSettlements.Stone.netPix,59.4);
 });
 
 test('saídas detalhadas reduzem somente o dinheiro esperado',()=>{
