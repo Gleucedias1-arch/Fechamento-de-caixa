@@ -14,7 +14,7 @@ test('caixa conciliado por forma de pagamento',()=>{
   assert.equal(result.countedTotal,150);
   assert.equal(result.difference,0);
   assert.equal(result.status,'balanced');
-  assert.deepEqual(result.differences,{cash:0,card:0,pix:0,ifood:0,other:0});
+  assert.deepEqual(result.differences,{cash:0,card:0,pix:0});
 });
 
 test('movimentações e despesas ajustam o dinheiro esperado',()=>{
@@ -24,7 +24,7 @@ test('movimentações e despesas ajustam o dinheiro esperado',()=>{
   });
   assert.equal(result.expenseTotal,20);
   assert.equal(result.expectedCash,60);
-  assert.equal(result.countedTotal,100);
+  assert.equal(result.countedTotal,60);
   assert.equal(result.status,'balanced');
 });
 
@@ -43,27 +43,47 @@ test('concilia cartões de todas as operadoras',()=>{
   assert.equal(result.differences.card,0);
 });
 
-test('auditoria iFood usa vendas iFood e não o débito',()=>{
-  const record={system_debit:500,system_ifood_online:120,system_ifood_voucher:30};
-  const result=calculateFinanceReview(record,{finance_ifood:150});
-  assert.equal(result.expected.ifood,150);
-  assert.equal(result.differences.ifood,0);
+test('iFood e outros canais não entram na divergência da conferência',()=>{
+  const result=calculateClosing({system_ifood_online:120,system_ifood_voucher:30,system_term:50});
+  assert.equal(result.systemTotal,200);
+  assert.deepEqual(Object.keys(result.differences),['cash','card','pix']);
+  assert.equal(result.difference,0);
 });
 
-test('financeiro concilia caixa, cartões líquidos, Pix, iFood, cupom e motoboy',()=>{
+test('financeiro concilia dinheiro, débito e crédito por máquina e Pix',()=>{
   const record={
-    system_cash:100,system_credit:200,system_pix:50,system_ifood_online:80,system_term:20,
-    opening_float:20,withdrawals:10,expenses:15,expense_motoboy:30
+    system_cash:100,system_credit:200,system_debit:100,system_pix:50,
+    opening_float:20,withdrawals:10,outflows:[{amount:15}]
   };
   const review={
-    finance_cash:65,finance_card_fees:10,finance_stone:190,finance_pix:50,
-    finance_ifood:80,finance_other:20,finance_coupon_issued:350,
-    finance_motoboy_system:25,finance_free_delivery:5
+    finance_cash:95,finance_stone_credit:200,finance_stone_debit:60,
+    finance_sipag_debit:40,finance_pix:50
   };
   const result=calculateFinanceReview(record,review);
   assert.equal(result.totalDifference,0);
-  assert.equal(result.fiscalDifference,0);
-  assert.equal(result.motoboyDifference,0);
-  assert.equal(result.totalAvailable,305);
+  assert.equal(result.actual.card,300);
+  assert.equal(result.totalAvailable,445);
   assert.equal(result.status,'balanced');
+});
+
+test('saídas detalhadas reduzem somente o dinheiro esperado',()=>{
+  const result=calculateClosing({
+    system_cash:300,system_pix:200,counted_cash:220,counted_pix:200,
+    outflows:[{description:'Motoboy',amount:50},{description:'Compra',amount:30}]
+  });
+  assert.equal(result.expenseTotal,80);
+  assert.equal(result.expectedCash,220);
+  assert.equal(result.differences.cash,0);
+});
+
+test('Pix de motoboy ou freelancer só vira saída após confirmação do financeiro',()=>{
+  const record={
+    system_cash:100,counted_cash:100,
+    pixRequests:[{type:'Motoboy',amount:70,status:'pending'},{type:'Freelancer',amount:90,status:'pending'}]
+  };
+  const review={finance_cash:100,pixPaymentStatuses:[{status:'paid'},{status:'rejected'}]};
+  const result=calculateFinanceReview(record,review);
+  assert.equal(result.paidPixRequests,70);
+  assert.equal(result.totalOutflows,70);
+  assert.equal(result.totalAvailable,30);
 });

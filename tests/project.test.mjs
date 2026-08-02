@@ -12,8 +12,25 @@ const [html,app,rules,packageJson] = await Promise.all([
 test('área financeira e indicadores existem na interface',()=>{
   for (const id of [
     'financeView','financeRows','financeReviewPanel','financeReviewForm','kpiEntries',
-    'kpiOutflows','kpiAvailable','kpiDiff','kpiReviewed','kpiPending'
+    'kpiOutflows','kpiAvailable','kpiDiff','kpiReviewed','kpiPending','reviewSystemValues',
+    'reviewCardMachines','financeCardFields','financePixRequests','outflowRows','pixRequestRows'
   ]) assert.match(html,new RegExp(`id="${id}"`));
+});
+
+test('conferência se limita a dinheiro, cartão e Pix, com cartão por máquina',()=>{
+  assert.match(html,/Confira somente Dinheiro, Cartão e Pix/);
+  assert.match(html,/Stone crédito/);
+  assert.match(html,/Stone débito/);
+  assert.doesNotMatch(html,/Diferença cartão/i);
+  assert.doesNotMatch(html,/name="counted_ifood"/);
+  assert.doesNotMatch(html,/name="counted_other"/);
+});
+
+test('financeiro confirma campos e pagamentos Pix',()=>{
+  assert.match(html,/name="finance_confirm_outflows"/);
+  assert.match(app,/pixPaymentStatuses/);
+  assert.match(html,/Confirmo que conferi todas as saídas declaradas/);
+  assert.match(html,/Pagamento via Pix/);
 });
 
 test('todos os elementos acessados pelo JavaScript existem no HTML',()=>{
@@ -31,7 +48,7 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'1.1.0');
-  assert.match(html,/app\.js\?v=1\.1\.0/);
-  assert.match(html,/styles\.css\?v=1\.1\.0/);
+  assert.equal(JSON.parse(packageJson).version,'1.2.0');
+  assert.match(html,/app\.js\?v=1\.2\.0/);
+  assert.match(html,/styles\.css\?v=1\.2\.0/);
 });
