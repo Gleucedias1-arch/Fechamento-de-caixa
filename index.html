@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=1.7.0" />
+  <link rel="stylesheet" href="styles.css?v=1.7.1" />
 </head>
 <body>
   <div id="toast" class="toast" aria-live="polite"></div>
@@ -89,8 +89,6 @@
             <label class="cash-count-card"><span>Dinheiro contado</span><input name="counted_cash" inputmode="decimal" value="0" /></label><div class="conference-total"><span>Total em cartões</span><strong id="cardConferenceTotal">R$ 0,00</strong></div><div class="conference-total pix-total"><span>Total em Pix</span><strong id="pixConferenceTotal">R$ 0,00</strong></div>
           </div><div class="machine-picker-heading"><div><h4 class="subsection-title">Escolha as máquinas utilizadas</h4><p>Marque apenas as máquinas usadas neste fechamento.</p></div><span id="selectedMachineCount" class="selection-count">0 selecionadas</span></div><div id="machineSelection" class="machine-selection" role="group" aria-label="Máquinas utilizadas"></div><div id="selectedMachineCards" class="selected-machine-grid"></div><div id="noMachineMessage" class="machine-empty"><strong>Nenhuma máquina selecionada</strong><span>Escolha acima para abrir os cartões de Crédito, Débito e Pix.</span></div><div class="subtotal sheet-grand-total"><span>Dinheiro + Cartão + Pix conferidos</span><strong id="countedTotal">R$ 0,00</strong></div></article>
           <article class="card form-section sheet-section pix-request-section"><div class="sheet-titlebar"><div><span class="sheet-step">ETAPA 4</span><h3>Pagamento via Pix</h3><p class="section-note">Use quando não houver dinheiro em caixa para pagar motoboy ou freelancer.</p></div><div class="section-number">4</div></div><div class="pix-action-row"><span>A solicitação ficará pendente até a confirmação do financeiro.</span><button id="addPixRequest" class="btn btn-secondary btn-small" type="button">+ Solicitar Pix</button></div><div id="pixRequestRows" class="entry-list"></div><div class="subtotal sheet-grand-total"><span>Total solicitado ao financeiro</span><strong id="pixRequestTotal">R$ 0,00</strong></div></article>
-          </div>
-          </div>
           <article class="card closing-final-card">
             <div class="closing-final-heading"><div><span class="sheet-step">FINALIZAÇÃO</span><h3>Revise e envie o fechamento</h3></div></div>
             <div class="closing-final-main">
@@ -99,6 +97,8 @@
             </div>
             <div class="closing-final-footer"><p>Confira os valores antes de enviar para o financeiro.</p><div class="form-actions"><button type="button" id="saveDraft" class="btn btn-secondary">Salvar rascunho</button><button type="submit" class="btn btn-primary">Enviar ao financeiro</button></div></div>
           </article>
+          </div>
+          </div>
         </form>
       </section>
 
@@ -132,6 +132,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=1.7.0"></script>
+  <script type="module" src="app.js?v=1.7.1"></script>
 </body>
 </html>
