@@ -52,7 +52,14 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'1.3.0');
-  assert.match(html,/app\.js\?v=1\.3\.0/);
-  assert.match(html,/styles\.css\?v=1\.3\.0/);
+  assert.equal(JSON.parse(packageJson).version,'1.4.0');
+  assert.match(html,/app\.js\?v=1\.4\.0/);
+  assert.match(html,/styles\.css\?v=1\.4\.0/);
+});
+
+test('fechamento usa hierarquia compacta inspirada na planilha',()=>{
+  assert.match(html,/class="sheet-titlebar"/);
+  assert.match(html,/class="form-grid money-grid sheet-value-grid"/);
+  assert.match(html,/Nenhuma máquina selecionada/);
+  assert.match(html,/Marque apenas as máquinas usadas neste fechamento/);
 });
