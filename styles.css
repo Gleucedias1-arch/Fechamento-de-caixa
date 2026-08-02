@@ -203,7 +203,8 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
 .subsection-heading .subsection-title { margin: 0; padding: 0; border: 0; }
 .subsection-heading p, .pix-action-row > span { margin: 4px 0 0; color: var(--muted); font-size: 10px; }
 .entry-list { display: grid; gap: 9px; padding: 0 16px; margin-top: 13px; }
-.entry-row { display: grid; grid-template-columns: 150px minmax(210px, 1fr) 150px auto; gap: 10px; align-items: end; padding: 12px; border: 1px solid #e2e5e9; border-left: 4px solid var(--yellow); border-radius: 9px; background: #fff; }
+.entry-row { display: grid; grid-template-columns: minmax(96px, .85fr) minmax(0, 1.65fr) minmax(96px, .8fr) 40px; gap: 10px; align-items: end; padding: 12px; border: 1px solid #e2e5e9; border-left: 4px solid var(--yellow); border-radius: 9px; background: #fff; }
+.entry-row > label { min-width: 0; }
 .pix-request-row { grid-template-columns: 135px 1fr 1fr 130px 1fr auto; border-left-color: var(--green); }
 .entry-remove { width: 36px; height: 40px; border: 1px solid #efc5c5; border-radius: 9px; background: #fff; color: #b72f2f; font-size: 20px; cursor: pointer; }
 .movement-card > .subtotal:not(.sheet-grand-total), .movement-card > .check-field { margin-left: 16px; margin-right: 16px; }
@@ -414,7 +415,8 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
   .rate-settings-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .finance-workbench { grid-template-columns: 1fr; }
   .settlement-summary { position: static; }
-  .entry-row, .pix-request-row { grid-template-columns: repeat(2, 1fr) auto; }
+  .entry-row { grid-template-columns: minmax(90px, .8fr) minmax(0, 1.5fr) minmax(90px, .75fr) 40px; }
+  .pix-request-row { grid-template-columns: repeat(2, minmax(0, 1fr)) 40px; }
   .entry-description { grid-column: auto; }
   .finance-consolidated-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
 }
@@ -552,6 +554,9 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
   .identification-card .form-grid select { min-height: 44px; }
   .attachment-controls,
   .sangria-detail-grid { grid-template-columns: 1fr; }
+  .entry-row,
+  .pix-request-row { grid-template-columns: 1fr; }
+  .entry-remove { width: 100%; min-height: 44px; }
   .closing-final-footer { align-items: stretch; flex-direction: column; }
   .closing-final-footer .form-actions { width: 100%; }
   .closing-final-footer .form-actions .btn { min-width: 0; }
