@@ -62,9 +62,15 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.1.1');
-  assert.match(html,/app\.js\?v=2\.1\.1/);
-  assert.match(html,/styles\.css\?v=2\.1\.1/);
+  assert.equal(JSON.parse(packageJson).version,'2.1.2');
+  assert.match(html,/app\.js\?v=2\.1\.2/);
+  assert.match(html,/styles\.css\?v=2\.1\.2/);
+});
+
+test('solicitação Pix mantém Nome e Chave amplos e Valor compacto',()=>{
+  assert.match(css,/\.pix-request-row \{[\s\S]*minmax\(190px, 1\.15fr\)[\s\S]*minmax\(220px, 1\.35fr\)[\s\S]*minmax\(96px, \.55fr\)/);
+  assert.match(css,/@media \(max-width: 1100px\)[\s\S]*\.pix-request-row > label:nth-child\(4\) \{ grid-column: span 3; \}[\s\S]*\.pix-request-row > label:nth-child\(5\) \{ grid-column: span 8; \}/);
+  assert.match(css,/@media \(max-width: 600px\)[\s\S]*\.pix-request-row > label:nth-child\(n\),[\s\S]*grid-column: auto;/);
 });
 
 test('botão de excluir movimentação permanece visível em todas as larguras',()=>{
