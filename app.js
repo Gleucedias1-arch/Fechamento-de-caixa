@@ -3,18 +3,20 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, creat
 import { getDatabase, ref, get, set, push, update, query, orderByChild, startAt, endAt } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
 import { firebaseConfig, ADMIN_EMAIL } from './firebase-config.js';
 import {
-  SYSTEM_FIELDS, COUNTED_FIELDS, EXPENSE_FIELDS, CARD_FIELDS, FINANCE_CARD_FIELDS, FINANCE_CONFIRM_FIELDS,
+  SYSTEM_FIELDS, COUNTED_FIELDS, EXPENSE_FIELDS, CARD_FIELDS, MACHINE_PIX_FIELDS,
+  FINANCE_MACHINE_FIELDS, FINANCE_CONFIRM_FIELDS,
   numberFrom, calculateClosing, calculateFinanceReview, formatBRL
 } from './calculations.js';
 
 const STORES = ['House 190 Teixeira','House 190 Eunápolis','House Food Park Teixeira'];
 const OPERATOR_GROUPS = {
-  Stone: ['stone_credit','stone_debit'], Sipag: ['sipag_credit','sipag_debit'],
-  Cielo: ['cielo_credit','cielo_debit'], Cappta: ['cappta_credit','cappta_debit'],
-  Laranjinha: ['laranjinha_credit','laranjinha_debit'], Wise: ['wise_credit','wise_debit'],
+  Stone: ['stone_credit','stone_debit','stone_pix'], Sipag: ['sipag_credit','sipag_debit','sipag_pix'],
+  Cielo: ['cielo_credit','cielo_debit','cielo_pix'], Cappta: ['cappta_credit','cappta_debit','cappta_pix'],
+  Laranjinha: ['laranjinha_credit','laranjinha_debit','laranjinha_pix'], Wise: ['wise_credit','wise_debit','wise_pix'],
 };
+const MACHINE_FIELDS = [...CARD_FIELDS,...MACHINE_PIX_FIELDS];
 const FINANCE_FIELDS = [
-  'finance_cash','finance_pix',...FINANCE_CARD_FIELDS,'finance_adjustments'
+  'finance_cash',...FINANCE_MACHINE_FIELDS,'finance_adjustments'
 ];
 const OPERATION_FIELDS = [
   ...SYSTEM_FIELDS,...COUNTED_FIELDS,...EXPENSE_FIELDS,'opening_float','withdrawals',
@@ -135,6 +137,7 @@ function initDates() {
 function closingFormData() {
   const raw = Object.fromEntries(new FormData($('#closingForm')));
   OPERATION_FIELDS.forEach(key => raw[key] = numberFrom(raw[key]));
+  raw.selectedMachines = $$('.machine-select:checked').map(input => input.value);
   raw.sangria_delivered = $('[name="sangria_delivered"]').checked;
   raw.outflows = $$('.outflow-row').map(row => ({
     category:$('[data-outflow-field="category"]',row).value,
@@ -154,7 +157,7 @@ function closingFormData() {
 
 function financeFormData() {
   const raw = Object.fromEntries(new FormData($('#financeReviewForm')));
-  FINANCE_FIELDS.forEach(key => raw[key] = numberFrom(raw[key]));
+  FINANCE_FIELDS.forEach(key => { if (Object.hasOwn(raw,key)) raw[key] = numberFrom(raw[key]); });
   raw.finance_sangria_received = $('[name="finance_sangria_received"]').checked;
   FINANCE_CONFIRM_FIELDS.forEach(key => raw[key] = Boolean($(`[name="${key}"]`)?.checked));
   raw.pixPaymentStatuses = $$('.pix-payment-status').map((select,index) => ({index,status:select.value}));
@@ -163,6 +166,43 @@ function financeFormData() {
 
 function entryRemoveButton() {
   return '<button class="entry-remove" type="button" aria-label="Remover item">×</button>';
+}
+
+function selectedMachineNames() {
+  return $$('.machine-select:checked').map(input => input.value);
+}
+
+function activeMachineEntries(record = {}) {
+  const selected = Array.isArray(record.selectedMachines)
+    ? record.selectedMachines.filter(name => OPERATOR_GROUPS[name]) : [];
+  const names = selected.length ? selected : Object.entries(OPERATOR_GROUPS)
+    .filter(([,fields]) => fields.some(field => !nearZero(record[field]) || !nearZero(record[`finance_${field}`])))
+    .map(([name]) => name);
+  return names.map(name => [name,OPERATOR_GROUPS[name]]);
+}
+
+function machineInputCard(machine, fields) {
+  const [credit,debit,pix] = fields;
+  return `<article class="machine-entry-card" data-machine-card="${escapeHtml(machine)}"><div class="machine-card-head"><div><span>Máquina</span><h5>${escapeHtml(machine)}</h5></div><span class="machine-active-badge">Selecionada</span></div><div class="machine-entry-fields"><label>Crédito<input name="${credit}" inputmode="decimal" value="0" /></label><label>Débito<input name="${debit}" inputmode="decimal" value="0" /></label><label>Pix<input name="${pix}" inputmode="decimal" value="0" /></label></div><div class="machine-card-total"><span>Total da máquina</span><strong data-machine-total="${escapeHtml(machine)}">R$ 0,00</strong></div></article>`;
+}
+
+function renderSelectedMachineCards() {
+  const previousValues = Object.fromEntries($$('input',$('#selectedMachineCards')).map(input => [input.name,input.value]));
+  const selected = selectedMachineNames();
+  $('#selectedMachineCards').innerHTML = selected.map(name => machineInputCard(name,OPERATOR_GROUPS[name])).join('');
+  Object.entries(previousValues).forEach(([name,value]) => {
+    const input = $(`#selectedMachineCards [name="${name}"]`);
+    if (input) input.value = value;
+  });
+  $('#selectedMachineCount').textContent = `${selected.length} ${selected.length === 1 ? 'selecionada' : 'selecionadas'}`;
+  $('#noMachineMessage').classList.toggle('hidden', selected.length > 0);
+  updateClosingCalculation();
+}
+
+function buildMachineSelection() {
+  $('#machineSelection').innerHTML = Object.keys(OPERATOR_GROUPS).map(machine => `<label class="machine-choice"><input class="machine-select" type="checkbox" value="${escapeHtml(machine)}" /><span>${escapeHtml(machine)}</span></label>`).join('');
+  $('#machineSelection').addEventListener('change', renderSelectedMachineCards);
+  renderSelectedMachineCards();
 }
 
 function addOutflowRow(item={}) {
@@ -189,12 +229,19 @@ $('#addPixRequest').onclick = () => { addPixRequestRow(); updateClosingCalculati
 }));
 
 function updateClosingCalculation() {
-  const result = calculateClosing(closingFormData());
+  const data = closingFormData();
+  const result = calculateClosing(data);
   $('#systemTotal').textContent = formatBRL(result.systemTotal);
   $('#countedTotal').textContent = formatBRL(result.countedReceipts);
   $('#cardConferenceTotal').textContent = formatBRL(result.countedByMethod.card);
+  $('#pixConferenceTotal').textContent = formatBRL(result.countedByMethod.pix);
   $('#outflowTotal').textContent = formatBRL(result.expenseTotal);
-  $('#pixRequestTotal').textContent = formatBRL(closingFormData().pixRequests.reduce((sum,item) => sum + item.amount,0));
+  $('#pixRequestTotal').textContent = formatBRL(data.pixRequests.reduce((sum,item) => sum + item.amount,0));
+  activeMachineEntries(data).forEach(([machine,fields]) => {
+    const total = fields.reduce((sum,field) => sum + numberFrom(data[field]),0);
+    const output = $(`[data-machine-total="${machine}"]`);
+    if (output) output.textContent = formatBRL(total);
+  });
   $('#diffTotal').textContent = formatBRL(result.difference);
   const rec = $('.reconciliation');
   const icon = $('#diffBadge');
@@ -237,6 +284,11 @@ $('#closingForm').addEventListener('submit', async event => {
   const formData = closingFormData();
   const invalidOutflow = formData.outflows.some(item => !item.description || item.amount <= 0);
   const invalidPix = formData.pixRequests.some(item => !item.name || !item.pixKey || item.amount <= 0);
+  const needsMachine = numberFrom(formData.system_credit) + numberFrom(formData.system_debit) + numberFrom(formData.system_pix) > 0;
+  if (needsMachine && !formData.selectedMachines.length) {
+    toast('Escolha pelo menos uma máquina para conferir Crédito, Débito e Pix.',true);
+    return;
+  }
   if (invalidOutflow) {
     toast('Preencha a descrição e um valor maior que zero em todas as saídas.',true);
     return;
@@ -261,6 +313,8 @@ function resetClosing() {
   $$('input[inputmode="decimal"]',form).forEach(input => input.value='0');
   $('#outflowRows').innerHTML = '';
   $('#pixRequestRows').innerHTML = '';
+  $$('.machine-select').forEach(input => { input.checked = false; });
+  renderSelectedMachineCards();
   addOutflowRow();
   $('#formStatus').textContent='Rascunho';
   $('#formStatus').className='badge draft';
@@ -415,7 +469,9 @@ function renderSystemValues(record) {
 }
 
 function renderCardMachines(record) {
-  return Object.entries(OPERATOR_GROUPS).map(([machine,[credit,debit]]) => `<div class="machine-summary"><b>${escapeHtml(machine)}</b><span>Crédito <strong>${formatBRL(record[credit])}</strong></span><span>Débito <strong>${formatBRL(record[debit])}</strong></span><em>Total ${formatBRL(numberFrom(record[credit])+numberFrom(record[debit]))}</em></div>`).join('');
+  const machines = activeMachineEntries(record);
+  if (!machines.length) return '<p class="empty-inline">Nenhuma máquina foi selecionada pela loja.</p>';
+  return machines.map(([machine,[credit,debit,pix]]) => `<div class="machine-summary"><div class="machine-summary-head"><b>${escapeHtml(machine)}</b><span>UTILIZADA</span></div><div class="machine-summary-values"><span>Crédito <strong>${formatBRL(record[credit])}</strong></span><span>Débito <strong>${formatBRL(record[debit])}</strong></span><span>Pix <strong>${formatBRL(record[pix])}</strong></span></div><em>Total ${formatBRL(numberFrom(record[credit])+numberFrom(record[debit])+numberFrom(record[pix]))}</em></div>`).join('');
 }
 
 function renderOutflows(record) {
@@ -458,12 +514,13 @@ function openFinanceReview(id) {
     + metric('Sangria entregue',currentReviewRecord.sangria_delivered ? 'Sim' : 'Não',false)
     + metric('Divergência operacional',currentReviewRecord.difference);
   $('#reviewNotes').textContent = currentReviewRecord.notes || 'Nenhuma observação informada.';
+  buildFinanceCardFields(currentReviewRecord);
   const form = $('#financeReviewForm');
   form.reset();
   $$('input[inputmode="decimal"]',form).forEach(input => input.value='0');
   const existing = currentReviewRecord.financeReview || {};
-  const defaults = {finance_cash:currentReviewRecord.counted_cash,finance_pix:currentReviewRecord.counted_pix};
-  CARD_FIELDS.forEach(key => defaults[`finance_${key}`] = currentReviewRecord[key]);
+  const defaults = {finance_cash:currentReviewRecord.counted_cash};
+  MACHINE_FIELDS.forEach(key => defaults[`finance_${key}`] = currentReviewRecord[key]);
   FINANCE_FIELDS.forEach(key => {
     if (!form.elements[key]) return;
     form.elements[key].value = existing[key] !== undefined ? existing[key] : numberFrom(defaults[key]);
@@ -492,17 +549,27 @@ function updateFinanceCalculation() {
   $('#financeReviewDiff').style.color = nearZero(result.totalDifference) ? 'var(--green)' : result.totalDifference > 0 ? 'var(--orange)' : 'var(--red)';
   $('#financeReviewMessage').textContent = nearZero(result.totalDifference) ? 'Valores financeiros conciliados.' : result.totalDifference > 0 ? 'Foi encontrada sobra na conferência.' : 'Foi encontrada falta na conferência.';
   $('#financePaidPix').textContent = formatBRL(result.paidPixRequests);
-  const confirmed = FINANCE_CONFIRM_FIELDS.filter(key => financeFormData()[key]).length;
-  $('#financeConfirmedCount').textContent = `${confirmed}/${FINANCE_CONFIRM_FIELDS.length}`;
+  const required = requiredFinanceConfirmFields(currentReviewRecord);
+  const financeData = financeFormData();
+  const confirmed = required.filter(key => financeData[key]).length;
+  $('#financeConfirmedCount').textContent = `${confirmed}/${required.length}`;
 }
 $('#financeReviewForm').addEventListener('input',updateFinanceCalculation);
+
+function requiredFinanceConfirmFields(record) {
+  const machineConfirmations = activeMachineEntries(record).flatMap(([,fields]) =>
+    fields.map(field => `finance_confirm_${field}`)
+  );
+  return ['finance_confirm_cash',...machineConfirmations,'finance_confirm_outflows'];
+}
 
 async function saveFinanceReview(decision) {
   if (!currentReviewRecord || !isFinance()) return;
   const data = financeFormData();
   const calc = calculateFinanceReview(currentReviewRecord,data);
-  if (decision === 'approved' && FINANCE_CONFIRM_FIELDS.some(key => !data[key])) {
-    toast('Confirme todos os campos de Dinheiro, Cartão, Pix e saídas antes de aprovar.',true);
+  const requiredConfirmations = requiredFinanceConfirmFields(currentReviewRecord);
+  if (decision === 'approved' && requiredConfirmations.some(key => !data[key])) {
+    toast('Confirme o Dinheiro, as máquinas utilizadas e as saídas antes de aprovar.',true);
     return;
   }
   if (decision === 'approved' && data.pixPaymentStatuses.some(item => item.status === 'pending')) {
@@ -582,14 +649,16 @@ async function loadUsers() {
   $('#usersList').innerHTML = users.map(([,user]) => `<div class="user-row"><div><b>${escapeHtml(user.name)}</b><div class="muted">${escapeHtml(user.email)} · ${escapeHtml(user.role)} · ${escapeHtml((user.stores || [user.store]).filter(Boolean).join(', '))}</div></div><span class="badge ${user.active===false?'bad':'ok'}">${user.active===false?'Inativo':'Ativo'}</span></div>`).join('');
 }
 
-function buildFinanceCardFields() {
-  $('#financeCardFields').innerHTML = Object.entries(OPERATOR_GROUPS).map(([machine,[credit,debit]]) => {
+function buildFinanceCardFields(record = {}) {
+  const machines = activeMachineEntries(record);
+  $('#financeCardFields').innerHTML = machines.length ? machines.map(([machine,[credit,debit,pix]]) => {
     const financeCredit = `finance_${credit}`;
     const financeDebit = `finance_${debit}`;
-    return `<div class="machine-finance-card"><h4>${escapeHtml(machine)}</h4><div class="machine-pair"><div class="confirm-field"><label>Crédito<input name="${financeCredit}" inputmode="decimal" value="0" /></label><label class="confirm-check"><input name="finance_confirm_${credit}" type="checkbox" /> Confirmado</label></div><div class="confirm-field"><label>Débito<input name="${financeDebit}" inputmode="decimal" value="0" /></label><label class="confirm-check"><input name="finance_confirm_${debit}" type="checkbox" /> Confirmado</label></div></div></div>`;
-  }).join('');
+    const financePix = `finance_${pix}`;
+    return `<div class="machine-finance-card"><div class="machine-card-head"><div><span>Máquina</span><h4>${escapeHtml(machine)}</h4></div><span class="machine-active-badge">Conferir</span></div><div class="machine-pair"><div class="confirm-field"><label>Crédito<input name="${financeCredit}" inputmode="decimal" value="0" /></label><label class="confirm-check"><input name="finance_confirm_${credit}" type="checkbox" /> Confirmado</label></div><div class="confirm-field"><label>Débito<input name="${financeDebit}" inputmode="decimal" value="0" /></label><label class="confirm-check"><input name="finance_confirm_${debit}" type="checkbox" /> Confirmado</label></div><div class="confirm-field"><label>Pix<input name="${financePix}" inputmode="decimal" value="0" /></label><label class="confirm-check"><input name="finance_confirm_${pix}" type="checkbox" /> Confirmado</label></div></div></div>`;
+  }).join('') : '<p class="empty-inline">A loja não selecionou nenhuma máquina.</p>';
 }
 
-buildFinanceCardFields();
+buildMachineSelection();
 addOutflowRow();
 updateClosingCalculation();

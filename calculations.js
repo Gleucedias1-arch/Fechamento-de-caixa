@@ -9,8 +9,12 @@ export const CARD_FIELDS = [
   'laranjinha_credit','laranjinha_debit','wise_credit','wise_debit'
 ];
 
+export const MACHINE_PIX_FIELDS = [
+  'sipag_pix','cappta_pix','stone_pix','cielo_pix','laranjinha_pix','wise_pix'
+];
+
 export const COUNTED_FIELDS = [
-  'counted_cash',...CARD_FIELDS,'counted_pix'
+  'counted_cash',...CARD_FIELDS,...MACHINE_PIX_FIELDS
 ];
 
 export const EXPENSE_FIELDS = [
@@ -23,9 +27,18 @@ export const FINANCE_CARD_FIELDS = [
   'finance_laranjinha_credit','finance_laranjinha_debit','finance_wise_credit','finance_wise_debit'
 ];
 
+export const FINANCE_PIX_FIELDS = [
+  'finance_sipag_pix','finance_cappta_pix','finance_stone_pix',
+  'finance_cielo_pix','finance_laranjinha_pix','finance_wise_pix'
+];
+
+export const FINANCE_MACHINE_FIELDS = [
+  ...FINANCE_CARD_FIELDS,...FINANCE_PIX_FIELDS
+];
+
 export const FINANCE_CONFIRM_FIELDS = [
-  'finance_confirm_cash','finance_confirm_pix',
-  ...FINANCE_CARD_FIELDS.map(field => `finance_confirm_${field.replace('finance_','')}`),
+  'finance_confirm_cash',
+  ...FINANCE_MACHINE_FIELDS.map(field => `finance_confirm_${field.replace('finance_','')}`),
   'finance_confirm_outflows'
 ];
 
@@ -72,7 +85,7 @@ export function calculateClosing(data = {}) {
   const counted = {
     cash: numberFrom(data.counted_cash),
     card: data.counted_card !== undefined ? numberFrom(data.counted_card) : sumFields(data, CARD_FIELDS),
-    pix: numberFrom(data.counted_pix),
+    pix: data.counted_pix !== undefined ? numberFrom(data.counted_pix) : sumFields(data, MACHINE_PIX_FIELDS),
   };
   const expenseTotal = sumOutflows(data);
   const expectedCash = numberFrom(data.opening_float) + system.cash + numberFrom(data.cash_in)
@@ -118,7 +131,8 @@ export function calculateFinanceReview(record = {}, review = {}) {
     cash: numberFrom(review.finance_cash),
     card: FINANCE_CARD_FIELDS.some(field => review[field] !== undefined)
       ? sumFields(review, FINANCE_CARD_FIELDS) : legacyFinanceCard,
-    pix: numberFrom(review.finance_pix),
+    pix: FINANCE_PIX_FIELDS.some(field => review[field] !== undefined)
+      ? sumFields(review, FINANCE_PIX_FIELDS) : numberFrom(review.finance_pix),
   };
   const differences = Object.fromEntries(Object.keys(expected).map(key => [key, actual[key] - expected[key]]));
   const totalDifference = Object.values(differences).reduce((sum, value) => sum + value, 0)
