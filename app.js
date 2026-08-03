@@ -568,7 +568,7 @@ function buildClosingIssues(data, result = calculateClosing(data)) {
     }
   });
   if (numberFrom(data.withdrawals) > 0 && (!data.sangria_delivered || !String(data.sangria_responsible || '').trim() || !data.sangria_delivered_at)) {
-    add('error','Entrega da sangria incompleta','Confirme a entrega, o responsável e o horário da sangria.','sangria');
+    add('error','Entrega da sangria incompleta','Confirme o destino e o horário de registro da sangria.','sangria');
   }
   if (numberFrom(data.withdrawals) > availableCashBeforeRemoval) {
     add('warning','Sangria acima do dinheiro disponível','Revise o saldo inicial, as entradas e o valor retirado.','movement');
@@ -762,8 +762,12 @@ async function persistClosing(finalStatus) {
   }
   const uploaded = await uploadPendingAttachments(id,data);
   const attachments = [...savedAttachments,...uploaded];
+  const persistedData = {...data};
+  // A referência do troco é apenas auxiliar na interface. Não deve bloquear
+  // o envio em bancos que ainda usam as regras anteriores.
+  delete persistedData.openingFloatSourceId;
   const record = {
-    ...data,...calc,id,attachments,status:finalStatus,locked:false,
+    ...persistedData,...calc,id,attachments,status:finalStatus,locked:false,
     financeStatus: finalStatus === 'submitted' ? 'pending' : 'not_submitted',
     createdBy:existingRecord.createdBy || user.uid,createdByName:existingRecord.createdByName || profile.name,
     createdAt:existingRecord.createdAt || now,updatedAt:now,
@@ -824,7 +828,7 @@ $('#closingForm').addEventListener('submit', async event => {
     return;
   }
   if (numberFrom(formData.withdrawals) > 0 && (!formData.sangria_delivered || !String(formData.sangria_responsible || '').trim() || !formData.sangria_delivered_at)) {
-    toast('Informe a entrega da sangria, o responsável e a data/horário.',true);
+    toast('Selecione onde está a sangria e informe a data/horário.',true);
     return;
   }
   if (!nearZero(result.difference) && (!String(formData.divergence_reason || '').trim() || !$('[name="notes"]').value.trim())) {
@@ -1277,7 +1281,7 @@ function openFinanceReview(id) {
   const sangria = sangriaAvailable(currentReviewRecord);
   $('#reviewSangriaAlert').classList.toggle('hidden',sangria <= 0);
   $('#reviewSangriaAmount').textContent = formatBRL(sangria);
-  $('#reviewSangriaDetails').innerHTML = currentReviewRecord.withdrawals ? `<b>Entregue por: ${escapeHtml(currentReviewRecord.sangria_responsible || 'não informado')}</b><small>${formatDateTime(currentReviewRecord.sangria_delivered_at)}</small>${currentReviewRecord.financeReview?.sangriaReceivedByName ? `<small>Recebido por ${escapeHtml(currentReviewRecord.financeReview.sangriaReceivedByName)} em ${formatDateTime(currentReviewRecord.financeReview.sangriaReceivedAt)}</small>` : ''}` : '';
+  $('#reviewSangriaDetails').innerHTML = currentReviewRecord.withdrawals ? `<b>Destino: ${escapeHtml(currentReviewRecord.sangria_responsible || 'não informado')}</b><small>${formatDateTime(currentReviewRecord.sangria_delivered_at)}</small>${currentReviewRecord.financeReview?.sangriaReceivedByName ? `<small>Recebido por ${escapeHtml(currentReviewRecord.financeReview.sangriaReceivedByName)} em ${formatDateTime(currentReviewRecord.financeReview.sangriaReceivedAt)}</small>` : ''}` : '';
   $('#reviewMethodRows').innerHTML = methodRows(currentReviewRecord);
   $('#reviewSystemValues').innerHTML = renderSystemValues(currentReviewRecord);
   renderOperatorCorrection(currentReviewRecord);
@@ -1286,9 +1290,9 @@ function openFinanceReview(id) {
   $('#reviewExpenses').innerHTML = renderOutflows(currentReviewRecord) + metric('Sangrias',currentReviewRecord.withdrawals);
   $('#reviewControls').innerHTML = metric('Saldo inicial',currentReviewRecord.opening_float)
     + metric('Troco final',currentReviewRecord.closing_float)
-    + metric('Sangria entregue',currentReviewRecord.sangria_delivered ? 'Sim' : 'Não',false)
-    + metric('Responsável pela entrega',currentReviewRecord.sangria_responsible || '—',false)
-    + metric('Horário da entrega',formatDateTime(currentReviewRecord.sangria_delivered_at),false)
+    + metric('Destino da sangria registrado',currentReviewRecord.sangria_delivered ? 'Sim' : 'Não',false)
+    + metric('Onde está a sangria',currentReviewRecord.sangria_responsible || '—',false)
+    + metric('Horário do registro',formatDateTime(currentReviewRecord.sangria_delivered_at),false)
     + metric('Divergência operacional',currentReviewRecord.difference);
   $('#reviewNotes').textContent = currentReviewRecord.notes || 'Nenhuma observação informada.';
   renderReviewAttachments(currentReviewRecord);
@@ -1603,6 +1607,11 @@ function openClosingForEdit(record) {
   const form = $('#closingForm');
   form.dataset.id = record.id;
   if (record.openingFloatSourceId) form.dataset.openingFloatSourceId = record.openingFloatSourceId;
+  const responsibleField = form.elements.sangria_responsible;
+  if (responsibleField && record.sangria_responsible
+      && ![...responsibleField.options].some(option => option.value === record.sangria_responsible)) {
+    responsibleField.add(new Option(record.sangria_responsible,record.sangria_responsible));
+  }
   ['date','store','shift','operator','sangria_responsible','sangria_delivered_at','divergence_reason','notes']
     .forEach(key => { if (form.elements[key] && record[key] !== undefined) form.elements[key].value = record[key] ?? ''; });
   const selected = new Set(activeMachineEntries(record).map(([name]) => name));
