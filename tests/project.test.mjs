@@ -2,13 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 
-const [html,app,css,rules,packageJson,driveScript,firebaseJson] = await Promise.all([
+const [html,app,css,rules,packageJson,driveScript,closingScript,selfieScript,firebaseJson] = await Promise.all([
   fs.readFile(new URL('../index.html',import.meta.url),'utf8'),
   fs.readFile(new URL('../app.js',import.meta.url),'utf8'),
   fs.readFile(new URL('../styles.css',import.meta.url),'utf8'),
   fs.readFile(new URL('../database.rules.json',import.meta.url),'utf8'),
   fs.readFile(new URL('../package.json',import.meta.url),'utf8'),
   fs.readFile(new URL('../google-apps-script/Code.gs',import.meta.url),'utf8'),
+  fs.readFile(new URL('../google-apps-script/fechamento/Code.gs',import.meta.url),'utf8'),
+  fs.readFile(new URL('../google-apps-script/selfies/Code.gs',import.meta.url),'utf8'),
   fs.readFile(new URL('../firebase.json',import.meta.url),'utf8'),
 ]);
 
@@ -192,21 +194,25 @@ test('comprovantes são enviados ao Google Drive e não ao Firebase Storage',()=
   assert.match(app,/storage:'google-drive'/);
   assert.doesNotMatch(app,/firebase-storage|getStorage|uploadBytes|getDownloadURL/);
   assert.equal(JSON.parse(firebaseJson).storage,undefined);
-  assert.match(driveScript,/maxFileBytes: 2 \* 1024 \* 1024/);
-  assert.match(driveScript,/"application\/pdf"/);
-  assert.match(driveScript,/DriveApp\.Access\.ANYONE_WITH_LINK/);
+  assert.match(closingScript,/maxFileBytes: 2 \* 1024 \* 1024/);
+  assert.match(closingScript,/"application\/pdf"/);
+  assert.match(closingScript,/DriveApp\.Access\.ANYONE_WITH_LINK/);
 });
 
-test('Apps Script preserva o fluxo rápido de selfies e autentica os comprovantes',()=>{
-  assert.match(driveScript,/action === "uploadClockSelfie"/);
-  assert.match(driveScript,/action === "uploadClosingAttachment"/);
-  assert.match(driveScript,/CacheService\.getScriptCache\(\)/);
-  assert.match(driveScript,/lock\.waitLock\(5000\)/);
-  assert.doesNotMatch(driveScript,/waitLock\(20000\)/);
-  assert.match(driveScript,/"https:\/\/drive\.google\.com\/file\/d\/" \+ fileId/);
-  assert.match(driveScript,/firebaseClosingProfile_/);
-  assert.match(driveScript,/assertClosingStore_/);
-  assert.match(driveScript,/uploaderUid: uid/);
+test('Apps Script mantém selfies e fechamento em serviços separados',()=>{
+  assert.match(selfieScript,/action === "uploadClockSelfie"/);
+  assert.doesNotMatch(selfieScript,/uploadClosingAttachment/);
+  assert.match(selfieScript,/CacheService\.getScriptCache\(\)/);
+  assert.match(selfieScript,/lock\.waitLock\(5000\)/);
+  assert.doesNotMatch(selfieScript,/waitLock\(20000\)/);
+  assert.match(selfieScript,/"https:\/\/drive\.google\.com\/file\/d\/" \+ fileId/);
+
+  assert.match(closingScript,/action === "uploadClosingAttachment"/);
+  assert.match(closingScript,/action === "deleteClosingAttachment"/);
+  assert.doesNotMatch(closingScript,/uploadClockSelfie/);
+  assert.match(closingScript,/firebaseClosingProfile_/);
+  assert.match(closingScript,/assertClosingStore_/);
+  assert.match(closingScript,/uploaderUid: uid/);
 });
 
 test('sangria registra entrega e recebimento completos',()=>{
@@ -280,8 +286,8 @@ test('cálculo enriquecido não substitui o status do fluxo',()=>{
 });
 
 test('somente remetente, financeiro ou administrador pode excluir comprovantes do Drive',()=>{
-  assert.match(driveScript,/metadata\.uploaderUid/);
-  assert.match(driveScript,/profile\.role === "admin" \|\| profile\.role === "finance"/);
-  assert.match(driveScript,/Sem permissão para excluir/);
-  assert.match(driveScript,/file\.setTrashed\(true\)/);
+  assert.match(closingScript,/metadata\.uploaderUid/);
+  assert.match(closingScript,/profile\.role === "admin" \|\| profile\.role === "finance"/);
+  assert.match(closingScript,/Sem permissão para excluir/);
+  assert.match(closingScript,/file\.setTrashed\(true\)/);
 });
