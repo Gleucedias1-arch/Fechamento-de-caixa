@@ -33,7 +33,7 @@ justificativas e histórico de alterações.
 1. Ative Authentication por e-mail/senha no Firebase.
 2. Publique `database.rules.json` no Realtime Database para habilitar os perfis e a conferência financeira.
 3. Publique `storage.rules` no Firebase Storage para permitir fotos e PDFs.
-4. O primeiro acesso de `glleucedias1@gmail.com` cria o perfil administrador.
+4. Cadastre os usuários e seus perfis (`admin`, `finance`, `manager` ou `operator`) no banco.
 5. Publique os arquivos pelo GitHub Pages ou Firebase Hosting.
 
 ## Segurança
