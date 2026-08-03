@@ -45,6 +45,15 @@ export const MACHINE_SETTLEMENT_FIELDS = {
   Wise: {credit:'finance_wise_credit',debit:'finance_wise_debit',pix:'finance_wise_pix'},
 };
 
+export const OPERATION_SETTLEMENT_FIELDS = {
+  Stone: {credit:'stone_credit',debit:'stone_debit',pix:'stone_pix'},
+  Sipag: {credit:'sipag_credit',debit:'sipag_debit',pix:'sipag_pix'},
+  Cielo: {credit:'cielo_credit',debit:'cielo_debit',pix:'cielo_pix'},
+  Cappta: {credit:'cappta_credit',debit:'cappta_debit',pix:'cappta_pix'},
+  Laranjinha: {credit:'laranjinha_credit',debit:'laranjinha_debit',pix:'laranjinha_pix'},
+  Wise: {credit:'wise_credit',debit:'wise_debit',pix:'wise_pix'},
+};
+
 export const FINANCE_CONFIRM_FIELDS = [
   'finance_confirm_cash',
   ...FINANCE_MACHINE_FIELDS.map(field => `finance_confirm_${field.replace('finance_','')}`),
@@ -151,6 +160,39 @@ export function calculateClosing(data = {}) {
     countedByMethod: counted,
     differences,
     status: statusFromDifference(difference),
+  };
+}
+
+export function calculateOperationalFinancialSummary(data = {}, feeRates = {}) {
+  const closing = calculateClosing(data);
+  const machineSettlements = Object.fromEntries(Object.entries(OPERATION_SETTLEMENT_FIELDS).map(([machine,fields]) => {
+    const rates = feeRates[machine] || feeRates[machine.toLowerCase()] || {};
+    const credit = numberFrom(data[fields.credit]);
+    const debit = numberFrom(data[fields.debit]);
+    const pix = numberFrom(data[fields.pix]);
+    const cardFees = credit * numberFrom(rates.credit) / 100
+      + debit * numberFrom(rates.debit) / 100;
+    const pixFees = pix * numberFrom(rates.pix) / 100;
+    return [machine,{
+      grossCard:credit + debit,grossPix:pix,cardFees,pixFees,
+      netCard:credit + debit - cardFees,netPix:pix - pixFees
+    }];
+  }));
+  const grossCard = Object.values(machineSettlements).reduce((sum,item) => sum + item.grossCard,0);
+  const grossPix = Object.values(machineSettlements).reduce((sum,item) => sum + item.grossPix,0);
+  const cardFees = Object.values(machineSettlements).reduce((sum,item) => sum + item.cardFees,0);
+  const pixFees = Object.values(machineSettlements).reduce((sum,item) => sum + item.pixFees,0);
+  const pixRequested = (data.pixRequests || []).reduce((sum,item) => sum + numberFrom(item?.amount),0);
+  const physicalCash = numberFrom(data.counted_cash) + numberFrom(data.closing_float);
+  const netCard = grossCard - cardFees;
+  const netPix = grossPix - pixFees;
+  const bankNet = netCard + netPix;
+  return {
+    grossSales:closing.systemTotal,
+    physicalCash,grossCard,grossPix,cardFees,pixFees,
+    feeTotal:cardFees + pixFees,netCard,netPix,bankNet,pixRequested,
+    projectedAvailable:physicalCash + bankNet - pixRequested,
+    machineSettlements,
   };
 }
 

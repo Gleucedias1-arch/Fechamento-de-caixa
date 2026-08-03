@@ -65,9 +65,9 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.4.0');
-  assert.match(html,/app\.js\?v=2\.4\.0/);
-  assert.match(html,/styles\.css\?v=2\.4\.0/);
+  assert.equal(JSON.parse(packageJson).version,'2.5.0');
+  assert.match(html,/app\.js\?v=2\.5\.0/);
+  assert.match(html,/styles\.css\?v=2\.5\.0/);
 });
 
 test('solicitação Pix mantém Nome e Chave amplos sem ultrapassar o cartão',()=>{
@@ -189,6 +189,26 @@ test('novo fechamento guia o operador por etapas e reduz ruído visual',()=>{
   assert.match(html,/Aguardando o preenchimento dos valores/);
   assert.match(css,/#outflowRows:empty::before/);
   assert.doesNotMatch(app,/buildMachineSelection\(\);\s*addOutflowRow\(\);/);
+});
+
+test('fechamento inteligente conecta operação, financeiro e gestão',()=>{
+  for (const id of [
+    'closingValidationPanel','closingValidationItems','operatorProjectedAvailable',
+    'openingFloatSuggestion','applyOpeningFloat','financialOverviewGrid',
+    'reviewPendingPanel','reviewPendingItems','operatorCorrectionComparison'
+  ]) assert.match(html,new RegExp(`id="${id}"`));
+  assert.match(app,/function buildClosingIssues/);
+  assert.match(app,/Relatório da maquininha ausente/);
+  assert.match(app,/function renderDashboardFinancialOverview/);
+  assert.match(app,/function renderFinancePendingPanel/);
+  assert.match(app,/function renderOperatorCorrectionComparison/);
+  assert.match(app,/function loadOpeningFloatSuggestion/);
+  assert.match(app,/return 'attachments'/);
+  assert.match(app,/return 'pix'/);
+  assert.match(css,/\.closing-validation-panel/);
+  assert.match(css,/\.financial-overview-grid/);
+  assert.match(css,/\.review-pending-panel/);
+  assert.match(rules,/openingFloatSourceId/);
 });
 
 test('fila financeira possui todos os estados priorizados',()=>{

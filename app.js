@@ -5,8 +5,8 @@ import { firebaseConfig, ADMIN_EMAIL } from './firebase-config.js';
 import {
   SYSTEM_FIELDS, COUNTED_FIELDS, EXPENSE_FIELDS, CARD_FIELDS, MACHINE_PIX_FIELDS,
   FINANCE_MACHINE_FIELDS, FINANCE_CONFIRM_FIELDS,
-  numberFrom, validateClosingAmounts, calculateClosing, calculateFinanceReview, summarizeFinance,
-  differenceSeverity, formatBRL
+  numberFrom, validateClosingAmounts, calculateClosing, calculateFinanceReview, calculateOperationalFinancialSummary,
+  summarizeFinance, differenceSeverity, formatBRL
 } from './calculations.js';
 
 const STORES = ['House 190 Teixeira','House 190 Eunápolis','House Food Park Teixeira'];
@@ -41,6 +41,8 @@ let divergenceTolerance = 1;
 let pendingAttachments = [];
 let savedAttachments = [];
 let closingAmountsTouched = false;
+let suggestedOpeningFloat = null;
+let openingFloatSuggestionRequest = 0;
 
 const $ = (selector, root=document) => root.querySelector(selector);
 const $$ = (selector, root=document) => [...root.querySelectorAll(selector)];
@@ -154,6 +156,7 @@ function showView(name) {
   $('.sidebar').classList.remove('open');
   if (name === 'history') loadHistory();
   if (name === 'finance') loadFinance();
+  if (name === 'closing') loadOpeningFloatSuggestion();
 }
 
 function initDates() {
@@ -173,6 +176,9 @@ function closingFormData() {
   OPERATION_FIELDS.forEach(key => raw[key] = numberFrom(raw[key]));
   raw.selectedMachines = $$('.machine-select:checked').map(input => input.value);
   raw.sangria_delivered = $('[name="sangria_delivered"]').checked;
+  if ($('#closingForm').dataset.openingFloatSourceId) {
+    raw.openingFloatSourceId = $('#closingForm').dataset.openingFloatSourceId;
+  }
   raw.outflows = $$('.outflow-row').map(row => ({
     category:$('[data-outflow-field="category"]',row).value,
     description:$('[data-outflow-field="description"]',row).value.trim(),
@@ -533,6 +539,101 @@ $('[name="sangria_delivered"]').addEventListener('change', event => {
   }
 });
 
+function closingAttachmentCategories() {
+  return [...savedAttachments,...pendingAttachments].map(item => String(item.category || ''));
+}
+
+function hasClosingAttachment(category) {
+  return closingAttachmentCategories().includes(category);
+}
+
+function buildClosingIssues(data, result = calculateClosing(data)) {
+  const issues = [];
+  const add = (severity,title,message,target) => issues.push({severity,title,message,target});
+  const systemMachineTotal = numberFrom(data.system_credit) + numberFrom(data.system_debit) + numberFrom(data.system_pix);
+  const availableCashBeforeRemoval = numberFrom(data.opening_float) + numberFrom(data.system_cash) + numberFrom(data.cash_in);
+  if (!String(data.operator || '').trim()) {
+    add('error','Operador não informado','Informe quem realizou este fechamento.','operator');
+  }
+  if (systemMachineTotal > 0 && !data.selectedMachines.length) {
+    add('error','Máquina não selecionada','Escolha ao menos uma máquina usada para Crédito, Débito ou Pix.','machine');
+  }
+  if (data.selectedMachines.length && !hasClosingAttachment('Relatório de maquininha')) {
+    add('error','Relatório da maquininha ausente','Anexe ao menos um relatório das máquinas utilizadas.','attachment');
+  }
+  data.selectedMachines.forEach(machine => {
+    const fields = OPERATOR_GROUPS[machine] || [];
+    if (systemMachineTotal > 0 && fields.every(field => nearZero(data[field]))) {
+      add('warning',`${machine} sem valores`,`A máquina ${machine} foi selecionada, mas Crédito, Débito e Pix estão zerados.`,'machine');
+    }
+  });
+  if (numberFrom(data.withdrawals) > 0 && (!data.sangria_delivered || !String(data.sangria_responsible || '').trim() || !data.sangria_delivered_at)) {
+    add('error','Entrega da sangria incompleta','Confirme a entrega, o responsável e o horário da sangria.','sangria');
+  }
+  if (numberFrom(data.withdrawals) > availableCashBeforeRemoval) {
+    add('warning','Sangria acima do dinheiro disponível','Revise o saldo inicial, as entradas e o valor retirado.','movement');
+  }
+  if (numberFrom(data.withdrawals) > 0 && !hasClosingAttachment('Sangria')) {
+    add('warning','Comprovante de sangria ausente','Anexe uma foto ou documento da sangria para facilitar a conferência.','attachment');
+  }
+  if (result.expenseTotal > 0 && !hasClosingAttachment('Despesa/Saída') && !hasClosingAttachment('Motoboy/Freelancer')) {
+    add('warning','Comprovante de saída ausente','Existe uma saída em dinheiro sem comprovante correspondente.','attachment');
+  }
+  if (!nearZero(result.differences.card)) {
+    add('warning','Cartões não conciliados',`Diferença de ${formatBRL(result.differences.card)} entre o site e as máquinas.`,'machine');
+  }
+  if (!nearZero(result.differences.pix)) {
+    add('warning','Pix não conciliado',`Diferença de ${formatBRL(result.differences.pix)} entre o site e as máquinas.`,'machine');
+  }
+  if (!nearZero(result.difference) && (!String(data.divergence_reason || '').trim() || !String(data.notes || '').trim())) {
+    add('error','Divergência sem justificativa','Selecione o motivo e descreva a diferença antes de enviar.','difference');
+  }
+  if (suggestedOpeningFloat && !nearZero(numberFrom(data.opening_float) - suggestedOpeningFloat.value)) {
+    add('warning','Saldo inicial diferente do fechamento anterior',
+      `O último troco aprovado foi ${formatBRL(suggestedOpeningFloat.value)}.`,'opening');
+  }
+  return issues;
+}
+
+function focusClosingIssue(target) {
+  const selectors = {
+    operator:'[name="operator"]',machine:'.store-conference-card',attachment:'#attachmentCategory',
+    sangria:'.sangria-control',movement:'.movement-card',difference:'.closing-notes',
+    opening:'[name="opening_float"]'
+  };
+  const element = $(selectors[target]);
+  element?.scrollIntoView({behavior:'smooth',block:'center'});
+  if (element?.matches('input,select,textarea,button')) setTimeout(() => element.focus(),350);
+}
+
+function renderClosingIssues(data, result, hasStarted) {
+  const items = hasStarted ? buildClosingIssues(data,result) : [];
+  const errors = items.filter(item => item.severity === 'error').length;
+  const warnings = items.filter(item => item.severity === 'warning').length;
+  $('#closingValidationPanel').classList.toggle('has-errors',errors > 0);
+  $('#closingValidationPanel').classList.toggle('is-ready',hasStarted && !items.length);
+  $('#closingValidationTitle').textContent = !hasStarted ? 'Aguardando preenchimento'
+    : errors ? `${errors} ${errors === 1 ? 'erro precisa' : 'erros precisam'} de correção`
+    : warnings ? `${warnings} ${warnings === 1 ? 'aviso encontrado' : 'avisos encontrados'}`
+    : 'Fechamento pronto para envio';
+  $('#closingValidationCount').textContent = !hasStarted ? '0' : items.length ? String(items.length) : 'OK';
+  $('#closingValidationItems').innerHTML = !hasStarted
+    ? '<p>Preencha o fechamento para iniciar as verificações.</p>'
+    : items.length ? items.map(item => `<button type="button" class="validation-item ${item.severity}" data-closing-issue-target="${item.target}"><span>${item.severity === 'error' ? '!' : 'i'}</span><div><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.message)}</small></div><em>Corrigir →</em></button>`).join('')
+    : '<div class="validation-success"><span>✓</span><div><b>Nenhuma pendência encontrada</b><small>Os dados obrigatórios e os comprovantes foram verificados.</small></div></div>';
+}
+
+function renderOperatorFinancialSummary(data) {
+  const summary = calculateOperationalFinancialSummary(data,effectiveFeeRates(data));
+  $('#operatorGrossSales').textContent = formatBRL(summary.grossSales);
+  $('#operatorPhysicalCash').textContent = formatBRL(summary.physicalCash);
+  $('#operatorBankNet').textContent = formatBRL(summary.bankNet);
+  $('#operatorPixRequested').textContent = formatBRL(summary.pixRequested);
+  $('#operatorProjectedAvailable').textContent = formatBRL(summary.projectedAvailable);
+  $('#operatorProjectedAvailable').className = summary.projectedAvailable < 0 ? 'negative' : '';
+  return summary;
+}
+
 function closingHasOperationalInput(data) {
   return closingAmountsTouched
     || Boolean($('#closingForm').dataset.id)
@@ -582,6 +683,8 @@ function updateClosingCalculation() {
   const icon = $('#diffBadge');
   const hasStarted = closingHasOperationalInput(data);
   updateClosingProgress(data);
+  renderOperatorFinancialSummary(data);
+  renderClosingIssues(data,result,hasStarted);
   rec.classList.toggle('is-idle',!hasStarted);
   if (!hasStarted) {
     rec.style.borderLeftColor = 'var(--line)';
@@ -600,6 +703,11 @@ function updateClosingCalculation() {
     : result.status === 'surplus' ? 'Foi encontrada sobra acima da tolerância.' : 'Foi encontrada falta acima da tolerância.';
   $('#closingDivergenceFields').classList.toggle('hidden',nearZero(result.difference));
 }
+
+$('#closingValidationItems').addEventListener('click', event => {
+  const item = event.target.closest('[data-closing-issue-target]');
+  if (item) focusClosingIssue(item.dataset.closingIssueTarget);
+});
 
 $('#closingProgress').addEventListener('click', event => {
   const item = event.target.closest('.closing-progress-item');
@@ -676,6 +784,10 @@ async function persistClosing(finalStatus) {
   $('#formStatus').className = `badge ${finalStatus === 'submitted' ? 'warn' : 'draft'}`;
   await appendAudit(id,finalStatus === 'submitted' ? 'submitted' : 'draft_saved',
     finalStatus === 'submitted' ? `Fechamento enviado com ${attachments.length} comprovante(s).` : 'Rascunho salvo.').catch(()=>{});
+  if (data.openingFloatSourceId && data.openingFloatSourceId !== existingRecord.openingFloatSourceId) {
+    await appendAudit(id,'opening_float_connected',
+      `Saldo inicial de ${formatBRL(data.opening_float)} conectado ao fechamento anterior.`).catch(()=>{});
+  }
   toast(finalStatus === 'submitted' ? 'Caixa enviado ao financeiro.' : 'Rascunho salvo.');
   if (finalStatus === 'submitted') {
     setTimeout(() => { resetClosing(); showView('dashboard'); loadDashboard(); }, 700);
@@ -688,6 +800,14 @@ $('#saveDraft').onclick = async () => {
 $('#closingForm').addEventListener('submit', async event => {
   event.preventDefault();
   const formData = closingFormData();
+  const result = calculateClosing(formData);
+  const blockingIssues = buildClosingIssues(formData,result).filter(item => item.severity === 'error');
+  if (blockingIssues.length) {
+    renderClosingIssues(formData,result,true);
+    toast(`Corrija ${blockingIssues.length} ${blockingIssues.length === 1 ? 'erro' : 'erros'} antes de enviar.`,true);
+    $('#closingValidationPanel').scrollIntoView({behavior:'smooth',block:'center'});
+    return;
+  }
   const invalidOutflow = formData.outflows.some(item => !item.description || item.amount <= 0);
   const invalidPix = formData.pixRequests.some(item => !item.name || !item.pixKey || item.amount <= 0);
   const needsMachine = numberFrom(formData.system_credit) + numberFrom(formData.system_debit) + numberFrom(formData.system_pix) > 0;
@@ -703,7 +823,6 @@ $('#closingForm').addEventListener('submit', async event => {
     toast('Preencha nome, chave Pix e valor em todas as solicitações.',true);
     return;
   }
-  const result = calculateClosing(formData);
   if (numberFrom(formData.withdrawals) > 0 && (!formData.sangria_delivered || !String(formData.sangria_responsible || '').trim() || !formData.sangria_delivered_at)) {
     toast('Informe a entrega da sangria, o responsável e a data/horário.',true);
     return;
@@ -719,6 +838,9 @@ function resetClosing() {
   const form = $('#closingForm');
   form.reset();
   delete form.dataset.id;
+  delete form.dataset.openingFloatSourceId;
+  suggestedOpeningFloat = null;
+  $('#openingFloatSuggestion').classList.add('hidden');
   initDates();
   $$('input[inputmode="decimal"]',form).forEach(input => input.value='0');
   $('#outflowRows').innerHTML = '';
@@ -728,7 +850,7 @@ function resetClosing() {
   renderAttachmentList();
   $('#sangriaDetails').classList.add('hidden');
   $('#closingDivergenceFields').classList.add('hidden');
-  $('.machine-select').forEach(input => { input.checked = false; });
+  $$('.machine-select').forEach(input => { input.checked = false; });
   $('.optional-receipts').open = false;
   renderSelectedMachineCards();
   closingAmountsTouched = false;
@@ -751,6 +873,49 @@ async function fetchClosings(from, to) {
     .filter(item => item.date >= from && item.date <= to && allowedStores().includes(item.store));
 }
 
+function shiftIsoDate(date,days) {
+  const value = new Date(`${date}T12:00:00`);
+  value.setDate(value.getDate() + days);
+  return value.toISOString().slice(0,10);
+}
+
+async function loadOpeningFloatSuggestion() {
+  const requestId = ++openingFloatSuggestionRequest;
+  const form = $('#closingForm');
+  const date = form.elements.date.value;
+  const store = form.elements.store.value;
+  suggestedOpeningFloat = null;
+  $('#openingFloatSuggestion').classList.add('hidden');
+  if (!date || !store || !profile) return;
+  try {
+    const until = shiftIsoDate(date,-1);
+    const from = shiftIsoDate(date,-45);
+    const previous = (await fetchClosings(from,until))
+      .filter(item => item.store === store && financeState(item) === 'approved' && numberFrom(item.closing_float) > 0)
+      .sort((a,b) => b.date.localeCompare(a.date) || numberFrom(b.reviewedAt)-numberFrom(a.reviewedAt))[0];
+    if (requestId !== openingFloatSuggestionRequest || !previous) return;
+    suggestedOpeningFloat = {id:previous.id,value:numberFrom(previous.closing_float),date:previous.date,shift:previous.shift || 'Turno'};
+    $('#openingFloatSuggestionValue').textContent = formatBRL(suggestedOpeningFloat.value);
+    $('#openingFloatSuggestionMeta').textContent = `${formatDate(suggestedOpeningFloat.date)} · ${suggestedOpeningFloat.shift} · aprovado pelo financeiro`;
+    $('#openingFloatSuggestion').classList.remove('hidden');
+    updateClosingCalculation();
+  } catch {
+    if (requestId === openingFloatSuggestionRequest) $('#openingFloatSuggestion').classList.add('hidden');
+  }
+}
+
+$('#applyOpeningFloat').onclick = () => {
+  if (!suggestedOpeningFloat) return;
+  $('[name="opening_float"]').value = suggestedOpeningFloat.value;
+  $('#closingForm').dataset.openingFloatSourceId = suggestedOpeningFloat.id;
+  closingAmountsTouched = true;
+  $('.movement-card').dataset.touched = 'true';
+  updateClosingCalculation();
+  toast('Troco anterior aplicado como saldo inicial.');
+};
+$('[name="date"]').addEventListener('change',loadOpeningFloatSuggestion);
+$('[name="store"]').addEventListener('change',loadOpeningFloatSuggestion);
+
 function enrichedClosing(record) {
   const {status:calculationStatus,...calc} = calculateClosing(record);
   const finance = record.financeReview
@@ -772,10 +937,24 @@ function financeState(record) {
   return 'pending';
 }
 
+function missingMachineReport(record) {
+  const machines = activeMachineEntries(record);
+  return machines.length > 0 && !(record.attachments || []).some(item => item.category === 'Relatório de maquininha');
+}
+
+function pendingPixRequestCount(record) {
+  const statuses = record.financeReview?.pixPaymentStatuses || [];
+  return (record.pixRequests || []).filter((request,index) =>
+    (statuses[index]?.status || request.status || 'pending') === 'pending'
+  ).length;
+}
+
 function queueCategory(record) {
   const state = financeState(record);
   if (['approved','reopened','returned','draft'].includes(state)) return state;
   if (sangriaAvailable(record) > 0) return 'sangria';
+  if (missingMachineReport(record)) return 'attachments';
+  if (pendingPixRequestCount(record) > 0) return 'pix';
   const difference = record.financeCalc?.totalDifference ?? record.difference;
   if (!nearZero(difference)) return 'divergent';
   return 'pending';
@@ -785,7 +964,7 @@ function queueBadge(record) {
   const map = {
     approved:['ok','Conferido'],reopened:['warn','Reaberto'],returned:['bad','Devolvido'],
     draft:['draft','Rascunho'],pending:['warn','Aguardando'],divergent:['bad','Com divergência'],
-    sangria:['sangria','Aguardando sangria']
+    sangria:['sangria','Aguardando sangria'],attachments:['bad','Comprovante pendente'],pix:['warn','Pix pendente']
   };
   const item = map[queueCategory(record)] || map.pending;
   return `<span class="badge ${item[0]}">${item[1]}</span>`;
@@ -794,7 +973,7 @@ function queueBadge(record) {
 function queuePriority(record) {
   const category = queueCategory(record);
   const severity = differenceSeverity(record.financeCalc?.totalDifference ?? record.difference,divergenceTolerance);
-  const weights = {sangria:0,divergent:severity === 'critical' ? 1 : 2,reopened:3,pending:4,returned:5,approved:6,draft:7};
+  const weights = {sangria:0,attachments:1,pix:2,divergent:severity === 'critical' ? 3 : 4,reopened:5,pending:6,returned:7,approved:8,draft:9};
   return weights[category] ?? 8;
 }
 
@@ -837,6 +1016,7 @@ async function loadDashboard() {
     $('#kpiPending').textContent = pending;
     renderStoreStatus(rows);
     renderChannels(rows);
+    renderDashboardFinancialOverview(rows);
     renderDivergences(rows);
   } catch (error) {
     toast('Não foi possível carregar o dashboard.',true);
@@ -860,6 +1040,36 @@ function renderChannels(rows) {
   const values = channels.map(([label,key]) => [label,rows.reduce((sum,item) => sum + numberFrom(item.systemByMethod?.[key]),0)]);
   const max = Math.max(...values.map(item => item[1]),1);
   $('#channelBars').innerHTML = values.map(([label,value]) => `<div><div class="bar-head"><span>${label}</span><b>${formatBRL(value)}</b></div><div class="bar-track"><div class="bar-fill" style="width:${value/max*100}%"></div></div></div>`).join('');
+}
+
+function renderDashboardFinancialOverview(rows) {
+  const totals = rows.reduce((summary,item) => {
+    const operational = calculateOperationalFinancialSummary(item,effectiveFeeRates(item));
+    const review = item.financeCalc;
+    const statuses = item.financeReview?.pixPaymentStatuses || [];
+    const commitments = (item.pixRequests || []).reduce((sum,request,index) =>
+      sum + ((statuses[index]?.status || request.status || 'pending') === 'rejected' ? 0 : numberFrom(request.amount)),0);
+    summary.gross += operational.grossSales;
+    summary.cash += operational.physicalCash;
+    summary.fees += numberFrom(review?.feeTotal ?? operational.feeTotal);
+    summary.commitments += commitments;
+    summary.available += operational.physicalCash
+      + numberFrom(review?.netCard ?? operational.netCard)
+      + numberFrom(review?.netPix ?? operational.netPix)
+      - commitments;
+    return summary;
+  },{gross:0,cash:0,fees:0,commitments:0,available:0});
+  $('#overviewGross').textContent = formatBRL(totals.gross);
+  $('#overviewCash').textContent = formatBRL(totals.cash);
+  $('#overviewFees').textContent = `− ${formatBRL(totals.fees)}`;
+  $('#overviewPixCommitments').textContent = `− ${formatBRL(totals.commitments)}`;
+  $('#overviewAvailable').textContent = formatBRL(totals.available);
+  $('#overviewAvailable').className = totals.available < 0 ? 'negative' : '';
+  const approved = rows.filter(item => financeState(item) === 'approved').length;
+  $('#financialOverviewStatus').textContent = !rows.length ? 'Aguardando dados'
+    : approved === rows.length ? 'Valores conferidos'
+    : `${rows.length-approved} aguardando conferência`;
+  $('#financialOverviewStatus').className = `badge ${rows.length && approved === rows.length ? 'ok' : 'draft'}`;
 }
 
 function renderDivergences(rows) {
@@ -887,7 +1097,7 @@ async function loadFinance() {
     const store = $('#financeStore').value || 'all';
     const status = $('#financeStatus').value || 'open';
     const scoped = financeClosings.filter(item => store === 'all' || item.store === store);
-    const openCategories = ['pending','divergent','sangria','reopened'];
+    const openCategories = ['pending','divergent','sangria','attachments','pix','reopened'];
     const rows = scoped.filter(item => status === 'all' || (status === 'open' && openCategories.includes(queueCategory(item))) || queueCategory(item) === status);
     $('#financePending').textContent = scoped.filter(item => financeState(item) === 'pending').length;
     $('#financeApproved').textContent = scoped.filter(item => financeState(item) === 'approved').length;
@@ -907,7 +1117,10 @@ async function loadFinance() {
     $('#financeRows').innerHTML = rows.length ? rows.sort((a,b) => queuePriority(a)-queuePriority(b) || numberFrom(a.submittedAt)-numberFrom(b.submittedAt)).map(item => {
       const diff = item.financeCalc?.totalDifference ?? item.difference;
       const diffLabel = differenceLabel(diff);
-      const priority = queueCategory(item) === 'sangria' ? ['sangria','Sangria']
+      const category = queueCategory(item);
+      const priority = category === 'sangria' ? ['sangria','Sangria']
+        : category === 'attachments' ? ['bad','Documento']
+        : category === 'pix' ? ['warn','Pix']
         : differenceSeverity(diff,divergenceTolerance) === 'critical' ? ['bad','Alta']
         : differenceSeverity(diff,divergenceTolerance) === 'warning' ? ['warn','Média'] : ['draft','Normal'];
       return `<tr><td data-label="Prioridade"><span class="badge ${priority[0]}">${priority[1]}</span></td><td data-label="Data">${formatDate(item.date)}</td><td data-label="Loja">${escapeHtml(item.store)}</td><td data-label="Operador">${escapeHtml(item.operator)}</td><td data-label="Sangria">${sangriaAvailable(item) ? `<span class="sangria-table-value">${formatBRL(sangriaAvailable(item))}</span>` : '—'}</td><td data-label="Divergência" class="${differenceClass(diff)}">${formatBRL(diff)}<small class="cell-note">${diffLabel[1]}</small></td><td data-label="Comprovantes">${(item.attachments || []).length}</td><td data-label="Status">${queueBadge(item)}</td><td data-label="Ação"><button class="table-action" data-review-id="${escapeHtml(item.id)}">${financeState(item)==='approved'?'Ver':'Conferir'}</button></td></tr>`;
@@ -985,6 +1198,22 @@ function renderOperatorCorrection(record) {
   $('#toggleOperatorCorrection').textContent = 'Corrigir valores';
 }
 
+function renderOperatorCorrectionComparison(record) {
+  const correction = record.lastOperatorCorrection;
+  const panel = $('#operatorCorrectionComparison');
+  if (!correction?.fields?.length) {
+    panel.classList.add('hidden');
+    $('#operatorCorrectionComparisonRows').innerHTML = '';
+    return;
+  }
+  panel.classList.remove('hidden');
+  $('#operatorCorrectionComparisonMeta').textContent = `${correction.reason} · ${correction.correctedByName || 'Financeiro'} · ${formatDateTime(correction.correctedAt)}`;
+  $('#operatorCorrectionComparisonRows').innerHTML = correction.fields.map(item => {
+    const impact = numberFrom(item.after) - numberFrom(item.before);
+    return `<tr><td>${escapeHtml(item.label || item.field)}</td><td>${formatBRL(item.before)}</td><td>${formatBRL(item.after)}</td><td class="${differenceClass(impact)}">${impact > 0 ? '+' : ''}${formatBRL(impact)}</td></tr>`;
+  }).join('');
+}
+
 function renderCardMachines(record) {
   const machines = activeMachineEntries(record);
   if (!machines.length) return '<p class="empty-inline">Nenhuma máquina foi selecionada pela loja.</p>';
@@ -1024,7 +1253,8 @@ async function renderAuditTimeline(closingId) {
     const entries = snap.exists() ? Object.values(snap.val()).sort((a,b) => numberFrom(b.timestamp)-numberFrom(a.timestamp)) : [];
     const labels = {
       draft_saved:'Rascunho salvo',submitted:'Enviado ao financeiro',approved:'Conferência aprovada',
-      returned:'Devolvido para correção',reopened:'Fechamento reaberto',operator_values_corrected:'Valores do operador corrigidos'
+      returned:'Devolvido para correção',reopened:'Fechamento reaberto',operator_values_corrected:'Valores do operador corrigidos',
+      opening_float_connected:'Troco conectado ao fechamento anterior'
     };
     $('#auditTimeline').innerHTML = entries.length ? entries.map(entry => `<div class="audit-entry"><span></span><div><b>${escapeHtml(labels[entry.action] || entry.action)}</b><p>${escapeHtml(entry.details || 'Sem detalhes adicionais.')}</p><small>${escapeHtml(entry.actorName || 'Usuário')} · ${formatDateTime(entry.timestamp)}</small></div></div>`).join('') : '<p class="empty-inline">Nenhuma alteração registrada nesta versão do fechamento.</p>';
   } catch {
@@ -1051,6 +1281,7 @@ function openFinanceReview(id) {
   $('#reviewMethodRows').innerHTML = methodRows(currentReviewRecord);
   $('#reviewSystemValues').innerHTML = renderSystemValues(currentReviewRecord);
   renderOperatorCorrection(currentReviewRecord);
+  renderOperatorCorrectionComparison(currentReviewRecord);
   $('#reviewCardMachines').innerHTML = renderCardMachines(currentReviewRecord);
   $('#reviewExpenses').innerHTML = renderOutflows(currentReviewRecord) + metric('Sangrias',currentReviewRecord.withdrawals);
   $('#reviewControls').innerHTML = metric('Saldo inicial',currentReviewRecord.opening_float)
@@ -1163,10 +1394,65 @@ $('#saveOperatorCorrection').onclick = async () => {
   }
 };
 
+function buildFinancePendingItems(record,financeData,result) {
+  const items = [];
+  const add = (severity,title,message,target) => items.push({severity,title,message,target});
+  if (missingMachineReport(record)) {
+    add('error','Relatório de maquininha ausente','A loja selecionou máquinas, mas não anexou o relatório obrigatório.','attachments');
+  }
+  const pixPending = financeData.pixPaymentStatuses.filter(item => item.status === 'pending').length;
+  if (pixPending) {
+    add('warning',`${pixPending} Pix aguardando decisão`,'Marque cada solicitação como paga ou recusada.','pix');
+  }
+  if (numberFrom(record.withdrawals) > 0 && !financeData.finance_sangria_received) {
+    add('warning','Sangria aguardando recebimento',`Confirme o recebimento de ${formatBRL(record.withdrawals)}.`,'sangria');
+  }
+  const required = requiredFinanceConfirmFields(record);
+  const missingConfirmations = required.filter(key => !financeData[key]).length;
+  if (missingConfirmations) {
+    add('warning',`${missingConfirmations} confirmações pendentes`,'Confirme dinheiro, máquinas e saídas revisadas.','confirmations');
+  }
+  if (!nearZero(result.totalDifference)
+    && (!String(financeData.finance_divergence_reason || '').trim() || !String(financeData.finance_notes || '').trim())) {
+    add('error','Diferença sem parecer completo','Informe o motivo e registre o parecer financeiro.','opinion');
+  }
+  return items;
+}
+
+function focusReviewPending(target) {
+  const selectors = {
+    attachments:'.attachment-review-card',pix:'#financePixRequests',sangria:'#reviewSangriaAlert',
+    confirmations:'.finance-confirm-section',opinion:'[name="finance_divergence_reason"]'
+  };
+  const element = $(selectors[target]);
+  element?.scrollIntoView({behavior:'smooth',block:'center'});
+  if (element?.matches('input,select,textarea,button')) setTimeout(() => element.focus(),350);
+}
+
+function renderFinancePendingPanel(record,financeData,result) {
+  const items = buildFinancePendingItems(record,financeData,result);
+  const errors = items.filter(item => item.severity === 'error').length;
+  $('#reviewPendingPanel').classList.toggle('has-errors',errors > 0);
+  $('#reviewPendingPanel').classList.toggle('is-ready',!items.length);
+  $('#reviewPendingTitle').textContent = items.length
+    ? 'Resolva somente o que exige atenção'
+    : 'Fechamento pronto para aprovação';
+  $('#reviewPendingCount').textContent = `${items.length} ${items.length === 1 ? 'pendência' : 'pendências'}`;
+  $('#reviewPendingItems').innerHTML = items.length ? items.map(item =>
+    `<button type="button" class="review-pending-item ${item.severity}" data-review-pending-target="${item.target}"><span>${item.severity === 'error' ? '!' : 'i'}</span><div><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.message)}</small></div><em>Revisar →</em></button>`
+  ).join('') : '<div class="review-ready"><span>✓</span><div><b>Nenhuma pendência</b><small>Todos os controles obrigatórios foram concluídos.</small></div></div>';
+}
+
+$('#reviewPendingItems').addEventListener('click',event => {
+  const item = event.target.closest('[data-review-pending-target]');
+  if (item) focusReviewPending(item.dataset.reviewPendingTarget);
+});
+
 function updateFinanceCalculation() {
   if (!currentReviewRecord) return;
+  const financeData = financeFormData();
   const result = calculateFinanceReview(currentReviewRecord,{
-    ...financeFormData(),cardFeeRates:effectiveFeeRates(currentReviewRecord)
+    ...financeData,cardFeeRates:effectiveFeeRates(currentReviewRecord)
   });
   $('#reviewAvailable').textContent = formatBRL(result.totalAvailable);
   $('#reviewOutflows').textContent = formatBRL(result.totalOutflows);
@@ -1199,9 +1485,9 @@ function updateFinanceCalculation() {
     if (pixFee) pixFee.textContent = `${settlement.pixRate.toFixed(2).replace('.',',')}% · − ${formatBRL(settlement.pixFee)}`;
   });
   const required = requiredFinanceConfirmFields(currentReviewRecord);
-  const financeData = financeFormData();
   const confirmed = required.filter(key => financeData[key]).length;
   $('#financeConfirmedCount').textContent = `${confirmed}/${required.length}`;
+  renderFinancePendingPanel(currentReviewRecord,financeData,result);
 }
 $('#financeReviewForm').addEventListener('input',updateFinanceCalculation);
 
@@ -1222,6 +1508,10 @@ async function saveFinanceReview(decision) {
   data.cardFeeRates = effectiveFeeRates(currentReviewRecord);
   const calc = calculateFinanceReview(currentReviewRecord,data);
   const requiredConfirmations = requiredFinanceConfirmFields(currentReviewRecord);
+  if (decision === 'approved' && missingMachineReport(currentReviewRecord)) {
+    toast('Devolva para a loja anexar o relatório obrigatório das máquinas.',true);
+    return;
+  }
   if (decision === 'approved' && requiredConfirmations.some(key => !data[key])) {
     toast('Confirme o Dinheiro, as máquinas utilizadas e as saídas antes de aprovar.',true);
     return;
@@ -1312,10 +1602,11 @@ function openClosingForEdit(record) {
   resetClosing();
   const form = $('#closingForm');
   form.dataset.id = record.id;
+  if (record.openingFloatSourceId) form.dataset.openingFloatSourceId = record.openingFloatSourceId;
   ['date','store','shift','operator','sangria_responsible','sangria_delivered_at','divergence_reason','notes']
     .forEach(key => { if (form.elements[key] && record[key] !== undefined) form.elements[key].value = record[key] ?? ''; });
   const selected = new Set(activeMachineEntries(record).map(([name]) => name));
-  $('.machine-select').forEach(input => {
+  $$('.machine-select').forEach(input => {
     input.checked = selected.has(input.value);
   });
   renderSelectedMachineCards();

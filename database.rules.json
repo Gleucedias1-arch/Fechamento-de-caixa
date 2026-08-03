@@ -233,7 +233,10 @@
         "expense_other": {
           ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)"
         },
-        "opening_float": {
+        "openingFloatSourceId": {
+        ".validate": "!newData.exists() || (newData.isString() && newData.val().length > 0 && newData.val().length <= 160)"
+      },
+      "opening_float": {
           ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
           ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
         },

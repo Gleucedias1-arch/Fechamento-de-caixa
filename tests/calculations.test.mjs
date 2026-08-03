@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { numberFrom, validateClosingAmounts, calculateClosing, calculateFinanceReview, differenceSeverity, summarizeFinance } from '../calculations.js';
+import { numberFrom, validateClosingAmounts, calculateClosing, calculateFinanceReview, differenceSeverity, summarizeFinance, calculateOperationalFinancialSummary } from '../calculations.js';
 
 test('converte valores brasileiros',()=>{
   assert.equal(numberFrom('1.234,56'),1234.56);
@@ -153,4 +153,21 @@ test('valida valores financeiros e bloqueia negativos, textos e limites excessiv
   assert.equal(validateClosingAmounts({withdrawals:10000001}),false);
   assert.equal(validateClosingAmounts({outflows:[{amount:0}]}),false);
   assert.equal(validateClosingAmounts({pixRequests:[{amount:25}]}),true);
+});
+
+
+test('resumo operacional mostra destino do dinheiro e disponibilidade prevista',()=>{
+  const result=calculateOperationalFinancialSummary({
+    system_cash:200,system_credit:500,system_debit:100,system_pix:200,
+    counted_cash:150,closing_float:50,
+    stone_credit:500,stone_debit:100,stone_pix:200,
+    pixRequests:[{amount:80}]
+  },{Stone:{credit:2,debit:1,pix:.5}});
+  assert.equal(result.grossSales,1000);
+  assert.equal(result.physicalCash,200);
+  assert.equal(result.cardFees,11);
+  assert.equal(result.pixFees,1);
+  assert.equal(result.bankNet,788);
+  assert.equal(result.pixRequested,80);
+  assert.equal(result.projectedAvailable,908);
 });
