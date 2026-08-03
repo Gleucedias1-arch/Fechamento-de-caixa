@@ -65,9 +65,9 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.3.1');
-  assert.match(html,/app\.js\?v=2\.3\.1/);
-  assert.match(html,/styles\.css\?v=2\.3\.1/);
+  assert.equal(JSON.parse(packageJson).version,'2.4.0');
+  assert.match(html,/app\.js\?v=2\.4\.0/);
+  assert.match(html,/styles\.css\?v=2\.4\.0/);
 });
 
 test('solicitação Pix mantém Nome e Chave amplos sem ultrapassar o cartão',()=>{
@@ -175,6 +175,20 @@ test('identificação e finalização são compactas e bem agrupadas',()=>{
   assert.match(html,/class="closing-final-footer"/);
   assert.match(css,/\.closing-final-main \{ display: grid; grid-template-columns: 1fr;/);
   assert.match(html,/pix-request-section[\s\S]*closing-final-card[\s\S]*<\/div>\s*<\/div>\s*<\/form>/);
+});
+
+test('novo fechamento guia o operador por etapas e reduz ruído visual',()=>{
+  assert.match(html,/id="closingProgress"/);
+  assert.equal((html.match(/class="closing-progress-item/g) || []).length,5);
+  assert.match(css,/grid-template-areas:\s*"site conference"\s*"movement pix"\s*"movement final"/);
+  assert.match(css,/@media \(max-width: 760px\)[\s\S]*grid-template-areas:\s*"site"\s*"conference"\s*"movement"\s*"pix"\s*"final"/);
+  assert.match(html,/class="optional-receipts"/);
+  assert.match(html,/id="attachmentCamera"/);
+  assert.match(app,/handleAttachmentSelection/);
+  assert.match(app,/closingHasOperationalInput/);
+  assert.match(html,/Aguardando o preenchimento dos valores/);
+  assert.match(css,/#outflowRows:empty::before/);
+  assert.doesNotMatch(app,/buildMachineSelection\(\);\s*addOutflowRow\(\);/);
 });
 
 test('fila financeira possui todos os estados priorizados',()=>{
