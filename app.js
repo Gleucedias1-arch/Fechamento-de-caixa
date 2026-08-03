@@ -634,10 +634,10 @@ async function fetchClosings(from, to) {
 }
 
 function enrichedClosing(record) {
-  const calc = calculateClosing(record);
+  const {status:calculationStatus,...calc} = calculateClosing(record);
   const finance = record.financeReview
     ? calculateFinanceReview(record,{...record.financeReview,cardFeeRates:effectiveFeeRates(record)}) : null;
-  return {...record,...calc,financeCalc:finance};
+  return {...record,...calc,calculationStatus,financeCalc:finance};
 }
 
 function sangriaAvailable(record) {
@@ -1021,7 +1021,7 @@ $('#saveOperatorCorrection').onclick = async () => {
   const originalValues = currentReviewRecord.operatorOriginalValues || Object.fromEntries(
     entries.map(([field]) => [field,numberFrom(currentReviewRecord[field])])
   );
-  const calc = calculateClosing(nextRecord);
+  const {status:calculationStatus,...calc} = calculateClosing(nextRecord);
   const now = Date.now();
   const correction = {
     reason,fields:changed.map(([field,label]) => ({field,label,before:numberFrom(currentReviewRecord[field]),after:corrected[field]})),
@@ -1030,7 +1030,7 @@ $('#saveOperatorCorrection').onclick = async () => {
   const id = currentReviewRecord.id;
   try {
     await update(ref(db,`closings/${id}`),{
-      ...corrected,...calc,operatorOriginalValues:originalValues,lastOperatorCorrection:correction,updatedAt:now
+      ...corrected,...calc,calculationStatus,operatorOriginalValues:originalValues,lastOperatorCorrection:correction,updatedAt:now
     });
     await appendAudit(id,'operator_values_corrected',
       `${reason} · ${changed.length} valor(es) corrigido(s).`).catch(()=>{});
