@@ -1,12 +1,12 @@
 import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
-import { getDatabase, ref, get, set, push, update, query, orderByChild, startAt, endAt } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
+import { getDatabase, ref, get, set, push, update, query, orderByChild, equalTo, startAt, endAt } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js';
 import { firebaseConfig, ADMIN_EMAIL } from './firebase-config.js';
 import {
   SYSTEM_FIELDS, COUNTED_FIELDS, EXPENSE_FIELDS, CARD_FIELDS, MACHINE_PIX_FIELDS,
   FINANCE_MACHINE_FIELDS, FINANCE_CONFIRM_FIELDS,
-  numberFrom, calculateClosing, calculateFinanceReview, summarizeFinance,
+  numberFrom, validateClosingAmounts, calculateClosing, calculateFinanceReview, summarizeFinance,
   differenceSeverity, formatBRL
 } from './calculations.js';
 
@@ -32,6 +32,7 @@ const storage = getStorage(app);
 let profile = null;
 let currentClosings = [];
 let financeClosings = [];
+let historyClosings = [];
 let currentReviewRecord = null;
 let cardFeeRates = Object.fromEntries(Object.keys(OPERATOR_GROUPS).map(machine => [machine,{credit:0,debit:0,pix:0}]));
 let divergenceTolerance = 1;
@@ -401,7 +402,10 @@ async function uploadPendingAttachments(closingId) {
     for (const item of pendingAttachments) {
       const path = `closings/${closingId}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeFileName(item.file.name)}`;
       const target = storageRef(storage,path);
-      await uploadBytes(target,item.file,{contentType:item.file.type});
+      await uploadBytes(target,item.file,{
+        contentType:item.file.type,
+        customMetadata:{ownerId:auth.currentUser.uid,closingId}
+      });
       const url = await getDownloadURL(target);
       uploaded.push({
         name:item.file.name,category:item.category,type:item.file.type,size:item.file.size,
@@ -503,15 +507,35 @@ function updateClosingCalculation() {
 }
 $('#closingForm').addEventListener('input', updateClosingCalculation);
 
+function closingDocumentId(data) {
+  const slug = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+  return `closing-${data.date}-${slug(data.store)}-${slug(data.shift || 'turno')}`;
+}
+
 async function persistClosing(finalStatus) {
   const data = closingFormData();
+  if (!validateClosingAmounts(data)) {
+    throw new Error('Revise os valores: use somente números entre R$ 0,00 e R$ 10.000.000,00.');
+  }
   const calc = calculateClosing(data);
   const user = auth.currentUser;
   if (!allowedStores().includes(data.store)) throw new Error('Loja não autorizada.');
-  const id = $('#closingForm').dataset.id || push(ref(db,'closings')).key;
+  const editingId = $('#closingForm').dataset.id || '';
+  const sameSlot = (await fetchClosings(data.date,data.date)).find(item =>
+    item.id !== editingId && item.store === data.store && item.date === data.date
+      && (item.shift || 'Noite') === (data.shift || 'Noite')
+  );
+  if (sameSlot) {
+    throw new Error('Já existe um fechamento para esta loja, data e turno. Abra o registro existente no Histórico.');
+  }
+  const id = editingId || closingDocumentId(data);
   const now = Date.now();
-  const existingSnap = $('#closingForm').dataset.id ? await get(ref(db,`closings/${id}`)) : null;
-  const existingRecord = existingSnap?.exists() ? existingSnap.val() : {};
+  const existingSnap = await get(ref(db,`closings/${id}`));
+  const existingRecord = existingSnap.exists() ? existingSnap.val() : {};
+  if (!editingId && existingSnap.exists()) {
+    throw new Error('Este fechamento já existe. Abra o registro existente no Histórico.');
+  }
   const uploaded = await uploadPendingAttachments(id);
   const attachments = [...savedAttachments,...uploaded];
   const record = {
@@ -597,8 +621,16 @@ function resetClosing() {
 }
 
 async function fetchClosings(from, to) {
-  const snap = await get(query(ref(db,'closings'),orderByChild('date'),startAt(from),endAt(to)));
-  return snap.exists() ? Object.values(snap.val()).filter(item => allowedStores().includes(item.store)) : [];
+  if (isFinance()) {
+    const snap = await get(query(ref(db,'closings'),orderByChild('date'),startAt(from),endAt(to)));
+    return snap.exists() ? Object.values(snap.val()).filter(item => allowedStores().includes(item.store)) : [];
+  }
+  const snapshots = await Promise.all(allowedStores().map(store =>
+    get(query(ref(db,'closings'),orderByChild('store'),equalTo(store)))
+  ));
+  const records = snapshots.flatMap(snap => snap.exists() ? Object.values(snap.val()) : []);
+  return [...new Map(records.map(item => [item.id,item])).values()]
+    .filter(item => item.date >= from && item.date <= to && allowedStores().includes(item.store));
 }
 
 function enrichedClosing(record) {
@@ -1061,18 +1093,69 @@ $('#confirmReopen').onclick = async () => {
   }
 };
 
+function canEditClosing(record) {
+  return record.createdBy === auth.currentUser?.uid && ['draft','returned'].includes(financeState(record));
+}
+
+function openClosingForEdit(record) {
+  if (!canEditClosing(record)) {
+    toast('Somente o responsável pode editar rascunhos ou caixas devolvidos.',true);
+    return;
+  }
+  resetClosing();
+  const form = $('#closingForm');
+  form.dataset.id = record.id;
+  ['date','store','shift','operator','sangria_responsible','sangria_delivered_at','divergence_reason','notes']
+    .forEach(key => { if (form.elements[key] && record[key] !== undefined) form.elements[key].value = record[key] ?? ''; });
+  $('.machine-select').forEach(input => {
+    input.checked = (record.selectedMachines || []).includes(input.value);
+  });
+  renderSelectedMachineCards();
+  OPERATION_FIELDS.forEach(key => {
+    if (form.elements[key]) form.elements[key].value = numberFrom(record[key]);
+  });
+  $('#outflowRows').innerHTML = '';
+  (record.outflows || []).forEach(addOutflowRow);
+  if (!(record.outflows || []).length) addOutflowRow();
+  $('#pixRequestRows').innerHTML = '';
+  (record.pixRequests || []).forEach(item => addPixRequestRow(item,false));
+  savedAttachments = Array.isArray(record.attachments) ? record.attachments : [];
+  pendingAttachments = [];
+  form.elements.sangria_delivered.checked = Boolean(record.sangria_delivered);
+  $('#sangriaDetails').classList.toggle('hidden',!record.sangria_delivered);
+  renderAttachmentList();
+  $('#formStatus').textContent = record.status === 'returned' ? 'Devolvido para correção' : 'Rascunho recuperado';
+  $('#formStatus').className = `badge ${record.status === 'returned' ? 'bad' : 'draft'}`;
+  updateClosingCalculation();
+  showView('closing');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
 async function loadHistory() {
   try {
     const from = $('#historyFrom').value || isoToday();
     const to = $('#historyTo').value || isoToday();
     const store = $('#historyStore').value || 'all';
-    const rows = (await fetchClosings(from,to)).map(enrichedClosing).filter(item => store === 'all' || item.store === store).sort((a,b) => b.date.localeCompare(a.date));
-    $('#historyRows').innerHTML = rows.length ? rows.map(item => `<tr><td>${formatDate(item.date)}</td><td>${escapeHtml(item.store)}</td><td>${escapeHtml(item.operator)}</td><td>${formatBRL(item.systemTotal)}</td><td>${formatBRL(item.totalOutflows)}</td><td>${formatBRL(item.financeCalc?.totalDifference ?? item.difference)}</td><td>${stateBadge(item)}</td></tr>`).join('') : '<tr><td colspan="7" class="empty">Nenhum fechamento no período.</td></tr>';
+    historyClosings = (await fetchClosings(from,to)).map(enrichedClosing)
+      .filter(item => store === 'all' || item.store === store)
+      .sort((a,b) => b.date.localeCompare(a.date));
+    $('#historyRows').innerHTML = historyClosings.length ? historyClosings.map(item => {
+      const action = canEditClosing(item)
+        ? `<button class="table-action" data-edit-closing="${escapeHtml(item.id)}">${item.status === 'returned' ? 'Corrigir' : 'Continuar'}</button>`
+        : '—';
+      return `<tr><td>${formatDate(item.date)}</td><td>${escapeHtml(item.store)}</td><td>${escapeHtml(item.operator)}</td><td>${formatBRL(item.systemTotal)}</td><td>${formatBRL(item.totalOutflows)}</td><td>${formatBRL(item.financeCalc?.totalDifference ?? item.difference)}</td><td>${stateBadge(item)}</td><td>${action}</td></tr>`;
+    }).join('') : '<tr><td colspan="8" class="empty">Nenhum fechamento no período.</td></tr>';
   } catch {
     toast('Erro ao buscar o histórico.',true);
   }
 }
 $('#loadHistory').onclick = loadHistory;
+$('#historyRows').addEventListener('click',event => {
+  const button = event.target.closest('[data-edit-closing]');
+  if (!button) return;
+  const record = historyClosings.find(item => item.id === button.dataset.editClosing);
+  if (record) openClosingForEdit(record);
+});
 
 $('#userForm').addEventListener('submit', async event => {
   event.preventDefault();
