@@ -2,6 +2,13 @@
   "rules": {
     ".read": false,
     ".write": false,
+    "publicDashboards": {
+      "$date": {
+        ".read": true,
+        ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance')",
+        ".validate": "newData.hasChildren(['date','updatedAt','kpis','stores','channels','divergences']) && newData.child('date').val() === $date && newData.child('updatedAt').isNumber()"
+      }
+    },
     "users": {
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin')",
