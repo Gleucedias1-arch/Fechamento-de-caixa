@@ -844,6 +844,29 @@ function renderSystemValues(record) {
   return items.map(([label,value]) => `<div><span>${escapeHtml(label)}</span><strong>${formatBRL(value)}</strong></div>`).join('');
 }
 
+function operatorCorrectionEntries(record) {
+  const base = [
+    ['system_cash','Site · Dinheiro'],['system_credit','Site · Crédito'],['system_debit','Site · Débito'],
+    ['system_pix','Site · Pix'],['system_ifood_online','Site · iFood Online'],['system_ifood_voucher','Site · iFood Voucher'],
+    ['system_term','Site · Notas a prazo'],['system_club','Site · Resgate Clube'],['system_accrual','Site · Acréscimos'],
+    ['counted_cash','Loja · Dinheiro contado'],['opening_float','Movimento · Saldo inicial'],
+    ['cash_in','Movimento · Suprimentos'],['withdrawals','Movimento · Sangrias'],['closing_float','Movimento · Troco final']
+  ];
+  const machines = activeMachineEntries(record).flatMap(([machine,[credit,debit,pix]]) => [
+    [credit,`${machine} · Crédito`],[debit,`${machine} · Débito`],[pix,`${machine} · Pix`]
+  ]);
+  return [...base,...machines];
+}
+
+function renderOperatorCorrection(record) {
+  $('#operatorCorrectionFields').innerHTML = operatorCorrectionEntries(record).map(([field,label]) =>
+    `<label><span>${escapeHtml(label)}</span><input data-operator-correction-field="${escapeHtml(field)}" inputmode="decimal" value="${numberFrom(record[field])}" /></label>`
+  ).join('');
+  $('#operatorCorrectionReason').value = '';
+  $('#operatorCorrectionPanel').classList.add('hidden');
+  $('#toggleOperatorCorrection').textContent = 'Corrigir valores';
+}
+
 function renderCardMachines(record) {
   const machines = activeMachineEntries(record);
   if (!machines.length) return '<p class="empty-inline">Nenhuma máquina foi selecionada pela loja.</p>';
@@ -883,7 +906,7 @@ async function renderAuditTimeline(closingId) {
     const entries = snap.exists() ? Object.values(snap.val()).sort((a,b) => numberFrom(b.timestamp)-numberFrom(a.timestamp)) : [];
     const labels = {
       draft_saved:'Rascunho salvo',submitted:'Enviado ao financeiro',approved:'Conferência aprovada',
-      returned:'Devolvido para correção',reopened:'Fechamento reaberto'
+      returned:'Devolvido para correção',reopened:'Fechamento reaberto',operator_values_corrected:'Valores do operador corrigidos'
     };
     $('#auditTimeline').innerHTML = entries.length ? entries.map(entry => `<div class="audit-entry"><span></span><div><b>${escapeHtml(labels[entry.action] || entry.action)}</b><p>${escapeHtml(entry.details || 'Sem detalhes adicionais.')}</p><small>${escapeHtml(entry.actorName || 'Usuário')} · ${formatDateTime(entry.timestamp)}</small></div></div>`).join('') : '<p class="empty-inline">Nenhuma alteração registrada nesta versão do fechamento.</p>';
   } catch {
@@ -909,6 +932,7 @@ function openFinanceReview(id) {
   $('#reviewSangriaDetails').innerHTML = currentReviewRecord.withdrawals ? `<b>Entregue por: ${escapeHtml(currentReviewRecord.sangria_responsible || 'não informado')}</b><small>${formatDateTime(currentReviewRecord.sangria_delivered_at)}</small>${currentReviewRecord.financeReview?.sangriaReceivedByName ? `<small>Recebido por ${escapeHtml(currentReviewRecord.financeReview.sangriaReceivedByName)} em ${formatDateTime(currentReviewRecord.financeReview.sangriaReceivedAt)}</small>` : ''}` : '';
   $('#reviewMethodRows').innerHTML = methodRows(currentReviewRecord);
   $('#reviewSystemValues').innerHTML = renderSystemValues(currentReviewRecord);
+  renderOperatorCorrection(currentReviewRecord);
   $('#reviewCardMachines').innerHTML = renderCardMachines(currentReviewRecord);
   $('#reviewExpenses').innerHTML = renderOutflows(currentReviewRecord) + metric('Sangrias',currentReviewRecord.withdrawals);
   $('#reviewControls').innerHTML = metric('Saldo inicial',currentReviewRecord.opening_float)
@@ -948,12 +972,74 @@ function setFinanceReviewLocked(locked) {
   $('#approveClosing').classList.toggle('hidden',locked);
   $('#returnClosing').classList.toggle('hidden',locked);
   $('#reopenClosing').classList.toggle('hidden',!(locked && profile?.role === 'admin'));
+  $('#toggleOperatorCorrection').classList.toggle('hidden',locked);
+  if (locked) $('#operatorCorrectionPanel').classList.add('hidden');
 }
 
 $('#closeReview').onclick = () => {
   currentReviewRecord = null;
   $('#financeReviewPanel').classList.add('hidden');
   $('#financeQueueCard').classList.remove('hidden');
+};
+
+$('#toggleOperatorCorrection').onclick = () => {
+  if (!currentReviewRecord || financeState(currentReviewRecord) === 'approved') {
+    toast('Reabra o fechamento antes de corrigir os valores.',true);
+    return;
+  }
+  const panel = $('#operatorCorrectionPanel');
+  panel.classList.toggle('hidden');
+  $('#toggleOperatorCorrection').textContent = panel.classList.contains('hidden') ? 'Corrigir valores' : 'Fechar correção';
+};
+
+$('#cancelOperatorCorrection').onclick = () => {
+  if (currentReviewRecord) renderOperatorCorrection(currentReviewRecord);
+};
+
+$('#saveOperatorCorrection').onclick = async () => {
+  if (!currentReviewRecord || !isFinance() || financeState(currentReviewRecord) === 'approved') return;
+  const reason = $('#operatorCorrectionReason').value.trim();
+  if (!reason) {
+    toast('Informe o motivo da correção.',true);
+    $('#operatorCorrectionReason').focus();
+    return;
+  }
+  const entries = operatorCorrectionEntries(currentReviewRecord);
+  const corrected = Object.fromEntries(entries.map(([field]) => [
+    field,numberFrom($(`[data-operator-correction-field="${field}"]`).value)
+  ]));
+  const changed = entries.filter(([field]) => numberFrom(currentReviewRecord[field]) !== corrected[field]);
+  if (!changed.length) {
+    toast('Nenhum valor foi alterado.',true);
+    return;
+  }
+  const nextRecord = {...currentReviewRecord,...corrected};
+  if (!validateClosingAmounts(nextRecord)) {
+    toast('Revise os valores corrigidos. Não são permitidos valores negativos ou inválidos.',true);
+    return;
+  }
+  const originalValues = currentReviewRecord.operatorOriginalValues || Object.fromEntries(
+    entries.map(([field]) => [field,numberFrom(currentReviewRecord[field])])
+  );
+  const calc = calculateClosing(nextRecord);
+  const now = Date.now();
+  const correction = {
+    reason,fields:changed.map(([field,label]) => ({field,label,before:numberFrom(currentReviewRecord[field]),after:corrected[field]})),
+    correctedAt:now,correctedBy:auth.currentUser.uid,correctedByName:profile.name || auth.currentUser.email
+  };
+  const id = currentReviewRecord.id;
+  try {
+    await update(ref(db,`closings/${id}`),{
+      ...corrected,...calc,operatorOriginalValues:originalValues,lastOperatorCorrection:correction,updatedAt:now
+    });
+    await appendAudit(id,'operator_values_corrected',
+      `${reason} · ${changed.length} valor(es) corrigido(s).`).catch(()=>{});
+    toast('Valores do operador corrigidos. O lançamento original foi preservado.');
+    await loadFinance();
+    openFinanceReview(id);
+  } catch (error) {
+    toast(error.message || 'Não foi possível salvar a correção.',true);
+  }
 };
 
 function updateFinanceCalculation() {
