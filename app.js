@@ -1032,9 +1032,12 @@ $('#saveOperatorCorrection').onclick = async () => {
     await update(ref(db,`closings/${id}`),{
       ...corrected,...calc,calculationStatus,operatorOriginalValues:originalValues,lastOperatorCorrection:correction,updatedAt:now
     });
-    await appendAudit(id,'operator_values_corrected',
-      `${reason} · ${changed.length} valor(es) corrigido(s).`).catch(()=>{});
-    toast('Valores do operador corrigidos. O lançamento original foi preservado.');
+    const changeDetails = changed.map(([field,label]) =>
+      `${label}: ${formatBRL(currentReviewRecord[field])} → ${formatBRL(corrected[field])}`
+    ).join(' | ');
+    await appendAudit(id,'operator_values_corrected',`${reason} · ${changeDetails}`).catch(()=>{});
+    toast('Valores do operador corrigidos. O dashboard usará a versão do financeiro.');
+    await loadDashboard();
     await loadFinance();
     openFinanceReview(id);
   } catch (error) {
