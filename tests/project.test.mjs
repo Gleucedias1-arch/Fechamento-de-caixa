@@ -65,9 +65,9 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.5.0');
-  assert.match(html,/app\.js\?v=2\.5\.0/);
-  assert.match(html,/styles\.css\?v=2\.5\.0/);
+  assert.equal(JSON.parse(packageJson).version,'2.5.1');
+  assert.match(html,/app\.js\?v=2\.5\.1/);
+  assert.match(html,/styles\.css\?v=2\.5\.1/);
 });
 
 test('solicitação Pix mantém Nome e Chave amplos sem ultrapassar o cartão',()=>{
@@ -326,4 +326,15 @@ test('somente remetente, financeiro ou administrador pode excluir comprovantes d
   assert.match(closingScript,/profile\.role === "admin" \|\| profile\.role === "finance"/);
   assert.match(closingScript,/Sem permissão para excluir/);
   assert.match(closingScript,/file\.setTrashed\(true\)/);
+});
+
+
+test('envio mantém compatibilidade com as regras atuais e oferece destino da sangria',()=>{
+  assert.match(app,/delete persistedData\.openingFloatSourceId/);
+  assert.match(html,/Onde está a sangria\?/);
+  assert.match(html,/Está em loja/);
+  assert.match(html,/Entregue ao gerente/);
+  assert.match(html,/Entregue ao supervisor/);
+  assert.match(html,/Entregue ao dono/);
+  assert.match(html,/<select name="sangria_responsible">/);
 });
