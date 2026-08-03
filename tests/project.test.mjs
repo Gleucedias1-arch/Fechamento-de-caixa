@@ -65,9 +65,9 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.3.0');
-  assert.match(html,/app\.js\?v=2\.3\.0/);
-  assert.match(html,/styles\.css\?v=2\.3\.0/);
+  assert.equal(JSON.parse(packageJson).version,'2.3.1');
+  assert.match(html,/app\.js\?v=2\.3\.1/);
+  assert.match(html,/styles\.css\?v=2\.3\.1/);
 });
 
 test('solicitação Pix mantém Nome e Chave amplos sem ultrapassar o cartão',()=>{
@@ -189,6 +189,8 @@ test('fila financeira possui todos os estados priorizados',()=>{
 test('comprovantes são enviados ao Google Drive e não ao Firebase Storage',()=>{
   assert.match(html,/accept="image\/\*,application\/pdf"/);
   assert.match(app,/DRIVE_UPLOAD_URL/);
+  assert.match(app,/https:\/\/script\.google\.com\/macros\/s\/AKfycbz5Tmf2y6j6Zaw_msslxU0IQ1jZUH1RSSTxbAr7x-aOXFqWROEGd7W4WBZxqKIJLcRx\/exec/);
+  assert.doesNotMatch(app,/https:\/\/script\.google\.com\/macros\/s\/AKfycbzNlFEnYAGp3GOS0jD6f2rQ-qklOe4fO8hDUDbYD_ANi_aJcPxpJKReDsQJP2rkTwd0\/exec/);
   assert.match(app,/uploadClosingAttachment/);
   assert.match(app,/fileToDataUrl/);
   assert.match(app,/storage:'google-drive'/);
