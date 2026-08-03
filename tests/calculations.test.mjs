@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { numberFrom, calculateClosing, calculateFinanceReview, differenceSeverity, summarizeFinance } from '../calculations.js';
+import { numberFrom, validateClosingAmounts, calculateClosing, calculateFinanceReview, differenceSeverity, summarizeFinance } from '../calculations.js';
 
 test('converte valores brasileiros',()=>{
   assert.equal(numberFrom('1.234,56'),1234.56);
+  assert.equal(numberFrom('1.234'),1234);
   assert.equal(numberFrom('100,50'),100.5);
   assert.equal(numberFrom(''),0);
 });
@@ -142,4 +143,14 @@ test('consolida bruto, taxas, líquidos, Pix pago, sangria e divergência',()=>{
     grossCard:500,cardFees:13,netCard:487,grossPix:150,pixFees:1.5,netPix:148.5,
     paidPix:20,pendingSangria:50,totalAvailable:615.5,totalDifference:0
   });
+});
+
+
+test('valida valores financeiros e bloqueia negativos, textos e limites excessivos',()=>{
+  assert.equal(validateClosingAmounts({system_cash:100,counted_cash:'90,50'}),true);
+  assert.equal(validateClosingAmounts({system_cash:-1}),false);
+  assert.equal(validateClosingAmounts({system_pix:'valor inválido'}),false);
+  assert.equal(validateClosingAmounts({withdrawals:10000001}),false);
+  assert.equal(validateClosingAmounts({outflows:[{amount:0}]}),false);
+  assert.equal(validateClosingAmounts({pixRequests:[{amount:25}]}),true);
 });
