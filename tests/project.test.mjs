@@ -62,7 +62,7 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.1.4');
+  assert.equal(JSON.parse(packageJson).version,'2.2.0');
   assert.match(html,/app\.js\?v=2\.1\.4/);
   assert.match(html,/styles\.css\?v=2\.1\.4/);
 });
@@ -212,4 +212,35 @@ test('divergências exigem motivo e usam tolerância configurável',()=>{
   assert.match(app,/differenceSeverity/);
   assert.match(app,/settings\/divergenceTolerance/);
   assert.match(rules,/divergenceTolerance/);
+});
+
+
+test('rascunhos e fechamentos devolvidos podem ser recuperados no histórico',()=>{
+  assert.match(html,/data-edit-closing/);
+  assert.match(app,/function openClosingForEdit/);
+  assert.match(app,/Devolvido para correção/);
+  assert.match(app,/Rascunho recuperado/);
+  assert.match(rules,/data\.child\('status'\)\.val\(\) === 'returned'/);
+});
+
+test('duplicidades e valores inválidos são bloqueados antes do envio',()=>{
+  assert.match(app,/function closingDocumentId/);
+  assert.match(app,/Já existe um fechamento para esta loja, data e turno/);
+  assert.match(app,/validateClosingAmounts/);
+  assert.match(rules,/newData\.val\(\) >= 0 && newData\.val\(\) <= 10000000/);
+});
+
+test('operadores consultam somente a própria loja e financeiro não altera dados operacionais',()=>{
+  assert.match(app,/orderByChild\('store'\),equalTo\(store\)/);
+  assert.match(rules,/query\.orderByChild === 'store'/);
+  assert.match(rules,/query\.equalTo === root\.child\('users'\)/);
+  const parsed=JSON.parse(rules);
+  assert.doesNotMatch(parsed.rules.closings.$id['.write'],/role'\)\.val\(\) === 'finance'/);
+  assert.match(parsed.rules.closings.$id.financeReview['.write'],/role'\)\.val\(\) === 'finance'/);
+});
+
+test('somente dono ou administrador pode excluir comprovantes',()=>{
+  assert.match(storageRules,/request\.resource\.metadata\.ownerId == request\.auth\.uid/);
+  assert.match(storageRules,/resource\.metadata\.ownerId == request\.auth\.uid/);
+  assert.doesNotMatch(storageRules,/allow delete: if request\.auth != null;/);
 });
