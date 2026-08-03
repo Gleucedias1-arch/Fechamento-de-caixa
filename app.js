@@ -40,6 +40,7 @@ let cardFeeRates = Object.fromEntries(Object.keys(OPERATOR_GROUPS).map(machine =
 let divergenceTolerance = 1;
 let pendingAttachments = [];
 let savedAttachments = [];
+let closingAmountsTouched = false;
 
 const $ = (selector, root=document) => root.querySelector(selector);
 const $$ = (selector, root=document) => [...root.querySelectorAll(selector)];
@@ -411,7 +412,7 @@ function renderAttachmentList() {
   $('#attachmentList').innerHTML = [...saved,...pending].join('') || '<p class="empty-inline">Nenhum comprovante selecionado.</p>';
 }
 
-$('#attachmentFiles').addEventListener('change', event => {
+function handleAttachmentSelection(event) {
   const files = [...event.target.files];
   const available = Math.max(0,5 - savedAttachments.length - pendingAttachments.length);
   const accepted = files.slice(0,available);
@@ -429,6 +430,10 @@ $('#attachmentFiles').addEventListener('change', event => {
   });
   event.target.value = '';
   renderAttachmentList();
+  updateClosingCalculation();
+}
+['#attachmentFiles','#attachmentCamera'].forEach(selector => {
+  $(selector).addEventListener('change',handleAttachmentSelection);
 });
 
 $('#attachmentList').addEventListener('click', event => {
@@ -528,6 +533,35 @@ $('[name="sangria_delivered"]').addEventListener('change', event => {
   }
 });
 
+function closingHasOperationalInput(data) {
+  return closingAmountsTouched
+    || Boolean($('#closingForm').dataset.id)
+    || OPERATION_FIELDS.some(field => !nearZero(data[field]))
+    || data.selectedMachines.length > 0
+    || data.outflows.length > 0
+    || data.pixRequests.length > 0
+    || pendingAttachments.length > 0
+    || savedAttachments.length > 0;
+}
+
+function updateClosingProgress(data) {
+  const completed = [
+    SYSTEM_FIELDS.some(field => !nearZero(data[field])) || $('.site-information-card')?.dataset.touched === 'true',
+    COUNTED_FIELDS.some(field => !nearZero(data[field])) || data.selectedMachines.length > 0 || $('.store-conference-card')?.dataset.touched === 'true',
+    EXPENSE_FIELDS.some(field => !nearZero(data[field])) || data.outflows.length > 0 || $('.movement-card')?.dataset.touched === 'true',
+    data.pixRequests.length > 0 || pendingAttachments.length > 0 || savedAttachments.length > 0 || $('.pix-request-section')?.dataset.touched === 'true',
+    Boolean($('#closingForm').dataset.id)
+  ];
+  $('.closing-progress-item').forEach((item,index) => item.classList.toggle('is-complete',Boolean(completed[index])));
+}
+
+function setActiveClosingStep(section) {
+  if (!section) return;
+  $('.closing-progress-item').forEach(item => {
+    item.classList.toggle('is-active',section.matches(item.dataset.stepTarget));
+  });
+}
+
 function updateClosingCalculation() {
   const data = closingFormData();
   const result = calculateClosing(data);
@@ -546,6 +580,17 @@ function updateClosingCalculation() {
   $('#diffTotal').textContent = formatBRL(result.difference);
   const rec = $('.reconciliation');
   const icon = $('#diffBadge');
+  const hasStarted = closingHasOperationalInput(data);
+  updateClosingProgress(data);
+  rec.classList.toggle('is-idle',!hasStarted);
+  if (!hasStarted) {
+    rec.style.borderLeftColor = 'var(--line)';
+    icon.className = 'result-icon idle';
+    icon.textContent = '…';
+    $('#diffExplanation').textContent = 'Aguardando o preenchimento dos valores.';
+    $('#closingDivergenceFields').classList.add('hidden');
+    return;
+  }
   const severity = differenceSeverity(result.difference,divergenceTolerance);
   rec.style.borderLeftColor = severity === 'balanced' ? 'var(--green)' : severity === 'warning' ? 'var(--orange)' : 'var(--red)';
   icon.className = `result-icon ${severity === 'balanced' ? 'ok' : severity === 'warning' ? 'warn' : 'bad'}`;
@@ -555,7 +600,28 @@ function updateClosingCalculation() {
     : result.status === 'surplus' ? 'Foi encontrada sobra acima da tolerância.' : 'Foi encontrada falta acima da tolerância.';
   $('#closingDivergenceFields').classList.toggle('hidden',nearZero(result.difference));
 }
-$('#closingForm').addEventListener('input', updateClosingCalculation);
+
+$('#closingProgress').addEventListener('click', event => {
+  const item = event.target.closest('.closing-progress-item');
+  if (!item) return;
+  const section = $(item.dataset.stepTarget);
+  setActiveClosingStep(section);
+  section?.scrollIntoView({behavior:'smooth',block:'start'});
+});
+
+$('#closingForm').addEventListener('focusin', event => {
+  const section = event.target.closest('.sheet-section,.closing-final-card');
+  setActiveClosingStep(section);
+});
+
+$('#closingForm').addEventListener('input', event => {
+  const section = event.target.closest('.sheet-section,.closing-final-card');
+  if (section) section.dataset.touched = 'true';
+  if (event.target.matches('[inputmode="decimal"],[data-outflow-field],[data-pix-field]')) {
+    closingAmountsTouched = true;
+  }
+  updateClosingCalculation();
+});
 
 function closingDocumentId(data) {
   const slug = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
@@ -662,9 +728,11 @@ function resetClosing() {
   renderAttachmentList();
   $('#sangriaDetails').classList.add('hidden');
   $('#closingDivergenceFields').classList.add('hidden');
-  $$('.machine-select').forEach(input => { input.checked = false; });
+  $('.machine-select').forEach(input => { input.checked = false; });
+  $('.optional-receipts').open = false;
   renderSelectedMachineCards();
-  addOutflowRow();
+  closingAmountsTouched = false;
+  $('.sheet-section,.closing-final-card').forEach(section => delete section.dataset.touched);
   $('#formStatus').textContent='Rascunho';
   $('#formStatus').className='badge draft';
   updateClosingCalculation();
@@ -1254,9 +1322,10 @@ function openClosingForEdit(record) {
   OPERATION_FIELDS.forEach(key => {
     if (form.elements[key]) form.elements[key].value = numberFrom(record[key]);
   });
+  $('.optional-receipts').open = ['system_ifood_online','system_ifood_voucher','system_term','system_club','system_accrual']
+    .some(key => !nearZero(record[key]));
   $('#outflowRows').innerHTML = '';
   (record.outflows || []).forEach(addOutflowRow);
-  if (!(record.outflows || []).length) addOutflowRow();
   $('#pixRequestRows').innerHTML = '';
   (record.pixRequests || []).forEach(item => addPixRequestRow(item,false));
   savedAttachments = Array.isArray(record.attachments) ? record.attachments : [];
@@ -1350,5 +1419,4 @@ $('#saveRateSettings').onclick = async () => {
 };
 
 buildMachineSelection();
-addOutflowRow();
 updateClosingCalculation();
