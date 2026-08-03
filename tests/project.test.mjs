@@ -249,6 +249,9 @@ test('financeiro corrige valores mantendo original, motivo e auditoria',()=>{
   assert.match(app,/operatorOriginalValues/);
   assert.match(app,/lastOperatorCorrection/);
   assert.match(app,/operator_values_corrected/);
+  assert.match(app,/O dashboard usará a versão do financeiro/);
+  assert.match(app,/await loadDashboard\(\);[\s\S]*await loadFinance\(\)/);
+  assert.match(app,/changeDetails/);
   assert.match(rules,/operatorOriginalValues/);
   assert.match(rules,/lastOperatorCorrection/);
 });
