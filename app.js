@@ -413,9 +413,11 @@ async function deleteDriveAttachments(items) {
 }
 
 function renderAttachmentList() {
+  const list = $('#attachmentList');
+  if (!list) return;
   const saved = savedAttachments.map(item => `<div class="attachment-item saved"><div><span>${escapeHtml(item.category || 'Comprovante')}</span><b>${escapeHtml(item.name)}</b><small>${Math.round(numberFrom(item.size)/1024)} KB · ${item.storage === 'google-drive' ? 'Google Drive' : 'arquivo salvo'}</small></div><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">Abrir</a></div>`);
   const pending = pendingAttachments.map(item => `<div class="attachment-item"><div><span>${escapeHtml(item.category)}</span><b>${escapeHtml(item.file.name)}</b><small>${Math.round(item.file.size/1024)} KB · aguardando envio</small></div><button type="button" data-remove-attachment="${escapeHtml(item.id)}">×</button></div>`);
-  $('#attachmentList').innerHTML = [...saved,...pending].join('') || '<p class="empty-inline">Nenhum comprovante selecionado.</p>';
+  list.innerHTML = [...saved,...pending].join('') || '<p class="empty-inline">Nenhum comprovante selecionado.</p>';
 }
 
 function handleAttachmentSelection(event) {
@@ -439,10 +441,10 @@ function handleAttachmentSelection(event) {
   updateClosingCalculation();
 }
 ['#attachmentFiles','#attachmentCamera'].forEach(selector => {
-  $(selector).addEventListener('change',handleAttachmentSelection);
+  $(selector)?.addEventListener('change',handleAttachmentSelection);
 });
 
-$('#attachmentList').addEventListener('click', event => {
+$('#attachmentList')?.addEventListener('click', event => {
   const button = event.target.closest('[data-remove-attachment]');
   if (!button) return;
   pendingAttachments = pendingAttachments.filter(item => item.id !== button.dataset.removeAttachment);
@@ -558,9 +560,6 @@ function buildClosingIssues(data, result = calculateClosing(data)) {
   if (systemMachineTotal > 0 && !data.selectedMachines.length) {
     add('error','Máquina não selecionada','Escolha ao menos uma máquina usada para Crédito, Débito ou Pix.','machine');
   }
-  if (data.selectedMachines.length && !hasClosingAttachment('Relatório de maquininha')) {
-    add('error','Relatório da maquininha ausente','Anexe ao menos um relatório das máquinas utilizadas.','attachment');
-  }
   data.selectedMachines.forEach(machine => {
     const fields = OPERATOR_GROUPS[machine] || [];
     if (systemMachineTotal > 0 && fields.every(field => nearZero(data[field]))) {
@@ -572,12 +571,6 @@ function buildClosingIssues(data, result = calculateClosing(data)) {
   }
   if (numberFrom(data.withdrawals) > availableCashBeforeRemoval) {
     add('warning','Sangria acima do dinheiro disponível','Revise o saldo inicial, as entradas e o valor retirado.','movement');
-  }
-  if (numberFrom(data.withdrawals) > 0 && !hasClosingAttachment('Sangria')) {
-    add('warning','Comprovante de sangria ausente','Anexe uma foto ou documento da sangria para facilitar a conferência.','attachment');
-  }
-  if (result.expenseTotal > 0 && !hasClosingAttachment('Despesa/Saída') && !hasClosingAttachment('Motoboy/Freelancer')) {
-    add('warning','Comprovante de saída ausente','Existe uma saída em dinheiro sem comprovante correspondente.','attachment');
   }
   if (!nearZero(result.differences.card)) {
     add('warning','Cartões não conciliados',`Diferença de ${formatBRL(result.differences.card)} entre o site e as máquinas.`,'machine');
@@ -607,6 +600,7 @@ function focusClosingIssue(target) {
 }
 
 function renderClosingIssues(data, result, hasStarted) {
+  if (!$('#closingValidationPanel')) return;
   const items = hasStarted ? buildClosingIssues(data,result) : [];
   const errors = items.filter(item => item.severity === 'error').length;
   const warnings = items.filter(item => item.severity === 'warning').length;
@@ -624,6 +618,7 @@ function renderClosingIssues(data, result, hasStarted) {
 }
 
 function renderOperatorFinancialSummary(data) {
+  if (!$('#operatorGrossSales')) return null;
   const summary = calculateOperationalFinancialSummary(data,effectiveFeeRates(data));
   $('#operatorGrossSales').textContent = formatBRL(summary.grossSales);
   $('#operatorPhysicalCash').textContent = formatBRL(summary.physicalCash);
@@ -704,7 +699,7 @@ function updateClosingCalculation() {
   $('#closingDivergenceFields').classList.toggle('hidden',nearZero(result.difference));
 }
 
-$('#closingValidationItems').addEventListener('click', event => {
+$('#closingValidationItems')?.addEventListener('click', event => {
   const item = event.target.closest('[data-closing-issue-target]');
   if (item) focusClosingIssue(item.dataset.closingIssueTarget);
 });
@@ -809,7 +804,7 @@ $('#closingForm').addEventListener('submit', async event => {
   if (blockingIssues.length) {
     renderClosingIssues(formData,result,true);
     toast(`Corrija ${blockingIssues.length} ${blockingIssues.length === 1 ? 'erro' : 'erros'} antes de enviar.`,true);
-    $('#closingValidationPanel').scrollIntoView({behavior:'smooth',block:'center'});
+    focusClosingIssue(blockingIssues[0].target);
     return;
   }
   const invalidOutflow = formData.outflows.some(item => !item.description || item.amount <= 0);

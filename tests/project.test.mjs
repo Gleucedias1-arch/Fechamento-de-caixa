@@ -22,7 +22,7 @@ test('área financeira e indicadores existem na interface',()=>{
     ,'machineSelection','selectedMachineCards','pixConferenceTotal','selectedMachineCount',
     'kpiSangria','financeSangria','cardFeeSettings','financeGrossCard','financeCardFees',
     'financeNetCard','financeGrossPix','financePixFees','financeNetPix','financeNetAvailable','reviewSangriaAlert',
-    'financeSummaryGrid','financeReopened','attachmentFiles','attachmentList','reviewAttachments',
+    'financeSummaryGrid','financeReopened','reviewAttachments',
     'auditTimeline','reopenClosing','divergenceTolerance','closingDivergenceFields','financeDivergenceFields'
   ]) assert.match(html,new RegExp(`id="${id}"`));
 });
@@ -43,12 +43,17 @@ test('financeiro confirma campos e pagamentos Pix',()=>{
   assert.match(html,/name="finance_confirm_outflows"/);
   assert.match(app,/pixPaymentStatuses/);
   assert.match(html,/Confirmo que conferi todas as saídas declaradas/);
-  assert.match(html,/Pagamento via Pix/);
+  assert.match(html,/Pagamentos via Pix/);
 });
 
-test('todos os elementos acessados pelo JavaScript existem no HTML',()=>{
+test('todos os elementos obrigatórios acessados pelo JavaScript existem no HTML',()=>{
+  const optionalRemoved=new Set([
+    'attachmentList','attachmentCategory',
+    'closingValidationPanel','closingValidationTitle','closingValidationCount','closingValidationItems',
+    'operatorGrossSales','operatorPhysicalCash','operatorBankNet','operatorPixRequested','operatorProjectedAvailable'
+  ]);
   const ids=[...app.matchAll(/\$\('#([^']+)'\)/g)].map(match=>match[1]);
-  const missing=[...new Set(ids)].filter(id=>!html.includes(`id="${id}"`));
+  const missing=[...new Set(ids)].filter(id=>!optionalRemoved.has(id) && !html.includes(`id="${id}"`));
   assert.deepEqual(missing,[]);
 });
 
@@ -65,9 +70,9 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.5.1');
-  assert.match(html,/app\.js\?v=2\.5\.1/);
-  assert.match(html,/styles\.css\?v=2\.5\.1/);
+  assert.equal(JSON.parse(packageJson).version,'2.5.2');
+  assert.match(html,/app\.js\?v=2\.5\.2/);
+  assert.match(html,/styles\.css\?v=2\.5\.2/);
 });
 
 test('solicitação Pix mantém Nome e Chave amplos sem ultrapassar o cartão',()=>{
@@ -183,8 +188,8 @@ test('novo fechamento guia o operador por etapas e reduz ruído visual',()=>{
   assert.match(css,/grid-template-areas:\s*"site conference"\s*"movement pix"\s*"movement final"/);
   assert.match(css,/@media \(max-width: 760px\)[\s\S]*grid-template-areas:\s*"site"\s*"conference"\s*"movement"\s*"pix"\s*"final"/);
   assert.match(html,/class="optional-receipts"/);
-  assert.match(html,/id="attachmentCamera"/);
-  assert.match(app,/handleAttachmentSelection/);
+  assert.doesNotMatch(html,/id="attachmentCamera"/);
+  assert.doesNotMatch(html,/class="attachment-uploader"/);
   assert.match(app,/closingHasOperationalInput/);
   assert.match(html,/Aguardando o preenchimento dos valores/);
   assert.match(css,/#outflowRows:empty::before/);
@@ -193,12 +198,13 @@ test('novo fechamento guia o operador por etapas e reduz ruído visual',()=>{
 
 test('fechamento inteligente conecta operação, financeiro e gestão',()=>{
   for (const id of [
-    'closingValidationPanel','closingValidationItems','operatorProjectedAvailable',
     'openingFloatSuggestion','applyOpeningFloat','financialOverviewGrid',
     'reviewPendingPanel','reviewPendingItems','operatorCorrectionComparison'
   ]) assert.match(html,new RegExp(`id="${id}"`));
+  assert.doesNotMatch(html,/id="closingValidationPanel"/);
+  assert.doesNotMatch(html,/id="operatorProjectedAvailable"/);
   assert.match(app,/function buildClosingIssues/);
-  assert.match(app,/Relatório da maquininha ausente/);
+  assert.doesNotMatch(app,/Relatório da maquininha ausente/);
   assert.match(app,/function renderDashboardFinancialOverview/);
   assert.match(app,/function renderFinancePendingPanel/);
   assert.match(app,/function renderOperatorCorrectionComparison/);
@@ -220,8 +226,8 @@ test('fila financeira possui todos os estados priorizados',()=>{
   assert.match(css,/\.badge\.sangria/);
 });
 
-test('comprovantes são enviados ao Google Drive e não ao Firebase Storage',()=>{
-  assert.match(html,/accept="image\/\*,application\/pdf"/);
+test('uploader do operador foi removido e o suporte legado do Drive permanece isolado',()=>{
+  assert.doesNotMatch(html,/accept="image\/\*,application\/pdf"/);
   assert.match(app,/DRIVE_UPLOAD_URL/);
   assert.match(app,/https:\/\/script\.google\.com\/macros\/s\/AKfycbz5Tmf2y6j6Zaw_msslxU0IQ1jZUH1RSSTxbAr7x-aOXFqWROEGd7W4WBZxqKIJLcRx\/exec/);
   assert.doesNotMatch(app,/https:\/\/script\.google\.com\/macros\/s\/AKfycbzNlFEnYAGp3GOS0jD6f2rQ-qklOe4fO8hDUDbYD_ANi_aJcPxpJKReDsQJP2rkTwd0\/exec/);
@@ -337,4 +343,16 @@ test('envio mantém compatibilidade com as regras atuais e oferece destino da sa
   assert.match(html,/Entregue ao supervisor/);
   assert.match(html,/Entregue ao dono/);
   assert.match(html,/<select name="sangria_responsible">/);
+});
+
+
+test('finalização mantém apenas resultado, justificativa e ações essenciais',()=>{
+  assert.doesNotMatch(html,/class="attachment-uploader"/);
+  assert.doesNotMatch(html,/VERIFICAÇÃO INTELIGENTE/);
+  assert.doesNotMatch(html,/RESUMO FINANCEIRO PREVISTO/);
+  assert.match(html,/id="diffTotal"/);
+  assert.match(html,/name="divergence_reason"/);
+  assert.match(html,/name="notes"/);
+  assert.match(html,/id="saveDraft"/);
+  assert.match(html,/Enviar ao financeiro/);
 });
