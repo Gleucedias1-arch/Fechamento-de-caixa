@@ -66,8 +66,8 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 
 test('versão e cache estão atualizados',()=>{
   assert.equal(JSON.parse(packageJson).version,'2.5.0');
-  assert.match(html,/app\.js\?v=2\.4\.0/);
-  assert.match(html,/styles\.css\?v=2\.4\.0/);
+  assert.match(html,/app\.js\?v=2\.5\.0/);
+  assert.match(html,/styles\.css\?v=2\.5\.0/);
 });
 
 test('solicitação Pix mantém Nome e Chave amplos sem ultrapassar o cartão',()=>{
