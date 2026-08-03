@@ -2,7 +2,7 @@ import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
 import { getDatabase, ref, get, set, push, update, query, orderByChild, startAt, endAt } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js';
-import { firebaseConfig, ADMIN_EMAIL } from './firebase-config.js';
+import { firebaseConfig } from './firebase-config.js';
 import {
   SYSTEM_FIELDS, COUNTED_FIELDS, EXPENSE_FIELDS, CARD_FIELDS, MACHINE_PIX_FIELDS,
   FINANCE_MACHINE_FIELDS, FINANCE_CONFIRM_FIELDS,
@@ -93,10 +93,7 @@ function fillStores() {
 async function ensureProfile(user) {
   const snap = await get(ref(db, `users/${user.uid}`));
   if (snap.exists()) return snap.val();
-  if (user.email?.toLowerCase() !== ADMIN_EMAIL) throw new Error('Usuário sem perfil autorizado. Procure o administrador.');
-  const first = {name:'Gleuce Dias',email:user.email,role:'admin',stores:STORES,active:true,createdAt:Date.now()};
-  await set(ref(db, `users/${user.uid}`), first);
-  return first;
+  throw new Error('Usuário sem perfil autorizado. Procure o administrador.');
 }
 
 onAuthStateChanged(auth, async user => {
@@ -656,6 +653,68 @@ function stateBadge(record) {
   return `<span class="badge ${map[state][0]}">${map[state][1]}</span>`;
 }
 
+function buildPublicDashboardSnapshot(date, rows) {
+  const visibleRows = rows.filter(item => item.status !== 'draft');
+  const total = key => visibleRows.reduce((sum,item) => sum + numberFrom(item[key]),0);
+  const approvedRows = visibleRows.filter(item => financeState(item) === 'approved' && item.financeCalc);
+  const divergencesByStore = STORES.map(store => {
+    const storeRows = visibleRows.filter(item => item.store === store);
+    const methodTotal = method => storeRows.reduce((sum,item) => {
+      const source = item.financeCalc?.differences || item.differences || {};
+      return sum + numberFrom(source[method]);
+    },0);
+    const cash = methodTotal('cash');
+    const card = methodTotal('card');
+    const pix = methodTotal('pix');
+    const totalDifference = storeRows.reduce((sum,item) =>
+      sum + numberFrom(item.financeCalc?.totalDifference ?? item.difference),0);
+    return {store,cash,card,pix,total:totalDifference,severity:differenceSeverity(totalDifference,divergenceTolerance)};
+  }).filter(item => !nearZero(item.cash) || !nearZero(item.card) || !nearZero(item.pix));
+  const stores = STORES.map(store => {
+    const storeRows = visibleRows.filter(item => item.store === store);
+    const storeApprovedRows = storeRows.filter(item => financeState(item) === 'approved' && item.financeCalc);
+    const approved = storeRows.filter(item => financeState(item) === 'approved').length;
+    const returned = storeRows.filter(item => financeState(item) === 'returned').length;
+    const pending = storeRows.filter(item => financeState(item) === 'pending').length;
+    const difference = storeRows.reduce((sum,item) =>
+      sum + numberFrom(item.financeCalc?.totalDifference ?? item.difference),0);
+    const status = !storeRows.length ? 'pending' : returned ? 'returned' : pending ? 'waiting' : nearZero(difference) ? 'approved' : 'divergent';
+    const storeChannels = [['Dinheiro','cash'],['Cartões','card'],['Pix','pix'],['iFood','ifood'],['Outros','other']]
+      .map(([label,key]) => ({label,key,value:storeRows.reduce((sum,item) => sum + numberFrom(item.systemByMethod?.[key]),0)}));
+    const storeSangriaCount = storeRows.filter(item => sangriaAvailable(item) > 0).length;
+    return {
+      name:store,closingCount:storeRows.length,approved,pending,difference,status,channels:storeChannels,
+      kpis:{
+        entries:storeRows.reduce((sum,item) => sum + numberFrom(item.systemTotal),0),
+        outflows:storeRows.reduce((sum,item) => sum + numberFrom(item.totalOutflows),0),
+        available:storeApprovedRows.reduce((sum,item) => sum + numberFrom(item.financeCalc.totalAvailable),0),
+        sangria:storeRows.reduce((sum,item) => sum + sangriaAvailable(item),0),
+        difference,reviewed:approved,pending,sangriaCount:storeSangriaCount
+      }
+    };
+  });
+  const channels = [['Dinheiro','cash'],['Cartões','card'],['Pix','pix'],['iFood','ifood'],['Outros','other']]
+    .map(([label,key]) => ({label,key,value:visibleRows.reduce((sum,item) => sum + numberFrom(item.systemByMethod?.[key]),0)}));
+  const sangriaCount = visibleRows.filter(item => sangriaAvailable(item) > 0).length;
+  return {
+    date,updatedAt:Date.now(),
+    kpis:{
+      entries:total('systemTotal'),outflows:total('totalOutflows'),
+      available:approvedRows.reduce((sum,item) => sum + numberFrom(item.financeCalc.totalAvailable),0),
+      sangria:visibleRows.reduce((sum,item) => sum + sangriaAvailable(item),0),
+      difference:visibleRows.reduce((sum,item) => sum + numberFrom(item.financeCalc?.totalDifference ?? item.difference),0),
+      reviewed:approvedRows.length,pending:visibleRows.filter(item => financeState(item) === 'pending').length,
+      sangriaCount
+    },
+    stores,channels,divergences:divergencesByStore
+  };
+}
+
+async function publishPublicDashboard(date, rows) {
+  if (!isFinance()) return;
+  await set(ref(db,`publicDashboards/${date}`),buildPublicDashboardSnapshot(date,rows));
+}
+
 async function loadDashboard() {
   try {
     const date = $('#dashDate').value || isoToday();
@@ -688,6 +747,7 @@ async function loadDashboard() {
     renderStoreStatus(rows);
     renderChannels(rows);
     renderDivergences(rows);
+    publishPublicDashboard(date,currentClosings).catch(() => {});
   } catch (error) {
     toast('Não foi possível carregar o dashboard.',true);
   }
