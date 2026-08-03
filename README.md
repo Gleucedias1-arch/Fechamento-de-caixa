@@ -2,7 +2,7 @@
 
 Sistema web responsivo para fechamento diário, conciliação e acompanhamento de divergências das lojas House 190.
 
-Versão 2.3.0 com correção auditável dos valores do operador pelo financeiro e comprovantes armazenados no Google Drive. O Firebase continua responsável por autenticação e dados; fotos e PDFs novos não são enviados ao Firebase Storage.
+Versão 2.3.1 com correção auditável dos valores do operador pelo financeiro e comprovantes armazenados no Google Drive. O Firebase continua responsável por autenticação e dados; fotos e PDFs novos não são enviados ao Firebase Storage.
 
 ## Recursos
 
@@ -40,6 +40,10 @@ Os serviços agora ficam separados para que uma alteração no fechamento não i
 5. Use **Executar como: eu** e acesso para **Qualquer pessoa**.
 6. Autorize o acesso ao Google Drive e copie a nova URL terminada em `/exec`.
 7. Configure essa nova URL no aplicativo antes de restaurar o serviço exclusivo de selfies.
+
+Endpoint exclusivo atualmente configurado:
+
+`https://script.google.com/macros/s/AKfycbz5Tmf2y6j6Zaw_msslxU0IQ1jZUH1RSSTxbAr7x-aOXFqWROEGd7W4WBZxqKIJLcRx/exec`
 
 Depois que o fechamento estiver usando o novo endpoint, o projeto antigo deve receber somente o conteúdo de `google-apps-script/selfies/Code.gs`.
 
