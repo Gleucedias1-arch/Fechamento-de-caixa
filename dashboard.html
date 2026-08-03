@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#f7f9fb" />
+  <title>House 190 | Dashboard do Gestor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="dashboard.css?v=2.2.0" />
+</head>
+<body>
+  <header class="public-header">
+    <div class="public-brand"><div class="brand-mark">H<span>190</span></div><div><b>House 190</b><small>PAINEL DO GESTOR</small></div></div>
+    <div class="view-only"><span></span> Somente visualização</div>
+  </header>
+
+  <main class="public-shell">
+    <section class="intro-row">
+      <div><p class="eyebrow">VISÃO FINANCEIRA</p><h1>Dashboard de fechamento</h1><p id="updatedLabel">Carregando informações...</p></div>
+      <button id="refreshDashboard" class="refresh-button" type="button">↻ Atualizar</button>
+    </section>
+
+    <section class="filters-card">
+      <label>Data<input id="dashboardDate" type="date" /></label>
+      <label>Loja<select id="dashboardStore"><option value="all">Todas as lojas</option></select></label>
+    </section>
+
+    <section id="statusMessage" class="status-card hidden" role="status"></section>
+
+    <div id="dashboardContent" class="hidden">
+      <section class="kpi-grid">
+        <article class="kpi-card"><span>Entradas do dia</span><strong id="publicEntries">R$ 0,00</strong><small>Vendas informadas</small></article>
+        <article class="kpi-card"><span>Saídas</span><strong id="publicOutflows">R$ 0,00</strong><small>Despesas e sangrias</small></article>
+        <article class="kpi-card emphasis"><span>Total disponível</span><strong id="publicAvailable">R$ 0,00</strong><small>Cartão líquido + Pix líquido</small></article>
+        <article id="publicSangriaCard" class="kpi-card attention"><span>Sangria disponível</span><strong id="publicSangria">R$ 0,00</strong><small id="publicSangriaText">Nenhuma sangria disponível</small></article>
+        <article class="kpi-card"><span>Divergência</span><strong id="publicDifference">R$ 0,00</strong><small id="publicDifferenceText">Sem divergência</small></article>
+        <article class="kpi-card count-card"><span>Conferidos</span><strong id="publicReviewed">0</strong><small>Aprovados pelo financeiro</small></article>
+        <article class="kpi-card count-card"><span>Pendentes</span><strong id="publicPending">0</strong><small>Aguardando conferência</small></article>
+      </section>
+
+      <section class="dashboard-grid">
+        <article class="panel"><div class="panel-title"><h2>Situação por loja</h2><p>Fechamentos do dia selecionado</p></div><div id="publicStores" class="store-list"></div></article>
+        <article class="panel"><div class="panel-title"><h2>Composição das entradas</h2><p>Valores por forma de pagamento</p></div><div id="publicChannels" class="bars"></div></article>
+      </section>
+
+      <article class="panel"><div class="panel-title"><h2>Divergências por loja</h2><p>Resumo agrupado, sem dados pessoais ou comprovantes</p></div><div id="publicDivergences" class="divergence-list"></div></article>
+    </div>
+  </main>
+
+  <footer>House 190 · Dashboard em modo somente leitura</footer>
+  <script type="module" src="dashboard.js?v=2.2.0"></script>
+</body>
+</html>
