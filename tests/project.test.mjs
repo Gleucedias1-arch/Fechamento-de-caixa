@@ -197,9 +197,13 @@ test('comprovantes são enviados ao Google Drive e não ao Firebase Storage',()=
   assert.match(driveScript,/DriveApp\.Access\.ANYONE_WITH_LINK/);
 });
 
-test('Apps Script preserva selfies e autentica os comprovantes do fechamento',()=>{
+test('Apps Script preserva o fluxo rápido de selfies e autentica os comprovantes',()=>{
   assert.match(driveScript,/action === "uploadClockSelfie"/);
   assert.match(driveScript,/action === "uploadClosingAttachment"/);
+  assert.match(driveScript,/CacheService\.getScriptCache\(\)/);
+  assert.match(driveScript,/lock\.waitLock\(5000\)/);
+  assert.doesNotMatch(driveScript,/waitLock\(20000\)/);
+  assert.match(driveScript,/"https:\/\/drive\.google\.com\/file\/d\/" \+ fileId/);
   assert.match(driveScript,/firebaseClosingProfile_/);
   assert.match(driveScript,/assertClosingStore_/);
   assert.match(driveScript,/uploaderUid: uid/);
