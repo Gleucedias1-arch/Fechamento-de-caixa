@@ -25,19 +25,23 @@ Versão 2.3.0 com correção auditável dos valores do operador pelo financeiro 
 
 ## Google Drive e Apps Script
 
-O arquivo `google-apps-script/Code.gs` amplia o serviço já usado pelas selfies. Ele mantém a ação `uploadClockSelfie` e acrescenta `uploadClosingAttachment` e `deleteClosingAttachment`.
+Os serviços agora ficam separados para que uma alteração no fechamento não interrompa o ponto:
 
-Para ativar a versão nova no endpoint configurado:
+- `google-apps-script/selfies/Code.gs`: projeto existente das selfies.
+- `google-apps-script/fechamento/Code.gs`: novo projeto exclusivo dos comprovantes.
+- `google-apps-script/Code.gs`: versão combinada temporária, mantida somente durante a migração.
 
-1. Abra o projeto existente no Google Apps Script.
-2. Substitua o conteúdo de `Code.gs` pelo arquivo deste repositório.
-3. Em **Implantar > Gerenciar implantações**, edite a implantação atual.
-4. Selecione **Nova versão**, mantenha **Executar como: eu** e permita acesso a **Qualquer pessoa**.
-5. Clique em **Implantar**. O aplicativo valida o token do Firebase antes de aceitar qualquer arquivo.
+### Criar o novo projeto do fechamento
 
-Endpoint configurado no aplicativo:
+1. Acesse o Google Apps Script e crie um **Novo projeto**.
+2. Dê o nome `Comprovantes - Fechamento de Caixa`.
+3. Substitua o conteúdo de `Code.gs` pelo arquivo `google-apps-script/fechamento/Code.gs`.
+4. Em **Implantar > Nova implantação**, escolha **Aplicativo da Web**.
+5. Use **Executar como: eu** e acesso para **Qualquer pessoa**.
+6. Autorize o acesso ao Google Drive e copie a nova URL terminada em `/exec`.
+7. Configure essa nova URL no aplicativo antes de restaurar o serviço exclusivo de selfies.
 
-`https://script.google.com/macros/s/AKfycbzNlFEnYAGp3GOS0jD6f2rQ-qklOe4fO8hDUDbYD_ANi_aJcPxpJKReDsQJP2rkTwd0/exec`
+Depois que o fechamento estiver usando o novo endpoint, o projeto antigo deve receber somente o conteúdo de `google-apps-script/selfies/Code.gs`.
 
 Os comprovantes são gravados em:
 
