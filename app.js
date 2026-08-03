@@ -27,7 +27,7 @@ const OPERATION_FIELDS = [
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
-const DRIVE_UPLOAD_URL = 'https://script.google.com/macros/s/AKfycbzNlFEnYAGp3GOS0jD6f2rQ-qklOe4fO8hDUDbYD_ANi_aJcPxpJKReDsQJP2rkTwd0/exec';
+const DRIVE_UPLOAD_URL = 'https://script.google.com/macros/s/AKfycbz5Tmf2y6j6Zaw_msslxU0IQ1jZUH1RSSTxbAr7x-aOXFqWROEGd7W4WBZxqKIJLcRx/exec';
 const CLOSING_ATTACHMENT_TYPES = new Set([
   'image/jpeg','image/png','image/webp','image/heic','image/heif','application/pdf'
 ]);
