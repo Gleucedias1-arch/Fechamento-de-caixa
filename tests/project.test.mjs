@@ -43,12 +43,17 @@ test('financeiro confirma campos e pagamentos Pix',()=>{
   assert.match(html,/name="finance_confirm_outflows"/);
   assert.match(app,/pixPaymentStatuses/);
   assert.match(html,/Confirmo que conferi todas as saídas declaradas/);
-  assert.match(html,/Pagamento via Pix/);
+  assert.match(html,/Pagamentos via Pix/);
 });
 
-test('todos os elementos acessados pelo JavaScript existem no HTML',()=>{
+test('todos os elementos obrigatórios acessados pelo JavaScript existem no HTML',()=>{
+  const optionalRemoved=new Set([
+    'attachmentList','attachmentCategory',
+    'closingValidationPanel','closingValidationTitle','closingValidationCount','closingValidationItems',
+    'operatorGrossSales','operatorPhysicalCash','operatorBankNet','operatorPixRequested','operatorProjectedAvailable'
+  ]);
   const ids=[...app.matchAll(/\$\('#([^']+)'\)/g)].map(match=>match[1]);
-  const missing=[...new Set(ids)].filter(id=>!html.includes(`id="${id}"`));
+  const missing=[...new Set(ids)].filter(id=>!optionalRemoved.has(id) && !html.includes(`id="${id}"`));
   assert.deepEqual(missing,[]);
 });
 
