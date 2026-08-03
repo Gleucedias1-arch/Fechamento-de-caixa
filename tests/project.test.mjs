@@ -62,7 +62,7 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.2.0');
+  assert.equal(JSON.parse(packageJson).version,'2.2.1');
   assert.match(html,/app\.js\?v=2\.2\.0/);
   assert.match(html,/styles\.css\?v=2\.2\.0/);
 });
@@ -230,13 +230,32 @@ test('duplicidades e valores inválidos são bloqueados antes do envio',()=>{
   assert.match(rules,/newData\.val\(\) >= 0 && newData\.val\(\) <= 10000000/);
 });
 
-test('operadores consultam somente a própria loja e financeiro não altera dados operacionais',()=>{
+test('operadores consultam somente a própria loja e financeiro corrige apenas valores autorizados',()=>{
   assert.match(app,/orderByChild\('store'\),equalTo\(store\)/);
   assert.match(rules,/query\.orderByChild === 'store'/);
   assert.match(rules,/query\.equalTo === root\.child\('users'\)/);
   const parsed=JSON.parse(rules);
   assert.doesNotMatch(parsed.rules.closings.$id['.write'],/role'\)\.val\(\) === 'finance'/);
   assert.match(parsed.rules.closings.$id.financeReview['.write'],/role'\)\.val\(\) === 'finance'/);
+  assert.match(parsed.rules.closings.$id.system_cash['.write'],/role'\)\.val\(\) === 'finance'/);
+  assert.equal(parsed.rules.closings.$id.store['.write'],undefined);
+  assert.equal(parsed.rules.closings.$id.createdBy['.write'],undefined);
+});
+
+test('financeiro corrige valores mantendo original, motivo e auditoria',()=>{
+  assert.match(html,/id="toggleOperatorCorrection"/);
+  assert.match(html,/id="operatorCorrectionPanel"/);
+  assert.match(app,/function operatorCorrectionEntries/);
+  assert.match(app,/operatorOriginalValues/);
+  assert.match(app,/lastOperatorCorrection/);
+  assert.match(app,/operator_values_corrected/);
+  assert.match(rules,/operatorOriginalValues/);
+  assert.match(rules,/lastOperatorCorrection/);
+});
+
+test('cálculo enriquecido não substitui o status do fluxo',()=>{
+  assert.match(app,/status:calculationStatus/);
+  assert.match(app,/return \{\.\.\.record,\.\.\.calc,calculationStatus,financeCalc:finance\}/);
 });
 
 test('somente dono ou administrador pode excluir comprovantes',()=>{
