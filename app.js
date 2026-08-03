@@ -1107,8 +1107,9 @@ function openClosingForEdit(record) {
   form.dataset.id = record.id;
   ['date','store','shift','operator','sangria_responsible','sangria_delivered_at','divergence_reason','notes']
     .forEach(key => { if (form.elements[key] && record[key] !== undefined) form.elements[key].value = record[key] ?? ''; });
+  const selected = new Set(activeMachineEntries(record).map(([name]) => name));
   $('.machine-select').forEach(input => {
-    input.checked = (record.selectedMachines || []).includes(input.value);
+    input.checked = selected.has(input.value);
   });
   renderSelectedMachineCards();
   OPERATION_FIELDS.forEach(key => {
