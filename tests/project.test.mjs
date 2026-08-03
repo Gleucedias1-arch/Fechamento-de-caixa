@@ -63,8 +63,8 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 
 test('versão e cache estão atualizados',()=>{
   assert.equal(JSON.parse(packageJson).version,'2.2.0');
-  assert.match(html,/app\.js\?v=2\.1\.4/);
-  assert.match(html,/styles\.css\?v=2\.1\.4/);
+  assert.match(html,/app\.js\?v=2\.2\.0/);
+  assert.match(html,/styles\.css\?v=2\.2\.0/);
 });
 
 test('solicitação Pix mantém Nome e Chave amplos sem ultrapassar o cartão',()=>{
@@ -203,7 +203,7 @@ test('aprovação bloqueia o fechamento e reabertura exige administrador e motiv
   assert.match(app,/profile\?\.role !== 'admin'/);
   assert.match(app,/Informe o motivo da reabertura/);
   assert.match(app,/appendAudit\(id,'reopened'/);
-  assert.match(rules,/data\.child\('status'\)\.val\(\) !== 'approved'/);
+  assert.match(rules,/root\.child\('closings'\)\.child\(\$id\)\.child\('status'\)\.val\(\) !== 'approved'/);
 });
 
 test('divergências exigem motivo e usam tolerância configurável',()=>{
@@ -216,7 +216,7 @@ test('divergências exigem motivo e usam tolerância configurável',()=>{
 
 
 test('rascunhos e fechamentos devolvidos podem ser recuperados no histórico',()=>{
-  assert.match(html,/data-edit-closing/);
+  assert.match(app,/data-edit-closing/);
   assert.match(app,/function openClosingForEdit/);
   assert.match(app,/Devolvido para correção/);
   assert.match(app,/Rascunho recuperado/);
