@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2.1.4" />
+  <link rel="stylesheet" href="styles.css?v=2.2.0" />
 </head>
 <body>
   <div id="toast" class="toast" aria-live="polite"></div>
@@ -132,12 +132,12 @@
         </div>
       </section>
 
-      <section id="historyView" class="view"><article class="card"><div class="card-title"><div><h3>Histórico de fechamentos</h3><p>Consulte o registro operacional e a situação financeira.</p></div></div><div class="filters inline"><label>De<input id="historyFrom" type="date" /></label><label>Até<input id="historyTo" type="date" /></label><label>Loja<select id="historyStore"></select></label><button id="loadHistory" class="btn btn-secondary">Buscar</button></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Loja</th><th>Operador</th><th>Entradas</th><th>Saídas</th><th>Divergência</th><th>Financeiro</th></tr></thead><tbody id="historyRows"></tbody></table></div></article></section>
+      <section id="historyView" class="view"><article class="card"><div class="card-title"><div><h3>Histórico de fechamentos</h3><p>Consulte o registro operacional e a situação financeira.</p></div></div><div class="filters inline"><label>De<input id="historyFrom" type="date" /></label><label>Até<input id="historyTo" type="date" /></label><label>Loja<select id="historyStore"></select></label><button id="loadHistory" class="btn btn-secondary">Buscar</button></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Loja</th><th>Operador</th><th>Entradas</th><th>Saídas</th><th>Divergência</th><th>Financeiro</th><th>Ação</th></tr></thead><tbody id="historyRows"></tbody></table></div></article></section>
 
       <section id="usersView" class="view admin-only"><article class="card"><div class="card-title"><div><h3>Usuários</h3><p>Crie acessos e defina as lojas permitidas.</p></div></div><form id="userForm" class="form-grid cols-4"><label>Nome<input name="name" required /></label><label>E-mail<input name="email" type="email" required /></label><label>Senha temporária<input name="password" type="password" minlength="6" required /></label><label>Perfil<select name="role"><option value="manager">Gerente</option><option value="finance">Financeiro</option><option value="admin">Administrador</option><option value="operator">Operador</option></select></label><label class="span-3">Loja<select name="store"></select></label><button class="btn btn-primary align-end">Criar usuário</button></form><div id="usersList" class="user-list"></div></article></section>
     </div>
   </div>
 
-  <script type="module" src="app.js?v=2.1.4"></script>
+  <script type="module" src="app.js?v=2.2.0"></script>
 </body>
 </html>
