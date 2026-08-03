@@ -62,9 +62,9 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.1.4');
-  assert.match(html,/app\.js\?v=2\.1\.4/);
-  assert.match(html,/styles\.css\?v=2\.1\.4/);
+  assert.equal(JSON.parse(packageJson).version,'2.2.1');
+  assert.match(html,/app\.js\?v=2\.2\.1/);
+  assert.match(html,/styles\.css\?v=2\.2\.1/);
 });
 
 test('solicitação Pix mantém Nome e Chave amplos sem ultrapassar o cartão',()=>{
@@ -203,7 +203,7 @@ test('aprovação bloqueia o fechamento e reabertura exige administrador e motiv
   assert.match(app,/profile\?\.role !== 'admin'/);
   assert.match(app,/Informe o motivo da reabertura/);
   assert.match(app,/appendAudit\(id,'reopened'/);
-  assert.match(rules,/data\.child\('status'\)\.val\(\) !== 'approved'/);
+  assert.match(rules,/root\.child\('closings'\)\.child\(\$id\)\.child\('status'\)\.val\(\) !== 'approved'/);
 });
 
 test('divergências exigem motivo e usam tolerância configurável',()=>{
@@ -212,4 +212,57 @@ test('divergências exigem motivo e usam tolerância configurável',()=>{
   assert.match(app,/differenceSeverity/);
   assert.match(app,/settings\/divergenceTolerance/);
   assert.match(rules,/divergenceTolerance/);
+});
+
+
+test('rascunhos e fechamentos devolvidos podem ser recuperados no histórico',()=>{
+  assert.match(app,/data-edit-closing/);
+  assert.match(app,/function openClosingForEdit/);
+  assert.match(app,/Devolvido para correção/);
+  assert.match(app,/Rascunho recuperado/);
+  assert.match(rules,/data\.child\('status'\)\.val\(\) === 'returned'/);
+});
+
+test('duplicidades e valores inválidos são bloqueados antes do envio',()=>{
+  assert.match(app,/function closingDocumentId/);
+  assert.match(app,/Já existe um fechamento para esta loja, data e turno/);
+  assert.match(app,/validateClosingAmounts/);
+  assert.match(rules,/newData\.val\(\) >= 0 && newData\.val\(\) <= 10000000/);
+});
+
+test('operadores consultam somente a própria loja e financeiro corrige apenas valores autorizados',()=>{
+  assert.match(app,/orderByChild\('store'\),equalTo\(store\)/);
+  assert.match(rules,/query\.orderByChild === 'store'/);
+  assert.match(rules,/query\.equalTo === root\.child\('users'\)/);
+  const parsed=JSON.parse(rules);
+  assert.doesNotMatch(parsed.rules.closings.$id['.write'],/role'\)\.val\(\) === 'finance'/);
+  assert.match(parsed.rules.closings.$id.financeReview['.write'],/role'\)\.val\(\) === 'finance'/);
+  assert.match(parsed.rules.closings.$id.system_cash['.write'],/role'\)\.val\(\) === 'finance'/);
+  assert.equal(parsed.rules.closings.$id.store['.write'],undefined);
+  assert.equal(parsed.rules.closings.$id.createdBy['.write'],undefined);
+});
+
+test('financeiro corrige valores mantendo original, motivo e auditoria',()=>{
+  assert.match(html,/id="toggleOperatorCorrection"/);
+  assert.match(html,/id="operatorCorrectionPanel"/);
+  assert.match(app,/function operatorCorrectionEntries/);
+  assert.match(app,/operatorOriginalValues/);
+  assert.match(app,/lastOperatorCorrection/);
+  assert.match(app,/operator_values_corrected/);
+  assert.match(app,/O dashboard usará a versão do financeiro/);
+  assert.match(app,/await loadDashboard\(\);[\s\S]*await loadFinance\(\)/);
+  assert.match(app,/changeDetails/);
+  assert.match(rules,/operatorOriginalValues/);
+  assert.match(rules,/lastOperatorCorrection/);
+});
+
+test('cálculo enriquecido não substitui o status do fluxo',()=>{
+  assert.match(app,/status:calculationStatus/);
+  assert.match(app,/return \{\.\.\.record,\.\.\.calc,calculationStatus,financeCalc:finance\}/);
+});
+
+test('somente dono ou administrador pode excluir comprovantes',()=>{
+  assert.match(storageRules,/request\.resource\.metadata\.ownerId == request\.auth\.uid/);
+  assert.match(storageRules,/resource\.metadata\.ownerId == request\.auth\.uid/);
+  assert.doesNotMatch(storageRules,/allow delete: if request\.auth != null;/);
 });

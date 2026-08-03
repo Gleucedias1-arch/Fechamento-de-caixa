@@ -14,10 +14,18 @@
       ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance')",
       "cardFeeRates": {
         "$machine": {
-          "credit": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
-          "debit": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
-          "pix": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
-          "$other": { ".validate": false }
+          "credit": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+          },
+          "debit": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+          },
+          "pix": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+          },
+          "$other": {
+            ".validate": false
+          }
         }
       },
       "divergenceTolerance": {
@@ -26,19 +34,272 @@
       }
     },
     "closings": {
-      ".read": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('active').val() === true)",
-      ".indexOn": ["date", "searchDateStore", "financeStatus"],
+      ".read": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance' || (root.child('users').child(auth.uid).child('active').val() === true && query.orderByChild === 'store' && query.equalTo === root.child('users').child(auth.uid).child('store').val()))",
+      ".indexOn": [
+        "date",
+        "store",
+        "searchDateStore",
+        "financeStatus"
+      ],
       "$id": {
-        ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'finance' && data.child('status').val() !== 'approved' && newData.child('status').val() !== 'reopened') || (root.child('users').child(auth.uid).child('active').val() === true && root.child('users').child(auth.uid).child('store').val() === newData.child('store').val() && newData.child('createdBy').val() === auth.uid && (!data.exists() || data.child('status').val() === 'draft') && !newData.child('financeReview').exists() && (newData.child('status').val() === 'draft' || newData.child('status').val() === 'submitted'))) ",
-        ".validate": "newData.hasChildren(['date','store','operator','systemTotal','countedTotal','difference','status','createdBy','financeStatus'])",
+        ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('active').val() === true && root.child('users').child(auth.uid).child('store').val() === newData.child('store').val() && newData.child('createdBy').val() === auth.uid && (!data.exists() || data.child('status').val() === 'draft' || data.child('status').val() === 'returned') && !newData.child('financeReview').exists() && (newData.child('status').val() === 'draft' || newData.child('status').val() === 'submitted')))",
+        ".validate": "newData.hasChildren(['id','date','store','operator','systemTotal','countedTotal','difference','status','createdBy','financeStatus']) && newData.child('id').val() === $id && (!data.exists() || newData.child('createdBy').val() === data.child('createdBy').val()) && (!data.exists() || newData.child('createdAt').val() === data.child('createdAt').val())",
+        "id": {
+          ".validate": "newData.isString() && newData.val() === $id"
+        },
+        "date": {
+          ".validate": "newData.isString() && newData.val().matches(/^\\d{4}-\\d{2}-\\d{2}$/)"
+        },
+        "store": {
+          ".validate": "newData.val() === 'House 190 Teixeira' || newData.val() === 'House 190 Eunápolis' || newData.val() === 'House Food Park Teixeira'"
+        },
+        "shift": {
+          ".validate": "!newData.exists() || newData.val() === 'Noite' || newData.val() === 'Almoço' || newData.val() === 'Integral'"
+        },
         "status": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved' && (newData.val() === 'approved' || newData.val() === 'returned')",
           ".validate": "newData.val() === 'draft' || newData.val() === 'submitted' || newData.val() === 'approved' || newData.val() === 'returned' || newData.val() === 'reopened'"
         },
         "financeStatus": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved' && (newData.val() === 'approved' || newData.val() === 'returned')",
           ".validate": "newData.val() === 'not_submitted' || newData.val() === 'pending' || newData.val() === 'approved' || newData.val() === 'returned' || newData.val() === 'reopened'"
         },
         "financeReview": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'",
           ".validate": "!newData.exists() || auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance'"
+        },
+        "locked": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance'",
+          ".validate": "newData.isBoolean()"
+        },
+        "reviewedAt": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance'",
+          ".validate": "!newData.exists() || newData.isNumber()"
+        },
+        "updatedAt": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance'",
+          ".validate": "newData.isNumber()"
+        },
+        "createdBy": {
+          ".validate": "newData.isString()"
+        },
+        "outflows": {
+          "$item": {
+            "amount": {
+              ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 10000000"
+            },
+            "description": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200"
+            }
+          }
+        },
+        "pixRequests": {
+          "$item": {
+            "amount": {
+              ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 10000000"
+            },
+            "name": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120"
+            },
+            "pixKey": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 160"
+            }
+          }
+        },
+        "system_cash": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "system_credit": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "system_debit": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "system_pix": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "system_ifood_online": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "system_ifood_voucher": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "system_term": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "system_club": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "system_accrual": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "counted_cash": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "sipag_credit": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "sipag_debit": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "cappta_credit": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "cappta_debit": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "stone_credit": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "stone_debit": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "cielo_credit": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "cielo_debit": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "laranjinha_credit": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "laranjinha_debit": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "wise_credit": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "wise_debit": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "sipag_pix": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "cappta_pix": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "stone_pix": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "cielo_pix": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "laranjinha_pix": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "wise_pix": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "expenses": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)"
+        },
+        "expense_motoboy": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)"
+        },
+        "expense_freelancer": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)"
+        },
+        "expense_free_delivery": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)"
+        },
+        "expense_other": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)"
+        },
+        "opening_float": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "withdrawals": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "cash_in": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "closing_float": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "systemTotal": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "countedReceipts": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "countedTotal": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "expenseTotal": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "totalOutflows": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "totalAvailable": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "difference": {
+          ".validate": "newData.isNumber() && newData.val() >= -10000000 && newData.val() <= 10000000",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "expectedCash": {
+          ".validate": "newData.isNumber() && newData.val() >= -10000000 && newData.val() <= 10000000",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "systemByMethod": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "countedByMethod": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "differences": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "calculationStatus": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'",
+          ".validate": "newData.val() === 'balanced' || newData.val() === 'surplus' || newData.val() === 'shortage'"
+        },
+        "operatorOriginalValues": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
+        },
+        "lastOperatorCorrection": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'",
+          ".validate": "newData.hasChildren(['reason','fields','correctedAt','correctedBy','correctedByName'])"
         }
       }
     },
@@ -47,7 +308,7 @@
         ".read": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance' || root.child('closings').child($closingId).child('createdBy').val() === auth.uid)",
         "$auditId": {
           ".write": "auth != null && !data.exists() && newData.child('actorId').val() === auth.uid && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance' || root.child('closings').child($closingId).child('createdBy').val() === auth.uid)",
-          ".validate": "newData.hasChildren(['action','timestamp','actorId','actorName','actorRole'])"
+          ".validate": "newData.hasChildren(['action','timestamp','actorId','actorName','actorRole']) && newData.child('timestamp').isNumber() && newData.child('timestamp').val() <= now + 60000"
         }
       }
     }

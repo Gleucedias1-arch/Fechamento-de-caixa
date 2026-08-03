@@ -2,7 +2,7 @@
 
 Sistema web responsivo para fechamento diário, conciliação e acompanhamento de divergências das lojas House 190.
 
-Versão 2.1.1 com visual mais leve e profissional, divergências por tolerância, fila financeira priorizada, comprovantes,
+Versão 2.2.1 com segurança reforçada por loja, recuperação de rascunhos e fechamentos devolvidos, bloqueio de duplicidades e validação financeira. A versão também mantém divergências por tolerância, fila financeira priorizada e comprovantes,
 sangria rastreável, resumo líquido, bloqueio após aprovação, reabertura administrativa,
 justificativas e histórico de alterações.
 
@@ -26,6 +26,11 @@ justificativas e histórico de alterações.
 - Confirmação individual de Crédito, Débito e Pix por máquina pelo financeiro
 - Confirmação ou recusa dos pagamentos Pix solicitados pela loja
 - Resultado financeiro registrado com responsável, parecer e data da conferência
+- Correção auditável dos valores do operador pelo financeiro, preservando o lançamento original
+- Recuperação de rascunhos e correção de fechamentos devolvidos
+- Bloqueio de fechamento duplicado por loja, data e turno
+- Validação de valores negativos, inválidos ou fora do limite
+- Leitura operacional limitada à loja autorizada pelas regras do banco
 - Banco Firebase Realtime Database
 
 ## Configuração

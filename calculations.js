@@ -51,13 +51,35 @@ export const FINANCE_CONFIRM_FIELDS = [
   'finance_confirm_outflows'
 ];
 
-export function numberFrom(value) {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+function parsedNumber(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : NaN;
   const raw = String(value ?? '').trim().replace(/\s/g, '');
   if (!raw) return 0;
-  const normalized = raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.') : raw;
-  const parsed = Number(normalized);
+  let normalized = raw;
+  if (raw.includes(',')) normalized = raw.replace(/\./g, '').replace(',', '.');
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(raw)) normalized = raw.replace(/\./g, '');
+  return Number(normalized);
+}
+
+export function numberFrom(value) {
+  const parsed = parsedNumber(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function isValidAmount(value, max = 10000000) {
+  const parsed = parsedNumber(value);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= max;
+}
+
+export function validateClosingAmounts(data = {}) {
+  const fields = [
+    ...SYSTEM_FIELDS,...COUNTED_FIELDS,...EXPENSE_FIELDS,
+    'opening_float','withdrawals','cash_in','closing_float'
+  ];
+  const directAmountsValid = fields.every(key => data[key] === undefined || isValidAmount(data[key]));
+  const outflowsValid = (data.outflows || []).every(item => isValidAmount(item?.amount) && numberFrom(item?.amount) > 0);
+  const pixRequestsValid = (data.pixRequests || []).every(item => isValidAmount(item?.amount) && numberFrom(item?.amount) > 0);
+  return directAmountsValid && outflowsValid && pixRequestsValid;
 }
 
 export function sumFields(data, fields) {
