@@ -1,7 +1,6 @@
 import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
 import { getDatabase, ref, get, set, push, update, query, orderByChild, equalTo, startAt, endAt } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js';
 import { firebaseConfig, ADMIN_EMAIL } from './firebase-config.js';
 import {
   SYSTEM_FIELDS, COUNTED_FIELDS, EXPENSE_FIELDS, CARD_FIELDS, MACHINE_PIX_FIELDS,
@@ -28,7 +27,10 @@ const OPERATION_FIELDS = [
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
-const storage = getStorage(app);
+const DRIVE_UPLOAD_URL = 'https://script.google.com/macros/s/AKfycbzNlFEnYAGp3GOS0jD6f2rQ-qklOe4fO8hDUDbYD_ANi_aJcPxpJKReDsQJP2rkTwd0/exec';
+const CLOSING_ATTACHMENT_TYPES = new Set([
+  'image/jpeg','image/png','image/webp','image/heic','image/heif','application/pdf'
+]);
 let profile = null;
 let currentClosings = [];
 let financeClosings = [];
@@ -358,13 +360,53 @@ function addPixRequestRow(item={}, editing = null) {
   if (shouldEdit) $('[data-pix-field="name"]',row).focus();
 }
 
-function safeFileName(name) {
-  return String(name || 'arquivo').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-    .replace(/[^a-zA-Z0-9._-]+/g,'-').slice(-90);
+function driveRequestId() {
+  const fallback = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  const random = globalThis.crypto?.randomUUID?.().replace(/-/g,'') || fallback;
+  return `attachment-${Date.now()}-${random}`.slice(0,100);
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve,reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Não foi possível ler o comprovante.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function postDrive(payload) {
+  const response = await fetch(DRIVE_UPLOAD_URL,{
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=UTF-8'},
+    body:JSON.stringify(payload),
+    redirect:'follow'
+  });
+  let result = null;
+  try {
+    result = JSON.parse(await response.text());
+  } catch (error) {
+    throw new Error('O serviço do Google Drive retornou uma resposta inválida.');
+  }
+  if (!response.ok || !result?.ok) {
+    throw new Error(result?.error || 'Não foi possível acessar o Google Drive.');
+  }
+  return result;
+}
+
+async function deleteDriveAttachments(items) {
+  const files = items.filter(item => item.driveFileId);
+  if (!files.length || !auth.currentUser) return;
+  const idToken = await auth.currentUser.getIdToken();
+  await Promise.allSettled(files.map(item => postDrive({
+    action:'deleteClosingAttachment',
+    idToken,
+    fileId:item.driveFileId
+  })));
 }
 
 function renderAttachmentList() {
-  const saved = savedAttachments.map((item,index) => `<div class="attachment-item saved"><div><span>${escapeHtml(item.category || 'Comprovante')}</span><b>${escapeHtml(item.name)}</b><small>${Math.round(numberFrom(item.size)/1024)} KB · já salvo</small></div><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">Abrir</a></div>`);
+  const saved = savedAttachments.map(item => `<div class="attachment-item saved"><div><span>${escapeHtml(item.category || 'Comprovante')}</span><b>${escapeHtml(item.name)}</b><small>${Math.round(numberFrom(item.size)/1024)} KB · ${item.storage === 'google-drive' ? 'Google Drive' : 'arquivo salvo'}</small></div><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">Abrir</a></div>`);
   const pending = pendingAttachments.map(item => `<div class="attachment-item"><div><span>${escapeHtml(item.category)}</span><b>${escapeHtml(item.file.name)}</b><small>${Math.round(item.file.size/1024)} KB · aguardando envio</small></div><button type="button" data-remove-attachment="${escapeHtml(item.id)}">×</button></div>`);
   $('#attachmentList').innerHTML = [...saved,...pending].join('') || '<p class="empty-inline">Nenhum comprovante selecionado.</p>';
 }
@@ -379,7 +421,7 @@ $('#attachmentFiles').addEventListener('change', event => {
       toast(`${file.name} ultrapassa o limite de 2 MB.`,true);
       return;
     }
-    if (!(file.type.startsWith('image/') || file.type === 'application/pdf')) {
+    if (!CLOSING_ATTACHMENT_TYPES.has(file.type.toLowerCase())) {
       toast(`${file.name} não é uma foto ou PDF válido.`,true);
       return;
     }
@@ -396,27 +438,35 @@ $('#attachmentList').addEventListener('click', event => {
   renderAttachmentList();
 });
 
-async function uploadPendingAttachments(closingId) {
+async function uploadPendingAttachments(closingId,closingData) {
   const uploaded = [];
   try {
+    const idToken = await auth.currentUser.getIdToken();
     for (const item of pendingAttachments) {
-      const path = `closings/${closingId}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeFileName(item.file.name)}`;
-      const target = storageRef(storage,path);
-      await uploadBytes(target,item.file,{
-        contentType:item.file.type,
-        customMetadata:{ownerId:auth.currentUser.uid,closingId}
+      const result = await postDrive({
+        action:'uploadClosingAttachment',
+        idToken,
+        requestId:driveRequestId(),
+        closingId,
+        day:closingData.date,
+        store:closingData.store,
+        category:item.category,
+        originalName:item.file.name,
+        mimeType:item.file.type.toLowerCase(),
+        fileDataUrl:await fileToDataUrl(item.file)
       });
-      const url = await getDownloadURL(target);
       uploaded.push({
         name:item.file.name,category:item.category,type:item.file.type,size:item.file.size,
-        url,storagePath:path,uploadedAt:Date.now(),uploadedBy:auth.currentUser.uid,
+        url:result.fileUrl,driveFileId:result.fileId,driveFileName:result.fileName,
+        storage:'google-drive',sharedWithLink:Boolean(result.sharedWithLink),
+        uploadedAt:Date.now(),uploadedBy:auth.currentUser.uid,
         uploadedByName:profile?.name || auth.currentUser.email
       });
     }
     return uploaded;
   } catch (error) {
-    await Promise.allSettled(uploaded.map(item => deleteObject(storageRef(storage,item.storagePath))));
-    throw new Error('Não foi possível enviar um dos comprovantes. Tente novamente.');
+    await deleteDriveAttachments(uploaded);
+    throw new Error(error?.message || 'Não foi possível enviar um dos comprovantes. Tente novamente.');
   }
 }
 
@@ -536,7 +586,7 @@ async function persistClosing(finalStatus) {
   if (!editingId && existingSnap.exists()) {
     throw new Error('Este fechamento já existe. Abra o registro existente no Histórico.');
   }
-  const uploaded = await uploadPendingAttachments(id);
+  const uploaded = await uploadPendingAttachments(id,data);
   const attachments = [...savedAttachments,...uploaded];
   const record = {
     ...data,...calc,id,attachments,status:finalStatus,locked:false,
@@ -549,7 +599,7 @@ async function persistClosing(finalStatus) {
   try {
     await set(ref(db,`closings/${id}`),record);
   } catch (error) {
-    await Promise.allSettled(uploaded.map(item => deleteObject(storageRef(storage,item.storagePath))));
+    await deleteDriveAttachments(uploaded);
     throw error;
   }
   savedAttachments = attachments;

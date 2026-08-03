@@ -2,13 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 
-const [html,app,css,rules,storageRules,packageJson] = await Promise.all([
+const [html,app,css,rules,packageJson,driveScript,firebaseJson] = await Promise.all([
   fs.readFile(new URL('../index.html',import.meta.url),'utf8'),
   fs.readFile(new URL('../app.js',import.meta.url),'utf8'),
   fs.readFile(new URL('../styles.css',import.meta.url),'utf8'),
   fs.readFile(new URL('../database.rules.json',import.meta.url),'utf8'),
-  fs.readFile(new URL('../storage.rules',import.meta.url),'utf8'),
   fs.readFile(new URL('../package.json',import.meta.url),'utf8'),
+  fs.readFile(new URL('../google-apps-script/Code.gs',import.meta.url),'utf8'),
+  fs.readFile(new URL('../firebase.json',import.meta.url),'utf8'),
 ]);
 
 test('área financeira e indicadores existem na interface',()=>{
@@ -62,9 +63,9 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.2.1');
-  assert.match(html,/app\.js\?v=2\.2\.1/);
-  assert.match(html,/styles\.css\?v=2\.2\.1/);
+  assert.equal(JSON.parse(packageJson).version,'2.3.0');
+  assert.match(html,/app\.js\?v=2\.3\.0/);
+  assert.match(html,/styles\.css\?v=2\.3\.0/);
 });
 
 test('solicitação Pix mantém Nome e Chave amplos sem ultrapassar o cartão',()=>{
@@ -183,12 +184,25 @@ test('fila financeira possui todos os estados priorizados',()=>{
   assert.match(css,/\.badge\.sangria/);
 });
 
-test('comprovantes aceitam fotos e PDF com regras de armazenamento',()=>{
+test('comprovantes são enviados ao Google Drive e não ao Firebase Storage',()=>{
   assert.match(html,/accept="image\/\*,application\/pdf"/);
-  assert.match(app,/uploadPendingAttachments/);
-  assert.match(app,/getDownloadURL/);
-  assert.match(storageRules,/request\.resource\.size <= 2 \* 1024 \* 1024/);
-  assert.match(storageRules,/application\/pdf/);
+  assert.match(app,/DRIVE_UPLOAD_URL/);
+  assert.match(app,/uploadClosingAttachment/);
+  assert.match(app,/fileToDataUrl/);
+  assert.match(app,/storage:'google-drive'/);
+  assert.doesNotMatch(app,/firebase-storage|getStorage|uploadBytes|getDownloadURL/);
+  assert.equal(JSON.parse(firebaseJson).storage,undefined);
+  assert.match(driveScript,/maxFileBytes: 2 \* 1024 \* 1024/);
+  assert.match(driveScript,/"application\/pdf"/);
+  assert.match(driveScript,/DriveApp\.Access\.ANYONE_WITH_LINK/);
+});
+
+test('Apps Script preserva selfies e autentica os comprovantes do fechamento',()=>{
+  assert.match(driveScript,/action === "uploadClockSelfie"/);
+  assert.match(driveScript,/action === "uploadClosingAttachment"/);
+  assert.match(driveScript,/firebaseClosingProfile_/);
+  assert.match(driveScript,/assertClosingStore_/);
+  assert.match(driveScript,/uploaderUid: uid/);
 });
 
 test('sangria registra entrega e recebimento completos',()=>{
@@ -261,8 +275,9 @@ test('cálculo enriquecido não substitui o status do fluxo',()=>{
   assert.match(app,/return \{\.\.\.record,\.\.\.calc,calculationStatus,financeCalc:finance\}/);
 });
 
-test('somente dono ou administrador pode excluir comprovantes',()=>{
-  assert.match(storageRules,/request\.resource\.metadata\.ownerId == request\.auth\.uid/);
-  assert.match(storageRules,/resource\.metadata\.ownerId == request\.auth\.uid/);
-  assert.doesNotMatch(storageRules,/allow delete: if request\.auth != null;/);
+test('somente remetente, financeiro ou administrador pode excluir comprovantes do Drive',()=>{
+  assert.match(driveScript,/metadata\.uploaderUid/);
+  assert.match(driveScript,/profile\.role === "admin" \|\| profile\.role === "finance"/);
+  assert.match(driveScript,/Sem permissão para excluir/);
+  assert.match(driveScript,/file\.setTrashed\(true\)/);
 });
