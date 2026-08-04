@@ -873,12 +873,12 @@ function updateClosingProgress(data) {
     data.pixRequests.length > 0 || pendingAttachments.length > 0 || savedAttachments.length > 0 || $('.pix-request-section')?.dataset.touched === 'true',
     Boolean($('#closingForm').dataset.id)
   ];
-  $('.closing-progress-item').forEach((item,index) => item.classList.toggle('is-complete',Boolean(completed[index])));
+  $$('.closing-progress-item').forEach((item,index) => item.classList.toggle('is-complete',Boolean(completed[index])));
 }
 
 function setActiveClosingStep(section) {
   if (!section) return;
-  $('.closing-progress-item').forEach(item => {
+  $$('.closing-progress-item').forEach(item => {
     item.classList.toggle('is-active',section.matches(item.dataset.stepTarget));
   });
 }
@@ -1089,7 +1089,7 @@ function resetClosing() {
   $('.optional-receipts').open = false;
   renderSelectedMachineCards();
   closingAmountsTouched = false;
-  $('.sheet-section,.closing-final-card').forEach(section => delete section.dataset.touched);
+  $$('.sheet-section,.closing-final-card').forEach(section => delete section.dataset.touched);
   $('#formStatus').textContent='Rascunho';
   $('#formStatus').className='badge draft';
   updateClosingCalculation();
