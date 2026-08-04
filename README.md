@@ -2,7 +2,7 @@
 
 Sistema web responsivo para fechamento diário, conciliação e acompanhamento de divergências das lojas House 190.
 
-Versão 2.6.0 com uma conferência financeira reorganizada e responsiva: filtros recolhíveis no celular, resumo e ações sempre acessíveis, seções em abas e melhor aproveitamento do desktop. Permanecem a compensação das divergências no resultado final, a validação estrita dos valores, o cadastro editável de máquinas e a conferência financeira restrita a Cartão e Pix. Diferenças de até R$ 2,00 são classificadas como pequenas, e a antiga área de comprovantes continua removida.
+Versão 2.6.1 com uma conferência financeira reorganizada e responsiva: filtros recolhíveis no celular, resumo e ações sempre acessíveis, seções em abas e melhor aproveitamento do desktop. A configuração das máquinas agora usa cartões alinhados, sem campos cortados, e o recebimento da sangria fica visualmente separado da justificativa financeira. Permanecem a compensação das divergências no resultado final, a validação estrita dos valores, o cadastro editável de máquinas e a conferência financeira restrita a Cartão e Pix. Diferenças de até R$ 2,00 são classificadas como pequenas, e a antiga área de comprovantes continua removida.
 
 ## Recursos
 

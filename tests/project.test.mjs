@@ -77,9 +77,9 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.6.0');
-  assert.match(html,/app\.js\?v=2\.6\.0/);
-  assert.match(html,/styles\.css\?v=2\.6\.0/);
+  assert.equal(JSON.parse(packageJson).version,'2.6.1');
+  assert.match(html,/app\.js\?v=2\.6\.1/);
+  assert.match(html,/styles\.css\?v=2\.6\.1/);
 });
 
 test('conferência financeira usa layout responsivo com navegação e ações persistentes',()=>{
@@ -128,6 +128,20 @@ test('rótulos de recebimentos permanecem inteiros em cartões estreitos',()=>{
   assert.match(css,/\.machine-entry-fields label \{ min-width: 0; grid-template-columns: minmax\(72px, \.65fr\) minmax\(0, 1\.35fr\);/);
   assert.match(css,/\.machine-entry-fields label > span \{ min-width: 0;[\s\S]*white-space: nowrap;/);
   assert.match(css,/\.machine-entry-fields input \{ min-width: 0;/);
+});
+
+test('configuração das máquinas e finalização financeira permanecem bem separadas',()=>{
+  assert.match(app,/class="rate-machine-identity"/);
+  assert.match(app,/class="rate-machine-fees"/);
+  assert.match(css,/\.rate-settings-grid \{ display: grid; grid-template-columns: repeat\(2,minmax\(0,1fr\)\);/);
+  assert.match(css,/\.rate-machine-fees \{ display: grid; grid-template-columns: repeat\(3,minmax\(0,1fr\)\);/);
+  assert.match(css,/\.rate-machine-card input \{ min-width: 0;/);
+  assert.match(html,/class="finance-finalization-layout"/);
+  assert.match(html,/class="finance-receipt-card"/);
+  assert.match(html,/class="finance-justification-card"/);
+  assert.match(html,/Este controle registra somente a entrega do valor/);
+  assert.match(html,/Obrigatória quando houver diferença ou devolução/);
+  assert.match(css,/@media \(max-width: 760px\)[\s\S]*\.finance-finalization-layout \{ grid-template-columns: 1fr;/);
 });
 
 test('botão de excluir movimentação permanece visível em todas as larguras',()=>{

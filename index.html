@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2.6.0" />
+  <link rel="stylesheet" href="styles.css?v=2.6.1" />
 </head>
 <body>
   <div id="toast" class="toast" aria-live="polite"></div>
@@ -153,7 +153,7 @@
 
                 <section class="review-tab-panel" data-review-panel="movements" role="tabpanel" hidden>
                   <div class="dashboard-grid review-grid"><article class="card"><div class="card-title"><div><h3>Saídas declaradas</h3><p>Pagamentos retirados do dinheiro do caixa</p></div></div><div id="reviewExpenses" class="metric-list"></div></article><article class="card"><div class="card-title"><div><h3>Controles da loja</h3><p>Entrega, horário e observações</p></div></div><div id="reviewControls" class="metric-list"></div><p id="reviewNotes" class="note-box"></p></article></div>
-                  <article class="card form-section finance-movement-review"><div class="card-title"><div><span class="block-label">4 · FINALIZAÇÃO</span><h3>Saídas, sangria e explicação da diferença</h3><p>Confirme as saídas, os pagamentos Pix e o recebimento físico.</p></div></div><label class="check-field confirmation-highlight"><input name="finance_confirm_outflows" type="checkbox" /> Confirmo que conferi todas as saídas declaradas</label><div id="financePixRequests" class="pix-approval-list"></div><label class="check-field"><input name="finance_sangria_received" type="checkbox" /> Confirmo o recebimento da sangria/fechamento</label><div id="financeDivergenceFields" class="finance-divergence-fields hidden"><label>O que causou a diferença?<select name="finance_divergence_reason"><option value="">Escolha a causa</option><option value="Falta de dinheiro">Dinheiro faltando ou sobrando</option><option value="Erro de lançamento">Valor digitado incorretamente</option><option value="Venda não registrada">Venda não registrada no sistema</option><option value="Estorno">Estorno ou cancelamento</option><option value="Taxa diferente">Taxa da maquininha diferente</option><option value="Outro">Outro motivo</option></select><small>Escolha a causa da falta ou sobra mostrada acima.</small></label></div><label class="wide-label">Explique o que aconteceu<textarea name="finance_notes" rows="4" placeholder="Descreva a diferença, os pagamentos Pix pendentes ou a razão da devolução..."></textarea></label></article>
+                  <article class="card form-section finance-movement-review"><div class="card-title"><div><span class="block-label">4 · FINALIZAÇÃO</span><h3>Saídas, sangria e explicação da diferença</h3><p>Conclua cada controle em seu bloco correspondente.</p></div></div><label class="check-field confirmation-highlight"><input name="finance_confirm_outflows" type="checkbox" /> Confirmo que conferi todas as saídas declaradas</label><div id="financePixRequests" class="pix-approval-list"></div><div class="finance-finalization-layout"><section class="finance-receipt-card" aria-labelledby="financeReceiptTitle"><div class="finance-finalization-heading"><span>RECEBIMENTO FÍSICO</span><h4 id="financeReceiptTitle">Sangria/fechamento</h4><p>Este controle registra somente a entrega do valor.</p></div><label class="check-field sangria-confirmation"><input name="finance_sangria_received" type="checkbox" /><span><b>Confirmo o recebimento</b><small>Marque somente quando a sangria estiver em mãos.</small></span></label></section><section class="finance-justification-card" aria-labelledby="financeJustificationTitle"><div class="finance-finalization-heading"><span>PARECER FINANCEIRO</span><h4 id="financeJustificationTitle">Justificativa da análise</h4><p>Obrigatória quando houver diferença ou devolução.</p></div><div id="financeDivergenceFields" class="finance-divergence-fields hidden"><label>O que causou a diferença?<select name="finance_divergence_reason"><option value="">Escolha a causa</option><option value="Falta de dinheiro">Dinheiro faltando ou sobrando</option><option value="Erro de lançamento">Valor digitado incorretamente</option><option value="Venda não registrada">Venda não registrada no sistema</option><option value="Estorno">Estorno ou cancelamento</option><option value="Taxa diferente">Taxa da maquininha diferente</option><option value="Outro">Outro motivo</option></select><small>Escolha a causa da falta ou sobra mostrada acima.</small></label></div><label class="wide-label">Explique o que aconteceu<textarea name="finance_notes" rows="4" placeholder="Descreva a diferença, os pagamentos Pix pendentes ou a razão da devolução..."></textarea></label></section></div></article>
                 </section>
 
                 <section class="review-tab-panel" data-review-panel="history" role="tabpanel" hidden>
@@ -177,6 +177,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=2.6.0"></script>
+  <script type="module" src="app.js?v=2.6.1"></script>
 </body>
 </html>
