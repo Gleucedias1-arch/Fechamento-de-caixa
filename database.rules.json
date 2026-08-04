@@ -28,13 +28,34 @@
           }
         }
       },
+      "machines": {
+        ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() === true",
+        "$machine": {
+          ".validate": "newData.hasChildren(['name','credit','debit','pix'])",
+          "name": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
+          },
+          "credit": {
+            ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9_]+$/)"
+          },
+          "debit": {
+            ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9_]+$/)"
+          },
+          "pix": {
+            ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9_]+$/)"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
       "divergenceTolerance": {
         ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() === true",
         ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000"
       }
     },
     "closings": {
-      ".read": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance' || (root.child('users').child(auth.uid).child('active').val() === true && query.orderByChild === 'store' && query.equalTo === root.child('users').child(auth.uid).child('store').val()))",
+      ".read": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance' || (root.child('users').child(auth.uid).child('active').val() === true && query.orderByChild === 'store' && (query.equalTo === root.child('users').child(auth.uid).child('store').val() || query.equalTo === root.child('users').child(auth.uid).child('stores').child('0').val() || query.equalTo === root.child('users').child(auth.uid).child('stores').child('1').val() || query.equalTo === root.child('users').child(auth.uid).child('stores').child('2').val())))",
       ".indexOn": [
         "date",
         "store",
@@ -42,7 +63,7 @@
         "financeStatus"
       ],
       "$id": {
-        ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('active').val() === true && root.child('users').child(auth.uid).child('store').val() === newData.child('store').val() && newData.child('createdBy').val() === auth.uid && (!data.exists() || data.child('status').val() === 'draft' || data.child('status').val() === 'returned') && !newData.child('financeReview').exists() && (newData.child('status').val() === 'draft' || newData.child('status').val() === 'submitted')))",
+        ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('active').val() === true && (root.child('users').child(auth.uid).child('store').val() === newData.child('store').val() || root.child('users').child(auth.uid).child('stores').child('0').val() === newData.child('store').val() || root.child('users').child(auth.uid).child('stores').child('1').val() === newData.child('store').val() || root.child('users').child(auth.uid).child('stores').child('2').val() === newData.child('store').val()) && newData.child('createdBy').val() === auth.uid && (!data.exists() || data.child('status').val() === 'draft' || data.child('status').val() === 'returned') && !newData.child('financeReview').exists() && (newData.child('status').val() === 'draft' || newData.child('status').val() === 'submitted')))",
         ".validate": "newData.hasChildren(['id','date','store','operator','systemTotal','countedTotal','difference','status','createdBy','financeStatus']) && newData.child('id').val() === $id && (!data.exists() || newData.child('createdBy').val() === data.child('createdBy').val()) && (!data.exists() || newData.child('createdAt').val() === data.child('createdAt').val())",
         "id": {
           ".validate": "newData.isString() && newData.val() === $id"

@@ -23,16 +23,18 @@ test('área financeira e indicadores existem na interface',()=>{
     'kpiSangria','financeSangria','cardFeeSettings','financeGrossCard','financeCardFees',
     'financeNetCard','financeGrossPix','financePixFees','financeNetPix','financeNetAvailable','reviewSangriaAlert',
     'financeSummaryGrid','financeReopened','reviewAttachments',
-    'auditTimeline','reopenClosing','divergenceTolerance','closingDivergenceFields','financeDivergenceFields'
+    'auditTimeline','reopenClosing','divergenceTolerance','closingDivergenceFields','financeDivergenceFields',
+    'closingSubmitError','financeTotalDiffText','addMachine'
   ]) assert.match(html,new RegExp(`id="${id}"`));
 });
 
 test('conferência se limita a dinheiro, cartão e Pix, com cartão por máquina',()=>{
   assert.match(html,/Confira somente Dinheiro, Cartão e Pix/);
-  assert.match(app,/Stone: \['stone_credit','stone_debit','stone_pix'\]/);
+  assert.match(app,/const DEFAULT_MACHINES/);
+  assert.match(app,/machineDefinitions/);
   assert.match(html,/Escolha as máquinas utilizadas/);
   assert.match(html,/Crédito, Débito e Pix/);
-  assert.match(app,/stone_pix/);
+  assert.ok(app.includes('pix:`${id}_pix`'));
   assert.match(app,/selectedMachines/);
   assert.doesNotMatch(html,/Diferença cartão/i);
   assert.doesNotMatch(html,/name="counted_ifood"/);
@@ -70,9 +72,9 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.5.2');
-  assert.match(html,/app\.js\?v=2\.5\.2/);
-  assert.match(html,/styles\.css\?v=2\.5\.2/);
+  assert.equal(JSON.parse(packageJson).version,'2.5.5');
+  assert.match(html,/app\.js\?v=2\.5\.5/);
+  assert.match(html,/styles\.css\?v=2\.5\.5/);
 });
 
 test('solicitação Pix mantém Nome e Chave amplos sem ultrapassar o cartão',()=>{
@@ -141,9 +143,13 @@ test('dashboard separa disponível bancário e sangria física',()=>{
   assert.match(css,/\.sangria-kpi\.sangria-active/);
 });
 
-test('financeiro configura taxas de cartão e Pix e visualiza a conciliação líquida',()=>{
-  assert.match(html,/Taxas por maquininha/);
+test('financeiro cadastra máquinas, configura taxas e visualiza a conciliação líquida',()=>{
+  assert.match(html,/Máquinas, taxas e tolerância/);
   assert.match(html,/id="toggleRateSettings"/);
+  assert.match(html,/id="addMachine"/);
+  assert.match(app,/function addMachineSetting/);
+  assert.match(app,/function removeMachineSetting/);
+  assert.match(app,/settings\/machines/);
   assert.match(app,/settings\/cardFeeRates/);
   assert.match(app,/data-machine-fee/);
   assert.match(app,/data-rate-type="pix"/);
@@ -280,6 +286,15 @@ test('divergências exigem motivo e usam tolerância configurável',()=>{
   assert.match(rules,/divergenceTolerance/);
 });
 
+test('divergências mostram falta e sobra separadas e compensam o resultado final',()=>{
+  assert.match(app,/function describeDifference/);
+  assert.match(app,/difference > 0 \? 'Sobrou' : 'Faltou'/);
+  assert.match(app,/function summarizeDifferences/);
+  assert.match(app,/summary\.total = summary\.surplus - summary\.shortage/);
+  assert.match(app,/Resultado: \$\{describeDifference\(summary\.total\)\}/);
+  assert.match(html,/Resultado final das divergências/);
+});
+
 
 test('rascunhos e fechamentos devolvidos podem ser recuperados no histórico',()=>{
   assert.match(app,/data-edit-closing/);
@@ -343,6 +358,16 @@ test('envio mantém compatibilidade com as regras atuais e oferece destino da sa
   assert.match(html,/Entregue ao supervisor/);
   assert.match(html,/Entregue ao dono/);
   assert.match(html,/<select name="sangria_responsible">/);
+});
+
+test('rascunho aceita perfis com store legado ou lista stores e erros de envio são explícitos',()=>{
+  assert.match(rules,/child\('stores'\)\.child\('0'\)/);
+  assert.match(rules,/query\.equalTo === root\.child\('users'\)\.child\(auth\.uid\)\.child\('stores'\)/);
+  assert.match(html,/id="closingSubmitError"/);
+  assert.match(app,/function showClosingSubmitError/);
+  assert.match(app,/firstIssue\.title/);
+  assert.match(app,/Sem permissão para \$\{action\} nesta loja/);
+  assert.match(css,/\.closing-submit-error/);
 });
 
 

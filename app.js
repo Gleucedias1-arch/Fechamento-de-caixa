@@ -3,19 +3,17 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, creat
 import { getDatabase, ref, get, set, push, update, query, orderByChild, equalTo, startAt, endAt } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
 import { firebaseConfig, ADMIN_EMAIL } from './firebase-config.js';
 import {
-  SYSTEM_FIELDS, COUNTED_FIELDS, EXPENSE_FIELDS, CARD_FIELDS, MACHINE_PIX_FIELDS,
+  SYSTEM_FIELDS, COUNTED_FIELDS, EXPENSE_FIELDS,
   FINANCE_MACHINE_FIELDS, FINANCE_CONFIRM_FIELDS,
-  numberFrom, validateClosingAmounts, calculateClosing, calculateFinanceReview, calculateOperationalFinancialSummary,
+  numberFrom, machineDefinitions, validateClosingAmounts, calculateClosing, calculateFinanceReview, calculateOperationalFinancialSummary,
   summarizeFinance, differenceSeverity, formatBRL
 } from './calculations.js';
 
 const STORES = ['House 190 Teixeira','House 190 Eunápolis','House Food Park Teixeira'];
-const OPERATOR_GROUPS = {
-  Stone: ['stone_credit','stone_debit','stone_pix'], Sipag: ['sipag_credit','sipag_debit','sipag_pix'],
-  Cielo: ['cielo_credit','cielo_debit','cielo_pix'], Cappta: ['cappta_credit','cappta_debit','cappta_pix'],
-  Laranjinha: ['laranjinha_credit','laranjinha_debit','laranjinha_pix'], Wise: ['wise_credit','wise_debit','wise_pix'],
-};
-const MACHINE_FIELDS = [...CARD_FIELDS,...MACHINE_PIX_FIELDS];
+const DEFAULT_MACHINES = [
+  ['stone','Stone'],['sipag','Sipag'],['cielo','Cielo'],
+  ['cappta','Cappta'],['laranjinha','Laranjinha'],['wise','Wise']
+].map(([id,name]) => ({id,name,credit:`${id}_credit`,debit:`${id}_debit`,pix:`${id}_pix`}));
 const FINANCE_FIELDS = [
   'finance_cash',...FINANCE_MACHINE_FIELDS,'finance_adjustments'
 ];
@@ -36,7 +34,9 @@ let currentClosings = [];
 let financeClosings = [];
 let historyClosings = [];
 let currentReviewRecord = null;
-let cardFeeRates = Object.fromEntries(Object.keys(OPERATOR_GROUPS).map(machine => [machine,{credit:0,debit:0,pix:0}]));
+let machineCatalog = DEFAULT_MACHINES.map(machine => ({...machine}));
+let closingMachineCatalog = machineCatalog.map(machine => ({...machine}));
+let cardFeeRates = Object.fromEntries(machineCatalog.map(machine => [machine.id,{credit:0,debit:0,pix:0}]));
 let divergenceTolerance = 1;
 let pendingAttachments = [];
 let savedAttachments = [];
@@ -52,6 +52,37 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&
 const formatDate = value => value?.includes('-') ? value.split('-').reverse().join('/') : '—';
 const nearZero = value => Math.abs(numberFrom(value)) < 0.01;
 const formatDateTime = value => value ? new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(numberFrom(value) || value)) : '—';
+
+function describeDifference(value) {
+  const difference = numberFrom(value);
+  if (nearZero(difference)) return 'Sem divergência';
+  return `${difference > 0 ? 'Sobrou' : 'Faltou'} ${formatBRL(Math.abs(difference))}`;
+}
+
+function summarizeDifferences(values = []) {
+  return values.reduce((summary,value) => {
+    const difference = numberFrom(value);
+    if (difference > 0) summary.surplus += difference;
+    if (difference < 0) summary.shortage += Math.abs(difference);
+    summary.total = summary.surplus - summary.shortage;
+    return summary;
+  },{surplus:0,shortage:0,total:0});
+}
+
+function differenceBreakdown(summary) {
+  if (nearZero(summary.shortage) && nearZero(summary.surplus)) return 'Sem divergência';
+  return `Faltou ${formatBRL(summary.shortage)} · Sobrou ${formatBRL(summary.surplus)} · Resultado: ${describeDifference(summary.total)}`;
+}
+
+function divergenceValues(rows = []) {
+  return rows.flatMap(item => {
+    const differences = item.financeCalc?.differences || item.differences;
+    if (differences && typeof differences === 'object') {
+      return ['cash','card','pix'].map(key => numberFrom(differences[key]));
+    }
+    return [numberFrom(item.financeCalc?.totalDifference ?? item.difference)];
+  });
+}
 
 function differenceClass(value) {
   return {balanced:'positive',warning:'warning-text',critical:'negative'}[differenceSeverity(value,divergenceTolerance)];
@@ -175,6 +206,13 @@ function closingFormData() {
   const raw = Object.fromEntries(new FormData($('#closingForm')));
   OPERATION_FIELDS.forEach(key => raw[key] = numberFrom(raw[key]));
   raw.selectedMachines = $$('.machine-select:checked').map(input => input.value);
+  raw.machineDefinitions = Object.fromEntries(raw.selectedMachines.map(id => {
+    const machine = closingMachineCatalog.find(item => item.id === id);
+    return [id,{name:machine.name,credit:machine.credit,debit:machine.debit,pix:machine.pix}];
+  }));
+  machineDefinitions(raw).forEach(machine => {
+    [machine.credit,machine.debit,machine.pix].forEach(field => raw[field] = numberFrom(raw[field]));
+  });
   raw.sangria_delivered = $('[name="sangria_delivered"]').checked;
   if ($('#closingForm').dataset.openingFloatSourceId) {
     raw.openingFloatSourceId = $('#closingForm').dataset.openingFloatSourceId;
@@ -198,8 +236,12 @@ function closingFormData() {
 function financeFormData() {
   const raw = Object.fromEntries(new FormData($('#financeReviewForm')));
   FINANCE_FIELDS.forEach(key => { if (Object.hasOwn(raw,key)) raw[key] = numberFrom(raw[key]); });
+  $$('input[name^="finance_"][inputmode="decimal"]',$('#financeReviewForm')).forEach(input => {
+    raw[input.name] = numberFrom(input.value);
+  });
   raw.finance_sangria_received = $('[name="finance_sangria_received"]').checked;
   FINANCE_CONFIRM_FIELDS.forEach(key => raw[key] = Boolean($(`[name="${key}"]`)?.checked));
+  $$('input[name^="finance_confirm_"]',$('#financeReviewForm')).forEach(input => raw[input.name] = Boolean(input.checked));
   raw.pixPaymentStatuses = $$('.pix-payment-status').map((select,index) => ({index,status:select.value}));
   return raw;
 }
@@ -213,51 +255,123 @@ function selectedMachineNames() {
 }
 
 function activeMachineEntries(record = {}) {
-  const selected = Array.isArray(record.selectedMachines)
-    ? record.selectedMachines.filter(name => OPERATOR_GROUPS[name]) : [];
-  const names = selected.length ? selected : Object.entries(OPERATOR_GROUPS)
-    .filter(([,fields]) => fields.some(field => !nearZero(record[field]) || !nearZero(record[`finance_${field}`])))
-    .map(([name]) => name);
-  return names.map(name => [name,OPERATOR_GROUPS[name]]);
+  const saved = record.machineDefinitions && typeof record.machineDefinitions === 'object'
+    ? Object.entries(record.machineDefinitions).map(([id,machine]) => ({id,name:String(machine.name || id),credit:machine.credit,debit:machine.debit,pix:machine.pix}))
+    : [];
+  const source = saved.length ? saved : machineCatalog;
+  const selected = Array.isArray(record.selectedMachines) ? record.selectedMachines : [];
+  const selectedEntries = selected.map(value =>
+    source.find(machine => machine.id === value || machine.name === value)
+      || DEFAULT_MACHINES.find(machine => machine.id === value || machine.name === value)
+  ).filter(Boolean);
+  if (selectedEntries.length) return selectedEntries;
+  return source.filter(machine => [machine.credit,machine.debit,machine.pix]
+    .some(field => !nearZero(record[field]) || !nearZero(record[`finance_${field}`])));
+}
+
+function normalizedMachineCatalog(source) {
+  const entries = source && typeof source === 'object'
+    ? Object.entries(source).map(([id,machine]) => ({id,name:String(machine?.name || '').trim(),credit:machine?.credit,debit:machine?.debit,pix:machine?.pix}))
+    : [];
+  return (entries.length ? entries : DEFAULT_MACHINES).map(machine => {
+    const legacy = DEFAULT_MACHINES.find(item => item.id === machine.id);
+    return {
+      id:machine.id,
+      name:machine.name || legacy?.name || machine.id,
+      credit:machine.credit || legacy?.credit || `machine_${machine.id}_credit`,
+      debit:machine.debit || legacy?.debit || `machine_${machine.id}_debit`,
+      pix:machine.pix || legacy?.pix || `machine_${machine.id}_pix`,
+    };
+  });
 }
 
 function normalizedFeeRates(source = {}) {
-  return Object.fromEntries(Object.keys(OPERATOR_GROUPS).map(machine => {
-    const saved = source[machine] || source[machine.toLowerCase()] || {};
-    return [machine,{credit:numberFrom(saved.credit),debit:numberFrom(saved.debit),pix:numberFrom(saved.pix)}];
+  return Object.fromEntries(machineCatalog.map(machine => {
+    const saved = source[machine.id] || source[machine.name] || source[machine.name.toLowerCase()] || {};
+    return [machine.id,{credit:numberFrom(saved.credit),debit:numberFrom(saved.debit),pix:numberFrom(saved.pix)}];
   }));
 }
 
 function effectiveFeeRates(record = {}) {
-  return normalizedFeeRates(record.financeReview?.cardFeeRates || cardFeeRates);
+  const source = record.financeReview?.cardFeeRates || cardFeeRates;
+  return Object.fromEntries(activeMachineEntries(record).map(machine => {
+    const saved = source[machine.id] || source[machine.name] || source[machine.name.toLowerCase()] || {};
+    return [machine.id,{credit:numberFrom(saved.credit),debit:numberFrom(saved.debit),pix:numberFrom(saved.pix)}];
+  }));
+}
+
+function captureMachineSettings() {
+  machineCatalog = machineCatalog.map(machine => ({
+    ...machine,
+    name:String($(`[data-machine-name="${machine.id}"]`)?.value ?? machine.name).trim()
+  }));
+  const nextRates = normalizedFeeRates(cardFeeRates);
+  $$('[data-rate-machine]').forEach(input => {
+    if (nextRates[input.dataset.rateMachine]) nextRates[input.dataset.rateMachine][input.dataset.rateType] = numberFrom(input.value);
+  });
+  cardFeeRates = nextRates;
 }
 
 function renderCardFeeSettings() {
   const container = $('#cardFeeSettings');
   if (!container) return;
-  container.innerHTML = Object.keys(OPERATOR_GROUPS).map(machine => {
-    const rates = cardFeeRates[machine];
-    return `<article class="rate-machine-card"><div><span>Maquininha</span><strong>${escapeHtml(machine)}</strong></div><label>Crédito (%)<input data-rate-machine="${escapeHtml(machine)}" data-rate-type="credit" inputmode="decimal" value="${rates.credit}" /></label><label>Débito (%)<input data-rate-machine="${escapeHtml(machine)}" data-rate-type="debit" inputmode="decimal" value="${rates.debit}" /></label><label>Pix (%)<input data-rate-machine="${escapeHtml(machine)}" data-rate-type="pix" inputmode="decimal" value="${rates.pix}" /></label></article>`;
+  container.innerHTML = machineCatalog.map(machine => {
+    const rates = cardFeeRates[machine.id] || {credit:0,debit:0,pix:0};
+    return `<article class="rate-machine-card" data-machine-setting="${escapeHtml(machine.id)}"><label class="machine-name-field">Nome da máquina<input data-machine-name="${escapeHtml(machine.id)}" value="${escapeHtml(machine.name)}" maxlength="40" /></label><button class="remove-machine" data-remove-machine="${escapeHtml(machine.id)}" type="button" aria-label="Excluir ${escapeHtml(machine.name)}">Excluir</button><label>Crédito (%)<input data-rate-machine="${escapeHtml(machine.id)}" data-rate-type="credit" inputmode="decimal" value="${rates.credit}" /></label><label>Débito (%)<input data-rate-machine="${escapeHtml(machine.id)}" data-rate-type="debit" inputmode="decimal" value="${rates.debit}" /></label><label>Pix (%)<input data-rate-machine="${escapeHtml(machine.id)}" data-rate-type="pix" inputmode="decimal" value="${rates.pix}" /></label></article>`;
   }).join('');
+}
+
+function addMachineSetting() {
+  captureMachineSettings();
+  const id = `custom_${Date.now().toString(36)}`;
+  machineCatalog.push({
+    id,name:'Nova máquina',
+    credit:`machine_${id}_credit`,debit:`machine_${id}_debit`,pix:`machine_${id}_pix`
+  });
+  cardFeeRates[id] = {credit:0,debit:0,pix:0};
+  renderCardFeeSettings();
+  setTimeout(() => $(`[data-machine-name="${id}"]`)?.select(),0);
+}
+
+function removeMachineSetting(id) {
+  const machine = machineCatalog.find(item => item.id === id);
+  if (!machine) return;
+  if (machineCatalog.length === 1) {
+    toast('Mantenha pelo menos uma máquina cadastrada.',true);
+    return;
+  }
+  if (!confirm(`Excluir ${machine.name} da lista de máquinas? Os fechamentos antigos serão preservados.`)) return;
+  captureMachineSettings();
+  machineCatalog = machineCatalog.filter(item => item.id !== id);
+  delete cardFeeRates[id];
+  renderCardFeeSettings();
 }
 
 async function loadCardFeeRates(showMessage = false) {
   if (!isFinance()) {
     try {
-      const toleranceSnap = await get(ref(db,'settings/divergenceTolerance'));
+      const [machineSnap,toleranceSnap] = await Promise.all([
+        get(ref(db,'settings/machines')),
+        get(ref(db,'settings/divergenceTolerance'))
+      ]);
+      machineCatalog = normalizedMachineCatalog(machineSnap.exists() ? machineSnap.val() : null);
       divergenceTolerance = toleranceSnap.exists() ? Math.max(0,numberFrom(toleranceSnap.val())) : 1;
+      buildMachineSelection();
     } catch { divergenceTolerance = 1; }
     return;
   }
   try {
-    const [rateSnap,toleranceSnap] = await Promise.all([
+    const [machineSnap,rateSnap,toleranceSnap] = await Promise.all([
+      get(ref(db,'settings/machines')),
       get(ref(db,'settings/cardFeeRates')),
       get(ref(db,'settings/divergenceTolerance'))
     ]);
+    machineCatalog = normalizedMachineCatalog(machineSnap.exists() ? machineSnap.val() : null);
     cardFeeRates = normalizedFeeRates(rateSnap.exists() ? rateSnap.val() : {});
     divergenceTolerance = toleranceSnap.exists() ? Math.max(0,numberFrom(toleranceSnap.val())) : 1;
     if ($('#divergenceTolerance')) $('#divergenceTolerance').value = divergenceTolerance;
     renderCardFeeSettings();
+    buildMachineSelection();
   } catch {
     cardFeeRates = normalizedFeeRates(cardFeeRates);
     renderCardFeeSettings();
@@ -266,6 +380,12 @@ async function loadCardFeeRates(showMessage = false) {
 }
 
 async function saveCardFeeRates() {
+  captureMachineSettings();
+  const nextCatalog = machineCatalog.map(machine => ({...machine}));
+  if (!nextCatalog.length) throw new Error('Cadastre pelo menos uma máquina.');
+  if (nextCatalog.some(machine => !machine.name)) throw new Error('Informe o nome de todas as máquinas.');
+  const names = nextCatalog.map(machine => machine.name.toLocaleLowerCase('pt-BR'));
+  if (new Set(names).size !== names.length) throw new Error('Não é possível cadastrar duas máquinas com o mesmo nome.');
   const next = normalizedFeeRates(cardFeeRates);
   $$('[data-rate-machine]').forEach(input => {
     next[input.dataset.rateMachine][input.dataset.rateType] = numberFrom(input.value);
@@ -275,23 +395,25 @@ async function saveCardFeeRates() {
   );
   if (invalid) throw new Error('As taxas devem ficar entre 0% e 100%.');
   const nextTolerance = Math.max(0,numberFrom($('#divergenceTolerance').value));
-  await update(ref(db,'settings'),{cardFeeRates:next,divergenceTolerance:nextTolerance});
+  const savedMachines = Object.fromEntries(nextCatalog.map(machine => [machine.id,{name:machine.name,credit:machine.credit,debit:machine.debit,pix:machine.pix}]));
+  await update(ref(db,'settings'),{machines:savedMachines,cardFeeRates:next,divergenceTolerance:nextTolerance});
+  machineCatalog = nextCatalog;
   cardFeeRates = next;
   divergenceTolerance = nextTolerance;
   renderCardFeeSettings();
-  toast('Taxas e tolerância salvas. Os próximos cálculos usarão essa configuração.');
+  buildMachineSelection();
+  toast('Máquinas, taxas e tolerância salvas.');
   await loadDashboard();
 }
 
-function machineInputCard(machine, fields) {
-  const [credit,debit,pix] = fields;
-  return `<article class="machine-entry-card" data-machine-card="${escapeHtml(machine)}"><div class="machine-sheet-title"><span>Máquina selecionada</span><h5>${escapeHtml(machine)}</h5></div><div class="machine-sheet-subtitle">RECEBIMENTOS</div><div class="machine-entry-fields"><label><span>Crédito</span><input name="${credit}" inputmode="decimal" value="0" /></label><label><span>Débito</span><input name="${debit}" inputmode="decimal" value="0" /></label><label><span>Pix</span><input name="${pix}" inputmode="decimal" value="0" /></label></div><div class="machine-card-total"><span>TOTAL</span><strong data-machine-total="${escapeHtml(machine)}">R$ 0,00</strong></div></article>`;
+function machineInputCard(machine) {
+  return `<article class="machine-entry-card" data-machine-card="${escapeHtml(machine.id)}"><div class="machine-sheet-title"><span>Máquina selecionada</span><h5>${escapeHtml(machine.name)}</h5></div><div class="machine-sheet-subtitle">RECEBIMENTOS</div><div class="machine-entry-fields"><label><span>Crédito</span><input name="${machine.credit}" inputmode="decimal" value="0" /></label><label><span>Débito</span><input name="${machine.debit}" inputmode="decimal" value="0" /></label><label><span>Pix</span><input name="${machine.pix}" inputmode="decimal" value="0" /></label></div><div class="machine-card-total"><span>TOTAL</span><strong data-machine-total="${escapeHtml(machine.id)}">R$ 0,00</strong></div></article>`;
 }
 
 function renderSelectedMachineCards() {
   const previousValues = Object.fromEntries($$('input',$('#selectedMachineCards')).map(input => [input.name,input.value]));
-  const selected = selectedMachineNames();
-  $('#selectedMachineCards').innerHTML = selected.map(name => machineInputCard(name,OPERATOR_GROUPS[name])).join('');
+  const selected = selectedMachineNames().map(id => closingMachineCatalog.find(machine => machine.id === id)).filter(Boolean);
+  $('#selectedMachineCards').innerHTML = selected.map(machineInputCard).join('');
   Object.entries(previousValues).forEach(([name,value]) => {
     const input = $(`#selectedMachineCards [name="${name}"]`);
     if (input) input.value = value;
@@ -301,9 +423,11 @@ function renderSelectedMachineCards() {
   updateClosingCalculation();
 }
 
-function buildMachineSelection() {
-  $('#machineSelection').innerHTML = Object.keys(OPERATOR_GROUPS).map(machine => `<label class="machine-choice"><input class="machine-select" type="checkbox" value="${escapeHtml(machine)}" /><span>${escapeHtml(machine)}</span></label>`).join('');
-  $('#machineSelection').addEventListener('change', renderSelectedMachineCards);
+function buildMachineSelection(catalog = machineCatalog) {
+  closingMachineCatalog = catalog.map(machine => ({...machine}));
+  const previous = new Set(selectedMachineNames());
+  $('#machineSelection').innerHTML = closingMachineCatalog.map(machine => `<label class="machine-choice"><input class="machine-select" type="checkbox" value="${escapeHtml(machine.id)}" ${previous.has(machine.id) ? 'checked' : ''}/><span>${escapeHtml(machine.name)}</span></label>`).join('');
+  $('#machineSelection').onchange = renderSelectedMachineCards;
   renderSelectedMachineCards();
 }
 
@@ -560,10 +684,11 @@ function buildClosingIssues(data, result = calculateClosing(data)) {
   if (systemMachineTotal > 0 && !data.selectedMachines.length) {
     add('error','Máquina não selecionada','Escolha ao menos uma máquina usada para Crédito, Débito ou Pix.','machine');
   }
-  data.selectedMachines.forEach(machine => {
-    const fields = OPERATOR_GROUPS[machine] || [];
+  data.selectedMachines.forEach(machineId => {
+    const machine = activeMachineEntries(data).find(item => item.id === machineId);
+    const fields = machine ? [machine.credit,machine.debit,machine.pix] : [];
     if (systemMachineTotal > 0 && fields.every(field => nearZero(data[field]))) {
-      add('warning',`${machine} sem valores`,`A máquina ${machine} foi selecionada, mas Crédito, Débito e Pix estão zerados.`,'machine');
+      add('warning',`${machine?.name || 'Máquina'} sem valores`,`A máquina ${machine?.name || ''} foi selecionada, mas Crédito, Débito e Pix estão zerados.`,'machine');
     }
   });
   if (numberFrom(data.withdrawals) > 0 && (!data.sangria_delivered || !String(data.sangria_responsible || '').trim() || !data.sangria_delivered_at)) {
@@ -572,6 +697,12 @@ function buildClosingIssues(data, result = calculateClosing(data)) {
   if (numberFrom(data.withdrawals) > availableCashBeforeRemoval) {
     add('warning','Sangria acima do dinheiro disponível','Revise o saldo inicial, as entradas e o valor retirado.','movement');
   }
+  if (data.outflows.some(item => !item.description || item.amount <= 0)) {
+    add('error','Saída incompleta','Preencha a descrição e um valor maior que zero em todas as saídas.','outflow');
+  }
+  if (data.pixRequests.some(item => !item.name || !item.pixKey || item.amount <= 0)) {
+    add('error','Solicitação Pix incompleta','Preencha nome, chave Pix e valor em todas as solicitações.','pix');
+  }
   if (!nearZero(result.differences.card)) {
     add('warning','Cartões não conciliados',`Diferença de ${formatBRL(result.differences.card)} entre o site e as máquinas.`,'machine');
   }
@@ -579,7 +710,7 @@ function buildClosingIssues(data, result = calculateClosing(data)) {
     add('warning','Pix não conciliado',`Diferença de ${formatBRL(result.differences.pix)} entre o site e as máquinas.`,'machine');
   }
   if (!nearZero(result.difference) && (!String(data.divergence_reason || '').trim() || !String(data.notes || '').trim())) {
-    add('error','Divergência sem justificativa','Selecione o motivo e descreva a diferença antes de enviar.','difference');
+    add('error','Divergência sem justificativa',`${describeDifference(result.difference)}. Selecione o motivo e descreva a diferença antes de enviar.`,'difference');
   }
   if (suggestedOpeningFloat && !nearZero(numberFrom(data.opening_float) - suggestedOpeningFloat.value)) {
     add('warning','Saldo inicial diferente do fechamento anterior',
@@ -592,11 +723,36 @@ function focusClosingIssue(target) {
   const selectors = {
     operator:'[name="operator"]',machine:'.store-conference-card',attachment:'#attachmentCategory',
     sangria:'.sangria-control',movement:'.movement-card',difference:'.closing-notes',
-    opening:'[name="opening_float"]'
+    opening:'[name="opening_float"]',outflow:'#outflowRows',pix:'#pixRequestRows'
   };
   const element = $(selectors[target]);
   element?.scrollIntoView({behavior:'smooth',block:'center'});
   if (element?.matches('input,select,textarea,button')) setTimeout(() => element.focus(),350);
+}
+
+function hideClosingSubmitError() {
+  const panel = $('#closingSubmitError');
+  if (!panel) return;
+  panel.classList.add('hidden');
+  panel.innerHTML = '';
+}
+
+function showClosingSubmitError(issues) {
+  const panel = $('#closingSubmitError');
+  if (!panel || !issues.length) return;
+  panel.innerHTML = `<strong>Corrija antes de enviar:</strong><ul>${issues.map(issue =>
+    `<li><b>${escapeHtml(issue.title)}:</b> ${escapeHtml(issue.message)}</li>`
+  ).join('')}</ul>`;
+  panel.classList.remove('hidden');
+}
+
+function closingPersistenceError(error, action) {
+  const code = String(error?.code || '');
+  const message = String(error?.message || '');
+  if (code.includes('PERMISSION_DENIED') || /permission[_ -]?denied|permissão negada/i.test(message)) {
+    return `Sem permissão para ${action} nesta loja. Atualize a página e entre novamente. Se continuar, confira o acesso desse usuário à loja.`;
+  }
+  return message || `Não foi possível ${action}.`;
 }
 
 function renderClosingIssues(data, result, hasStarted) {
@@ -668,12 +824,12 @@ function updateClosingCalculation() {
   $('#outflowTotal').textContent = formatBRL(result.expenseTotal);
   $('#pixRequestTotal').textContent = formatBRL(data.pixRequests.reduce((sum,item) => sum + item.amount,0));
   refreshPixRequestList();
-  activeMachineEntries(data).forEach(([machine,fields]) => {
-    const total = fields.reduce((sum,field) => sum + numberFrom(data[field]),0);
-    const output = $(`[data-machine-total="${machine}"]`);
+  activeMachineEntries(data).forEach(machine => {
+    const total = [machine.credit,machine.debit,machine.pix].reduce((sum,field) => sum + numberFrom(data[field]),0);
+    const output = $(`[data-machine-total="${machine.id}"]`);
     if (output) output.textContent = formatBRL(total);
   });
-  $('#diffTotal').textContent = formatBRL(result.difference);
+  $('#diffTotal').textContent = describeDifference(result.difference);
   const rec = $('.reconciliation');
   const icon = $('#diffBadge');
   const hasStarted = closingHasOperationalInput(data);
@@ -694,8 +850,8 @@ function updateClosingCalculation() {
   icon.className = `result-icon ${severity === 'balanced' ? 'ok' : severity === 'warning' ? 'warn' : 'bad'}`;
   icon.textContent = severity === 'balanced' ? '✓' : '!';
   $('#diffExplanation').textContent = severity === 'balanced' ? 'Os valores estão conciliados.'
-    : severity === 'warning' ? `Pequena diferença dentro da tolerância de ${formatBRL(divergenceTolerance)}.`
-    : result.status === 'surplus' ? 'Foi encontrada sobra acima da tolerância.' : 'Foi encontrada falta acima da tolerância.';
+    : severity === 'warning' ? `${describeDifference(result.difference)}. Pequena diferença dentro da tolerância de ${formatBRL(divergenceTolerance)}.`
+    : `${describeDifference(result.difference)}. Diferença acima da tolerância.`;
   $('#closingDivergenceFields').classList.toggle('hidden',nearZero(result.difference));
 }
 
@@ -718,6 +874,7 @@ $('#closingForm').addEventListener('focusin', event => {
 });
 
 $('#closingForm').addEventListener('input', event => {
+  hideClosingSubmitError();
   const section = event.target.closest('.sheet-section,.closing-final-card');
   if (section) section.dataset.touched = 'true';
   if (event.target.matches('[inputmode="decimal"],[data-outflow-field],[data-pix-field]')) {
@@ -794,16 +951,21 @@ async function persistClosing(finalStatus) {
 }
 
 $('#saveDraft').onclick = async () => {
-  try { await persistClosing('draft'); } catch (error) { toast(error.message,true); }
+  hideClosingSubmitError();
+  try { await persistClosing('draft'); } catch (error) { toast(closingPersistenceError(error,'salvar o rascunho'),true); }
 };
 $('#closingForm').addEventListener('submit', async event => {
   event.preventDefault();
+  hideClosingSubmitError();
   const formData = closingFormData();
   const result = calculateClosing(formData);
   const blockingIssues = buildClosingIssues(formData,result).filter(item => item.severity === 'error');
   if (blockingIssues.length) {
     renderClosingIssues(formData,result,true);
-    toast(`Corrija ${blockingIssues.length} ${blockingIssues.length === 1 ? 'erro' : 'erros'} antes de enviar.`,true);
+    showClosingSubmitError(blockingIssues);
+    const firstIssue = blockingIssues[0];
+    const remaining = blockingIssues.length > 1 ? ` Mais ${blockingIssues.length - 1} ${blockingIssues.length === 2 ? 'erro' : 'erros'} abaixo.` : '';
+    toast(`${firstIssue.title}: ${firstIssue.message}${remaining}`,true);
     focusClosingIssue(blockingIssues[0].target);
     return;
   }
@@ -830,12 +992,14 @@ $('#closingForm').addEventListener('submit', async event => {
     toast('Selecione o motivo e descreva a divergência antes de enviar.',true);
     return;
   }
-  try { await persistClosing('submitted'); } catch (error) { toast(error.message,true); }
+  try { await persistClosing('submitted'); } catch (error) { toast(closingPersistenceError(error,'enviar o fechamento'),true); }
 });
 
 function resetClosing() {
   const form = $('#closingForm');
   form.reset();
+  buildMachineSelection(machineCatalog);
+  hideClosingSubmitError();
   delete form.dataset.id;
   delete form.dataset.openingFloatSourceId;
   suggestedOpeningFloat = null;
@@ -997,7 +1161,7 @@ async function loadDashboard() {
     const available = approvedRows.reduce((sum,item) => sum + numberFrom(item.financeCalc.totalAvailable),0);
     const sangria = rows.reduce((sum,item) => sum + sangriaAvailable(item),0);
     const sangriaCount = rows.filter(item => sangriaAvailable(item) > 0).length;
-    const diff = rows.reduce((sum,item) => sum + numberFrom(item.financeCalc?.totalDifference ?? item.difference),0);
+    const divergenceSummary = summarizeDifferences(divergenceValues(rows));
     const reviewed = rows.filter(item => financeState(item) === 'approved').length;
     const pending = rows.filter(item => financeState(item) === 'pending').length;
     $('#kpiEntries').textContent = formatBRL(entries);
@@ -1008,9 +1172,9 @@ async function loadDashboard() {
       ? `${sangriaCount} ${sangriaCount === 1 ? 'caixa aguardando recebimento' : 'caixas aguardando recebimento'}`
       : 'Nenhuma sangria disponível';
     $('#kpiSangriaCard').classList.toggle('sangria-active',sangria > 0);
-    $('#kpiDiff').textContent = formatBRL(diff);
-    $('#kpiDiff').style.color = nearZero(diff) ? 'var(--green)' : diff > 0 ? 'var(--orange)' : 'var(--red)';
-    $('#kpiDiffText').textContent = nearZero(diff) ? 'Sem divergência' : diff > 0 ? 'Sobra acumulada' : 'Falta acumulada';
+    $('#kpiDiff').textContent = describeDifference(divergenceSummary.total);
+    $('#kpiDiff').style.color = nearZero(divergenceSummary.total) ? 'var(--green)' : divergenceSummary.total < 0 ? 'var(--red)' : 'var(--orange)';
+    $('#kpiDiffText').textContent = differenceBreakdown(divergenceSummary);
     $('#kpiReviewed').textContent = reviewed;
     $('#kpiPending').textContent = pending;
     renderStoreStatus(rows);
@@ -1028,9 +1192,9 @@ function renderStoreStatus(rows) {
     const approved = found.filter(item => financeState(item) === 'approved').length;
     const returned = found.filter(item => financeState(item) === 'returned').length;
     const pending = found.filter(item => financeState(item) === 'pending').length;
-    const diff = found.reduce((sum,item) => sum + numberFrom(item.financeCalc?.totalDifference ?? item.difference),0);
-    const status = !found.length ? ['draft','Pendente'] : returned ? ['bad','Devolvido'] : pending ? ['warn','Aguardando'] : nearZero(diff) ? ['ok','Conferido'] : ['bad','Divergência'];
-    return `<div class="store-row"><div><b>${escapeHtml(store)}</b><small>${found.length ? `${approved} conferido(s) · ${pending} aguardando` : 'Nenhum fechamento'}</small></div><strong>${found.length ? formatBRL(diff) : '—'}</strong><span class="badge ${status[0]}">${status[1]}</span></div>`;
+    const divergenceSummary = summarizeDifferences(divergenceValues(found));
+    const status = !found.length ? ['draft','Pendente'] : returned ? ['bad','Devolvido'] : pending ? ['warn','Aguardando'] : nearZero(divergenceSummary.total) ? ['ok','Conferido'] : ['bad','Divergência'];
+    return `<div class="store-row"><div><b>${escapeHtml(store)}</b><small>${found.length ? `${approved} conferido(s) · ${pending} aguardando` : 'Nenhum fechamento'}</small></div><strong>${found.length ? escapeHtml(differenceBreakdown(divergenceSummary)) : '—'}</strong><span class="badge ${status[0]}">${status[1]}</span></div>`;
   }).join('');
 }
 
@@ -1080,7 +1244,7 @@ function renderDivergences(rows) {
     const diff = item.financeCalc?.differences || item.differences || {};
     const total = item.financeCalc?.totalDifference ?? item.difference;
     const label = differenceLabel(total);
-    return `<tr><td data-label="Loja">${escapeHtml(item.store)}</td><td data-label="Operador">${escapeHtml(item.operator)}</td><td data-label="Dinheiro" class="${differenceClass(diff.cash)}">${formatBRL(diff.cash)}</td><td data-label="Cartão" class="${differenceClass(diff.card)}">${formatBRL(diff.card)}</td><td data-label="Pix" class="${differenceClass(diff.pix)}">${formatBRL(diff.pix)}</td><td data-label="Total" class="${differenceClass(total)}">${formatBRL(total)}</td><td data-label="Status"><span class="badge ${label[0]}">${label[1]}</span></td></tr>`;
+    return `<tr><td data-label="Loja">${escapeHtml(item.store)}</td><td data-label="Operador">${escapeHtml(item.operator)}</td><td data-label="Dinheiro" class="${differenceClass(diff.cash)}">${describeDifference(diff.cash)}</td><td data-label="Cartão" class="${differenceClass(diff.card)}">${describeDifference(diff.card)}</td><td data-label="Pix" class="${differenceClass(diff.pix)}">${describeDifference(diff.pix)}</td><td data-label="Total" class="${differenceClass(total)}">${describeDifference(total)}</td><td data-label="Status"><span class="badge ${label[0]}">${label[1]}</span></td></tr>`;
   }).join('') : '<tr><td colspan="7" class="empty">Nenhuma divergência encontrada.</td></tr>';
 }
 $('#refreshDash').onclick = loadDashboard;
@@ -1105,13 +1269,14 @@ async function loadFinance() {
       const statuses = item.financeReview?.pixPaymentStatuses || [];
       return sum + (item.pixRequests || []).filter((request,index) => (statuses[index]?.status || request.status || 'pending') === 'pending').length;
     },0);
-    $('#financeDivergent').textContent = scoped.filter(item => !nearZero(item.financeCalc?.totalDifference ?? item.difference)).length;
+    $('#financeDivergent').textContent = scoped.filter(item => divergenceValues([item]).some(value => !nearZero(value))).length;
     const sangria = scoped.reduce((sum,item) => sum + sangriaAvailable(item),0);
     $('#financeSangria').textContent = formatBRL(sangria);
     $('#financeSangriaCard').classList.toggle('sangria-active',sangria > 0);
-    const totalDiff = scoped.reduce((sum,item) => sum + numberFrom(item.financeCalc?.totalDifference ?? item.difference),0);
-    $('#financeTotalDiff').textContent = formatBRL(totalDiff);
-    $('#financeTotalDiff').style.color = nearZero(totalDiff) ? 'var(--green)' : totalDiff > 0 ? 'var(--orange)' : 'var(--red)';
+    const divergenceSummary = summarizeDifferences(divergenceValues(scoped));
+    $('#financeTotalDiff').textContent = describeDifference(divergenceSummary.total);
+    $('#financeTotalDiff').style.color = nearZero(divergenceSummary.total) ? 'var(--green)' : divergenceSummary.total < 0 ? 'var(--red)' : 'var(--orange)';
+    $('#financeTotalDiffText').textContent = differenceBreakdown(divergenceSummary);
     renderFinanceSummary(scoped);
     $('#financeRows').innerHTML = rows.length ? rows.sort((a,b) => queuePriority(a)-queuePriority(b) || numberFrom(a.submittedAt)-numberFrom(b.submittedAt)).map(item => {
       const diff = item.financeCalc?.totalDifference ?? item.difference;
@@ -1122,7 +1287,7 @@ async function loadFinance() {
         : category === 'pix' ? ['warn','Pix']
         : differenceSeverity(diff,divergenceTolerance) === 'critical' ? ['bad','Alta']
         : differenceSeverity(diff,divergenceTolerance) === 'warning' ? ['warn','Média'] : ['draft','Normal'];
-      return `<tr><td data-label="Prioridade"><span class="badge ${priority[0]}">${priority[1]}</span></td><td data-label="Data">${formatDate(item.date)}</td><td data-label="Loja">${escapeHtml(item.store)}</td><td data-label="Operador">${escapeHtml(item.operator)}</td><td data-label="Sangria">${sangriaAvailable(item) ? `<span class="sangria-table-value">${formatBRL(sangriaAvailable(item))}</span>` : '—'}</td><td data-label="Divergência" class="${differenceClass(diff)}">${formatBRL(diff)}<small class="cell-note">${diffLabel[1]}</small></td><td data-label="Comprovantes">${(item.attachments || []).length}</td><td data-label="Status">${queueBadge(item)}</td><td data-label="Ação"><button class="table-action" data-review-id="${escapeHtml(item.id)}">${financeState(item)==='approved'?'Ver':'Conferir'}</button></td></tr>`;
+      return `<tr><td data-label="Prioridade"><span class="badge ${priority[0]}">${priority[1]}</span></td><td data-label="Data">${formatDate(item.date)}</td><td data-label="Loja">${escapeHtml(item.store)}</td><td data-label="Operador">${escapeHtml(item.operator)}</td><td data-label="Sangria">${sangriaAvailable(item) ? `<span class="sangria-table-value">${formatBRL(sangriaAvailable(item))}</span>` : '—'}</td><td data-label="Divergência" class="${differenceClass(diff)}">${describeDifference(diff)}<small class="cell-note">${diffLabel[1]}</small></td><td data-label="Comprovantes">${(item.attachments || []).length}</td><td data-label="Status">${queueBadge(item)}</td><td data-label="Ação"><button class="table-action" data-review-id="${escapeHtml(item.id)}">${financeState(item)==='approved'?'Ver':'Conferir'}</button></td></tr>`;
     }).join('') : '<tr><td colspan="9" class="empty">Nenhum fechamento neste filtro.</td></tr>';
     $('#financeReviewPanel').classList.add('hidden');
     $('#financeQueueCard').classList.remove('hidden');
@@ -1133,13 +1298,14 @@ async function loadFinance() {
 
 function renderFinanceSummary(rows) {
   const summary = summarizeFinance(rows.filter(item => item.financeCalc));
+  const divergenceSummary = summarizeDifferences(divergenceValues(rows));
   const values = [
     ['Cartão bruto',summary.grossCard],['Taxas cartão',summary.cardFees,true],['Cartão líquido',summary.netCard],
     ['Pix bruto',summary.grossPix],['Taxas Pix',summary.pixFees,true],['Pix líquido',summary.netPix],
     ['Pagamentos Pix',summary.paidPix,true],['Sangrias pendentes',summary.pendingSangria],
-    ['Total disponível',summary.totalAvailable],['Divergências',summary.totalDifference]
+    ['Total disponível',summary.totalAvailable],['Resultado final das divergências',divergenceSummary.total]
   ];
-  $('#financeSummaryGrid').innerHTML = values.map(([label,value,negative=false]) => `<div class="${label==='Total disponível'?'summary-highlight':''}"><span>${escapeHtml(label)}</span><strong class="${negative?'fee-value':label==='Divergências'?differenceClass(value):''}">${negative?'− ':''}${formatBRL(value)}</strong></div>`).join('');
+  $('#financeSummaryGrid').innerHTML = values.map(([label,value,negative=false]) => `<div class="${label==='Total disponível'?'summary-highlight':''}"><span>${escapeHtml(label)}</span><strong class="${negative?'fee-value':label.startsWith('Resultado final')?differenceClass(value):''}">${negative?'− ':''}${label.startsWith('Resultado final') ? describeDifference(value) : formatBRL(value)}</strong></div>`).join('');
 }
 $('#loadFinance').onclick = loadFinance;
 $('#financeDate').onchange = loadFinance;
@@ -1182,8 +1348,8 @@ function operatorCorrectionEntries(record) {
     ['counted_cash','Loja · Dinheiro contado'],['opening_float','Movimento · Saldo inicial'],
     ['cash_in','Movimento · Suprimentos'],['withdrawals','Movimento · Sangrias'],['closing_float','Movimento · Troco final']
   ];
-  const machines = activeMachineEntries(record).flatMap(([machine,[credit,debit,pix]]) => [
-    [credit,`${machine} · Crédito`],[debit,`${machine} · Débito`],[pix,`${machine} · Pix`]
+  const machines = activeMachineEntries(record).flatMap(machine => [
+    [machine.credit,`${machine.name} · Crédito`],[machine.debit,`${machine.name} · Débito`],[machine.pix,`${machine.name} · Pix`]
   ]);
   return [...base,...machines];
 }
@@ -1216,7 +1382,7 @@ function renderOperatorCorrectionComparison(record) {
 function renderCardMachines(record) {
   const machines = activeMachineEntries(record);
   if (!machines.length) return '<p class="empty-inline">Nenhuma máquina foi selecionada pela loja.</p>';
-  return machines.map(([machine,[credit,debit,pix]]) => `<div class="machine-summary"><div class="machine-summary-head"><b>${escapeHtml(machine)}</b><span>UTILIZADA</span></div><div class="machine-summary-values"><span>Crédito <strong>${formatBRL(record[credit])}</strong></span><span>Débito <strong>${formatBRL(record[debit])}</strong></span><span>Pix <strong>${formatBRL(record[pix])}</strong></span></div><em>Total ${formatBRL(numberFrom(record[credit])+numberFrom(record[debit])+numberFrom(record[pix]))}</em></div>`).join('');
+  return machines.map(machine => `<div class="machine-summary"><div class="machine-summary-head"><b>${escapeHtml(machine.name)}</b><span>UTILIZADA</span></div><div class="machine-summary-values"><span>Crédito <strong>${formatBRL(record[machine.credit])}</strong></span><span>Débito <strong>${formatBRL(record[machine.debit])}</strong></span><span>Pix <strong>${formatBRL(record[machine.pix])}</strong></span></div><em>Total ${formatBRL(numberFrom(record[machine.credit])+numberFrom(record[machine.debit])+numberFrom(record[machine.pix]))}</em></div>`).join('');
 }
 
 function renderOutflows(record) {
@@ -1297,12 +1463,18 @@ function openFinanceReview(id) {
   $$('input[inputmode="decimal"]',form).forEach(input => input.value='0');
   const existing = currentReviewRecord.financeReview || {};
   const defaults = {finance_cash:currentReviewRecord.counted_cash};
-  MACHINE_FIELDS.forEach(key => defaults[`finance_${key}`] = currentReviewRecord[key]);
+  activeMachineEntries(currentReviewRecord).forEach(machine => {
+    [machine.credit,machine.debit,machine.pix].forEach(key => defaults[`finance_${key}`] = currentReviewRecord[key]);
+  });
   FINANCE_FIELDS.forEach(key => {
     if (!form.elements[key]) return;
     form.elements[key].value = existing[key] !== undefined ? existing[key] : numberFrom(defaults[key]);
   });
+  $$('input[name^="finance_"][inputmode="decimal"]',form).forEach(input => {
+    input.value = existing[input.name] !== undefined ? existing[input.name] : numberFrom(defaults[input.name]);
+  });
   FINANCE_CONFIRM_FIELDS.forEach(key => { if (form.elements[key]) form.elements[key].checked = Boolean(existing[key]); });
+  $$('input[name^="finance_confirm_"]',form).forEach(input => input.checked = Boolean(existing[input.name]));
   form.elements.finance_notes.value = existing.finance_notes || '';
   form.elements.finance_divergence_reason.value = existing.finance_divergence_reason || '';
   form.elements.finance_sangria_received.checked = Boolean(existing.finance_sangria_received);
@@ -1455,13 +1627,13 @@ function updateFinanceCalculation() {
   });
   $('#reviewAvailable').textContent = formatBRL(result.totalAvailable);
   $('#reviewOutflows').textContent = formatBRL(result.totalOutflows);
-  $('#reviewDifference').textContent = formatBRL(result.totalDifference);
-  $('#financeReviewDiff').textContent = formatBRL(result.totalDifference);
+  $('#reviewDifference').textContent = describeDifference(result.totalDifference);
+  $('#financeReviewDiff').textContent = describeDifference(result.totalDifference);
   const severity = differenceSeverity(result.totalDifference,divergenceTolerance);
   $('#financeReviewDiff').style.color = severity === 'balanced' ? 'var(--green)' : severity === 'warning' ? 'var(--orange)' : 'var(--red)';
   $('#financeReviewMessage').textContent = severity === 'balanced' ? 'Valores financeiros conciliados.'
-    : severity === 'warning' ? `Pequena diferença dentro da tolerância de ${formatBRL(divergenceTolerance)}.`
-    : result.totalDifference > 0 ? 'Foi encontrada sobra crítica na conferência.' : 'Foi encontrada falta crítica na conferência.';
+    : severity === 'warning' ? `${describeDifference(result.totalDifference)}. Pequena diferença dentro da tolerância de ${formatBRL(divergenceTolerance)}.`
+    : `${describeDifference(result.totalDifference)}. Diferença crítica na conferência.`;
   $('#financeDivergenceFields').classList.toggle('hidden',nearZero(result.totalDifference));
   $('#financePaidPix').textContent = formatBRL(result.paidPixRequests);
   $('#financeGrossCard').textContent = formatBRL(result.grossCard);
@@ -1471,12 +1643,12 @@ function updateFinanceCalculation() {
   $('#financePixFees').textContent = `− ${formatBRL(result.pixFeeTotal)}`;
   $('#financeNetPix').textContent = formatBRL(result.netPix);
   $('#financeNetAvailable').textContent = formatBRL(result.totalAvailable);
-  Object.entries(result.machineSettlements).forEach(([machine,settlement]) => {
-    const fee = $(`[data-finance-machine-fees="${machine}"]`);
-    const net = $(`[data-finance-machine-net="${machine}"]`);
-    const creditFee = $(`[data-machine-fee="${machine}-credit"]`);
-    const debitFee = $(`[data-machine-fee="${machine}-debit"]`);
-    const pixFee = $(`[data-machine-fee="${machine}-pix"]`);
+  Object.entries(result.machineSettlements).forEach(([machineId,settlement]) => {
+    const fee = $(`[data-finance-machine-fees="${machineId}"]`);
+    const net = $(`[data-finance-machine-net="${machineId}"]`);
+    const creditFee = $(`[data-machine-fee="${machineId}-credit"]`);
+    const debitFee = $(`[data-machine-fee="${machineId}-debit"]`);
+    const pixFee = $(`[data-machine-fee="${machineId}-pix"]`);
     if (fee) fee.textContent = `− ${formatBRL(settlement.fees)}`;
     if (net) net.textContent = formatBRL(settlement.totalNet);
     if (creditFee) creditFee.textContent = `${settlement.creditRate.toFixed(2).replace('.',',')}% · − ${formatBRL(settlement.creditFee)}`;
@@ -1491,8 +1663,8 @@ function updateFinanceCalculation() {
 $('#financeReviewForm').addEventListener('input',updateFinanceCalculation);
 
 function requiredFinanceConfirmFields(record) {
-  const machineConfirmations = activeMachineEntries(record).flatMap(([,fields]) =>
-    fields.map(field => `finance_confirm_${field}`)
+  const machineConfirmations = activeMachineEntries(record).flatMap(machine =>
+    [machine.credit,machine.debit,machine.pix].map(field => `finance_confirm_${field}`)
   );
   return ['finance_confirm_cash',...machineConfirmations,'finance_confirm_outflows'];
 }
@@ -1539,7 +1711,7 @@ async function saveFinanceReview(decision) {
     financeReview:review,financeStatus:decision,status:decision,locked:decision === 'approved',reviewedAt:now,updatedAt:now
   });
   await appendAudit(currentReviewRecord.id,decision,
-    decision === 'approved' ? `Conferência aprovada. Resultado: ${formatBRL(calc.totalDifference)}.`
+    decision === 'approved' ? `Conferência aprovada. Resultado: ${describeDifference(calc.totalDifference)}.`
       : `${data.finance_divergence_reason}: ${data.finance_notes}`).catch(()=>{});
   toast(decision === 'approved' ? 'Conferência aprovada e resultado registrado.' : 'Caixa devolvido para correção.');
   currentReviewRecord = null;
@@ -1599,6 +1771,9 @@ function openClosingForEdit(record) {
     return;
   }
   resetClosing();
+  const recordMachines = activeMachineEntries(record);
+  const editingCatalog = [...machineCatalog,...recordMachines.filter(machine => !machineCatalog.some(current => current.id === machine.id))];
+  buildMachineSelection(editingCatalog);
   const form = $('#closingForm');
   form.dataset.id = record.id;
   if (record.openingFloatSourceId) form.dataset.openingFloatSourceId = record.openingFloatSourceId;
@@ -1609,13 +1784,18 @@ function openClosingForEdit(record) {
   }
   ['date','store','shift','operator','sangria_responsible','sangria_delivered_at','divergence_reason','notes']
     .forEach(key => { if (form.elements[key] && record[key] !== undefined) form.elements[key].value = record[key] ?? ''; });
-  const selected = new Set(activeMachineEntries(record).map(([name]) => name));
+  const selected = new Set(activeMachineEntries(record).map(machine => machine.id));
   $$('.machine-select').forEach(input => {
     input.checked = selected.has(input.value);
   });
   renderSelectedMachineCards();
   OPERATION_FIELDS.forEach(key => {
     if (form.elements[key]) form.elements[key].value = numberFrom(record[key]);
+  });
+  recordMachines.forEach(machine => {
+    [machine.credit,machine.debit,machine.pix].forEach(key => {
+      if (form.elements[key]) form.elements[key].value = numberFrom(record[key]);
+    });
   });
   $('.optional-receipts').open = ['system_ifood_online','system_ifood_voucher','system_term','system_club','system_accrual']
     .some(key => !nearZero(record[key]));
@@ -1647,7 +1827,7 @@ async function loadHistory() {
       const action = canEditClosing(item)
         ? `<button class="table-action" data-edit-closing="${escapeHtml(item.id)}">${item.status === 'returned' ? 'Corrigir' : 'Continuar'}</button>`
         : '—';
-      return `<tr><td>${formatDate(item.date)}</td><td>${escapeHtml(item.store)}</td><td>${escapeHtml(item.operator)}</td><td>${formatBRL(item.systemTotal)}</td><td>${formatBRL(item.totalOutflows)}</td><td>${formatBRL(item.financeCalc?.totalDifference ?? item.difference)}</td><td>${stateBadge(item)}</td><td>${action}</td></tr>`;
+      return `<tr><td>${formatDate(item.date)}</td><td>${escapeHtml(item.store)}</td><td>${escapeHtml(item.operator)}</td><td>${formatBRL(item.systemTotal)}</td><td>${formatBRL(item.totalOutflows)}</td><td>${describeDifference(item.financeCalc?.totalDifference ?? item.difference)}</td><td>${stateBadge(item)}</td><td>${action}</td></tr>`;
     }).join('') : '<tr><td colspan="8" class="empty">Nenhum fechamento no período.</td></tr>';
   } catch {
     toast('Erro ao buscar o histórico.',true);
@@ -1694,23 +1874,29 @@ async function loadUsers() {
 function buildFinanceCardFields(record = {}) {
   const machines = activeMachineEntries(record);
   const rates = effectiveFeeRates(record);
-  $('#financeCardFields').innerHTML = machines.length ? machines.map(([machine,[credit,debit,pix]]) => {
-    const financeCredit = `finance_${credit}`;
-    const financeDebit = `finance_${debit}`;
-    const financePix = `finance_${pix}`;
-    const row = (label,field,financeField,rateType=null) => `<div class="finance-verify-row"><div class="verify-method"><span>${label}</span>${rateType ? `<small>${numberFrom(rates[machine][rateType]).toFixed(2).replace('.',',')}% configurado</small>` : '<small>Sem desconto</small>'}</div><div class="verify-value"><small>Loja</small><strong>${formatBRL(record[field])}</strong></div><label class="verify-input"><small>Financeiro</small><input name="${financeField}" inputmode="decimal" value="0" /></label><div class="verify-fee"><small>${rateType ? 'Taxa' : 'Líquido'}</small><strong ${rateType ? `data-machine-fee="${escapeHtml(machine)}-${rateType}"` : ''}>${rateType ? 'R$ 0,00' : formatBRL(record[field])}</strong></div><label class="verify-check" title="Confirmar ${label}"><input name="finance_confirm_${field}" type="checkbox" /><span>✓</span></label></div>`;
-    return `<article class="machine-finance-card"><div class="machine-sheet-title"><span>Conferência financeira</span><h4>${escapeHtml(machine)}</h4></div><div class="machine-sheet-subtitle">LOJA × FINANCEIRO × LÍQUIDO</div><div class="machine-verify-head"><span>Forma</span><span>Informado</span><span>Encontrado</span><span>Desconto</span><span>OK</span></div><div class="machine-pair">${row('Crédito',credit,financeCredit,'credit')}${row('Débito',debit,financeDebit,'debit')}${row('Pix',pix,financePix,'pix')}</div><footer class="machine-settlement-footer"><span>Taxas <b data-finance-machine-fees="${escapeHtml(machine)}">R$ 0,00</b></span><span>Total líquido <strong data-finance-machine-net="${escapeHtml(machine)}">R$ 0,00</strong></span></footer></article>`;
+  $('#financeCardFields').innerHTML = machines.length ? machines.map(machine => {
+    const financeCredit = `finance_${machine.credit}`;
+    const financeDebit = `finance_${machine.debit}`;
+    const financePix = `finance_${machine.pix}`;
+    const machineRates = rates[machine.id] || {credit:0,debit:0,pix:0};
+    const row = (label,field,financeField,rateType=null) => `<div class="finance-verify-row"><div class="verify-method"><span>${label}</span>${rateType ? `<small>${numberFrom(machineRates[rateType]).toFixed(2).replace('.',',')}% configurado</small>` : '<small>Sem desconto</small>'}</div><div class="verify-value"><small>Loja</small><strong>${formatBRL(record[field])}</strong></div><label class="verify-input"><small>Financeiro</small><input name="${financeField}" inputmode="decimal" value="0" /></label><div class="verify-fee"><small>${rateType ? 'Taxa' : 'Líquido'}</small><strong ${rateType ? `data-machine-fee="${escapeHtml(machine.id)}-${rateType}"` : ''}>${rateType ? 'R$ 0,00' : formatBRL(record[field])}</strong></div><label class="verify-check" title="Confirmar ${label}"><input name="finance_confirm_${field}" type="checkbox" /><span>✓</span></label></div>`;
+    return `<article class="machine-finance-card"><div class="machine-sheet-title"><span>Conferência financeira</span><h4>${escapeHtml(machine.name)}</h4></div><div class="machine-sheet-subtitle">LOJA × FINANCEIRO × LÍQUIDO</div><div class="machine-verify-head"><span>Forma</span><span>Informado</span><span>Encontrado</span><span>Desconto</span><span>OK</span></div><div class="machine-pair">${row('Crédito',machine.credit,financeCredit,'credit')}${row('Débito',machine.debit,financeDebit,'debit')}${row('Pix',machine.pix,financePix,'pix')}</div><footer class="machine-settlement-footer"><span>Taxas <b data-finance-machine-fees="${escapeHtml(machine.id)}">R$ 0,00</b></span><span>Total líquido <strong data-finance-machine-net="${escapeHtml(machine.id)}">R$ 0,00</strong></span></footer></article>`;
   }).join('') : '<p class="empty-inline">A loja não selecionou nenhuma máquina.</p>';
 }
 
 $('#toggleRateSettings').onclick = () => {
   $('#rateSettingsCard').classList.toggle('hidden');
   $('#toggleRateSettings').textContent = $('#rateSettingsCard').classList.contains('hidden')
-    ? 'Configurar taxas' : 'Fechar taxas';
+    ? 'Configurar máquinas' : 'Fechar configuração';
 };
 $('#saveRateSettings').onclick = async () => {
   try { await saveCardFeeRates(); }
   catch (error) { toast(error.message || 'Não foi possível salvar as taxas.',true); }
+};
+$('#addMachine').onclick = addMachineSetting;
+$('#cardFeeSettings').onclick = event => {
+  const button = event.target.closest('[data-remove-machine]');
+  if (button) removeMachineSetting(button.dataset.removeMachine);
 };
 
 buildMachineSelection();

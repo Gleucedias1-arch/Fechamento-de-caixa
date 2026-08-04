@@ -93,6 +93,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--yellow-dark); bo
 .store-row:last-child { border: 0; }
 .store-row b { font-size: 12px; }
 .store-row small { display: block; color: var(--muted); font-size: 10px; margin-top: 3px; }
+.store-row > strong { max-width: 220px; text-align: right; overflow-wrap: anywhere; }
 .badge { display: inline-block; border-radius: 999px; padding: 5px 9px; font-size: 10px; font-weight: 800; }
 .badge.ok { background: var(--green-soft); color: var(--green); }
 .badge.warn { background: #fff1dd; color: var(--orange); }
@@ -258,6 +259,10 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
 .closing-notes textarea { min-height: 78px; resize: vertical; }
 .closing-final-footer { display: flex; align-items: stretch; flex-direction: column; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); background: #f8f9fa; }
 .closing-final-footer p { margin: 0; color: var(--muted); font-size: 10px; }
+.closing-submit-error { padding: 10px 12px; border: 1px solid #e2aaaa; border-left: 4px solid var(--red); border-radius: 8px; background: #fff1f1; color: #7c2020; font-size: 11px; line-height: 1.4; }
+.closing-submit-error strong { display: block; margin-bottom: 4px; }
+.closing-submit-error ul { margin: 0; padding-left: 18px; }
+.closing-submit-error li + li { margin-top: 3px; }
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .closing-final-footer .form-actions .btn { flex: 1; }
 
@@ -265,15 +270,19 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
 .finance-kpis, .finance-review-kpis { grid-template-columns: repeat(4, 1fr); }
 .rate-settings-card { margin-bottom: 16px; border-top: 5px solid var(--yellow); }
 .rate-settings-card .card-title { align-items: flex-start; }
+.machine-settings-actions { display: flex; align-items: center; gap: 8px; }
 .tolerance-setting { width: min(390px,100%); margin-bottom: 15px; padding: 12px; border: 1px solid #ead26d; border-radius: 10px; background: var(--yellow-soft); }
 .tolerance-setting input { background: #fff; text-align: right; font-weight: 800; }
 .tolerance-setting small { color: #6f5700; font-size: 9px; }
 .rate-settings-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; }
-.rate-machine-card { display: grid; grid-template-columns: 1fr repeat(3, 82px); align-items: end; gap: 9px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fafbfc; }
+.rate-machine-card { display: grid; grid-template-columns: minmax(150px,1fr) auto repeat(3, 82px); align-items: end; gap: 9px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fafbfc; }
 .rate-machine-card > div span { display: block; color: var(--muted); font-size: 8px; font-weight: 800; text-transform: uppercase; }
 .rate-machine-card > div strong { display: block; margin-top: 5px; font-size: 13px; }
 .rate-machine-card label { font-size: 9px; }
 .rate-machine-card input { padding: 8px; text-align: right; background: var(--blue-soft); color: #173d5e; font-weight: 800; }
+.rate-machine-card .machine-name-field input { text-align: left; background: #fff; }
+.remove-machine { min-height: 37px; padding: 8px 10px; border: 1px solid #efb6b6; border-radius: 7px; background: #fff5f5; color: #a62121; font-size: 10px; font-weight: 800; cursor: pointer; }
+.remove-machine:hover { background: #ffe7e7; }
 .sangria-table-value { display: inline-block; padding: 5px 8px; border-radius: 7px; background: var(--yellow); color: var(--black); font-weight: 900; }
 .sangria-review-alert { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 14px; padding: 14px 17px; border: 2px solid var(--yellow-dark); border-radius: 12px; background: linear-gradient(110deg,#fff7c8,#ffe46a); box-shadow: 0 8px 24px rgba(217,170,0,.16); }
 .sangria-review-alert span { display: block; color: #6f5700; font-size: 9px; font-weight: 900; letter-spacing: .8px; }
@@ -489,7 +498,7 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
   .pix-approval-row { grid-template-columns: 1fr; }
   .pix-approval-row strong { font-size: 16px; }
   .rate-settings-grid { grid-template-columns: 1fr; }
-  .rate-machine-card { grid-template-columns: 1fr repeat(3, 68px); }
+  .rate-machine-card { grid-template-columns: minmax(130px,1fr) auto repeat(3, 68px); }
   .machine-verify-head, .finance-verify-row { grid-template-columns: 60px 64px 80px 68px 28px; gap: 5px; }
   .machine-verify-head, .finance-verify-row { padding-left: 6px; padding-right: 6px; }
   .verify-value strong, .verify-fee strong { font-size: 8px; }
@@ -660,7 +669,8 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
   .verify-fee strong { font-size: 12px; }
   .verify-input input { min-height: 44px; padding: 9px; font-size: 16px !important; }
   .rate-machine-card { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .rate-machine-card > div:first-child { grid-column: 1 / -1; }
+  .rate-machine-card .machine-name-field { grid-column: 1 / -1; }
+  .machine-settings-actions { width: 100%; flex-wrap: wrap; }
 }
 
 /* Refresh visual leve e profissional — versão 2.1.0 */

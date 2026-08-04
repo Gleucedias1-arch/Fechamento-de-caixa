@@ -54,6 +54,22 @@ export const OPERATION_SETTLEMENT_FIELDS = {
   Wise: {credit:'wise_credit',debit:'wise_debit',pix:'wise_pix'},
 };
 
+export function machineDefinitions(data = {}) {
+  const saved = data.machineDefinitions;
+  if (saved && typeof saved === 'object') {
+    return Object.entries(saved).map(([id,machine]) => ({
+      id,
+      name:String(machine?.name || id),
+      credit:String(machine?.credit || ''),
+      debit:String(machine?.debit || ''),
+      pix:String(machine?.pix || ''),
+    })).filter(machine => machine.credit && machine.debit && machine.pix);
+  }
+  return Object.entries(OPERATION_SETTLEMENT_FIELDS).map(([name,fields]) => ({
+    id:name.toLowerCase(),name,...fields
+  }));
+}
+
 export const FINANCE_CONFIRM_FIELDS = [
   'finance_confirm_cash',
   ...FINANCE_MACHINE_FIELDS.map(field => `finance_confirm_${field.replace('finance_','')}`),
@@ -81,9 +97,10 @@ export function isValidAmount(value, max = 10000000) {
 }
 
 export function validateClosingAmounts(data = {}) {
+  const dynamicMachineFields = machineDefinitions(data).flatMap(machine => [machine.credit,machine.debit,machine.pix]);
   const fields = [
     ...SYSTEM_FIELDS,...COUNTED_FIELDS,...EXPENSE_FIELDS,
-    'opening_float','withdrawals','cash_in','closing_float'
+    ...dynamicMachineFields,'opening_float','withdrawals','cash_in','closing_float'
   ];
   const directAmountsValid = fields.every(key => data[key] === undefined || isValidAmount(data[key]));
   const outflowsValid = (data.outflows || []).every(item => isValidAmount(item?.amount) && numberFrom(item?.amount) > 0);
@@ -121,6 +138,7 @@ export function sumPixRequests(data = {}, statuses = []) {
 }
 
 export function calculateClosing(data = {}) {
+  const machines = machineDefinitions(data);
   const system = {
     cash: numberFrom(data.system_cash),
     card: numberFrom(data.system_credit) + numberFrom(data.system_debit),
@@ -130,8 +148,8 @@ export function calculateClosing(data = {}) {
   };
   const counted = {
     cash: numberFrom(data.counted_cash),
-    card: data.counted_card !== undefined ? numberFrom(data.counted_card) : sumFields(data, CARD_FIELDS),
-    pix: data.counted_pix !== undefined ? numberFrom(data.counted_pix) : sumFields(data, MACHINE_PIX_FIELDS),
+    card: data.counted_card !== undefined ? numberFrom(data.counted_card) : sumFields(data, machines.flatMap(machine => [machine.credit,machine.debit])),
+    pix: data.counted_pix !== undefined ? numberFrom(data.counted_pix) : sumFields(data, machines.map(machine => machine.pix)),
   };
   const expenseTotal = sumOutflows(data);
   const expectedCash = numberFrom(data.opening_float) + system.cash + numberFrom(data.cash_in)
@@ -165,15 +183,16 @@ export function calculateClosing(data = {}) {
 
 export function calculateOperationalFinancialSummary(data = {}, feeRates = {}) {
   const closing = calculateClosing(data);
-  const machineSettlements = Object.fromEntries(Object.entries(OPERATION_SETTLEMENT_FIELDS).map(([machine,fields]) => {
-    const rates = feeRates[machine] || feeRates[machine.toLowerCase()] || {};
-    const credit = numberFrom(data[fields.credit]);
-    const debit = numberFrom(data[fields.debit]);
-    const pix = numberFrom(data[fields.pix]);
+  const machineSettlements = Object.fromEntries(machineDefinitions(data).map(machine => {
+    const rates = feeRates[machine.id] || feeRates[machine.name] || feeRates[machine.name.toLowerCase()] || {};
+    const credit = numberFrom(data[machine.credit]);
+    const debit = numberFrom(data[machine.debit]);
+    const pix = numberFrom(data[machine.pix]);
     const cardFees = credit * numberFrom(rates.credit) / 100
       + debit * numberFrom(rates.debit) / 100;
     const pixFees = pix * numberFrom(rates.pix) / 100;
-    return [machine,{
+    return [machine.id,{
+      name:machine.name,
       grossCard:credit + debit,grossPix:pix,cardFees,pixFees,
       netCard:credit + debit - cardFees,netPix:pix - pixFees
     }];
@@ -198,6 +217,7 @@ export function calculateOperationalFinancialSummary(data = {}, feeRates = {}) {
 
 export function calculateFinanceReview(record = {}, review = {}) {
   const operational = calculateClosing(record);
+  const machines = machineDefinitions(record);
   const expected = {
     cash: operational.expectedCash,
     card: operational.systemByMethod.card,
@@ -208,17 +228,17 @@ export function calculateFinanceReview(record = {}, review = {}) {
   ]);
   const actual = {
     cash: numberFrom(review.finance_cash),
-    card: FINANCE_CARD_FIELDS.some(field => review[field] !== undefined)
-      ? sumFields(review, FINANCE_CARD_FIELDS) : legacyFinanceCard,
-    pix: FINANCE_PIX_FIELDS.some(field => review[field] !== undefined)
-      ? sumFields(review, FINANCE_PIX_FIELDS) : numberFrom(review.finance_pix),
+    card: machines.some(machine => review[`finance_${machine.credit}`] !== undefined || review[`finance_${machine.debit}`] !== undefined)
+      ? sumFields(review, machines.flatMap(machine => [`finance_${machine.credit}`,`finance_${machine.debit}`])) : legacyFinanceCard,
+    pix: machines.some(machine => review[`finance_${machine.pix}`] !== undefined)
+      ? sumFields(review, machines.map(machine => `finance_${machine.pix}`)) : numberFrom(review.finance_pix),
   };
   const feeRates = review.cardFeeRates || record.cardFeeRates || {};
-  const machineSettlements = Object.fromEntries(Object.entries(MACHINE_SETTLEMENT_FIELDS).map(([machine,fields]) => {
-    const rates = feeRates[machine] || feeRates[machine.toLowerCase()] || {};
-    const credit = numberFrom(review[fields.credit]);
-    const debit = numberFrom(review[fields.debit]);
-    const pix = numberFrom(review[fields.pix]);
+  const machineSettlements = Object.fromEntries(machines.map(machine => {
+    const rates = feeRates[machine.id] || feeRates[machine.name] || feeRates[machine.name.toLowerCase()] || {};
+    const credit = numberFrom(review[`finance_${machine.credit}`]);
+    const debit = numberFrom(review[`finance_${machine.debit}`]);
+    const pix = numberFrom(review[`finance_${machine.pix}`]);
     const creditRate = numberFrom(rates.credit);
     const debitRate = numberFrom(rates.debit);
     const pixRate = numberFrom(rates.pix);
@@ -229,7 +249,8 @@ export function calculateFinanceReview(record = {}, review = {}) {
     const fees = cardFees + pixFee;
     const grossCard = credit + debit;
     const netPix = pix - pixFee;
-    return [machine,{
+    return [machine.id,{
+      name:machine.name,
       credit,debit,pix,creditRate,debitRate,pixRate,creditFee,debitFee,pixFee,
       grossCard,cardFees,fees,netCard:grossCard-cardFees,netPix,
       totalNet:grossCard-cardFees+netPix,

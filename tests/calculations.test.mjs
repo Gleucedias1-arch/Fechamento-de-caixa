@@ -87,8 +87,27 @@ test('financeiro encontra cartão e Pix líquidos pelas taxas de cada maquininha
   assert.equal(result.pixFeeTotal,0.8);
   assert.equal(result.netPix,99.2);
   assert.equal(result.totalAvailable,585.7);
-  assert.equal(result.machineSettlements.Stone.netCard,292.5);
-  assert.equal(result.machineSettlements.Stone.netPix,59.4);
+  assert.equal(result.machineSettlements.stone.netCard,292.5);
+  assert.equal(result.machineSettlements.stone.netPix,59.4);
+});
+
+test('máquina personalizada participa do fechamento e da conferência financeira',()=>{
+  const machineDefinitions={rede:{
+    name:'Rede',credit:'machine_rede_credit',debit:'machine_rede_debit',pix:'machine_rede_pix'
+  }};
+  const record={
+    machineDefinitions,selectedMachines:['rede'],system_credit:100,system_debit:50,system_pix:25,
+    machine_rede_credit:100,machine_rede_debit:50,machine_rede_pix:25
+  };
+  assert.equal(calculateClosing(record).difference,0);
+  const review=calculateFinanceReview(record,{
+    finance_machine_rede_credit:100,finance_machine_rede_debit:50,finance_machine_rede_pix:25,
+    cardFeeRates:{rede:{credit:2,debit:1,pix:.5}}
+  });
+  assert.equal(review.actual.card,150);
+  assert.equal(review.actual.pix,25);
+  assert.equal(review.machineSettlements.rede.name,'Rede');
+  assert.equal(review.cardFeeTotal,2.5);
 });
 
 test('saídas detalhadas reduzem somente o dinheiro esperado',()=>{

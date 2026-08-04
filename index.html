@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2.5.2" />
+  <link rel="stylesheet" href="styles.css?v=2.5.5" />
 </head>
 <body>
   <div id="toast" class="toast" aria-live="polite"></div>
@@ -59,7 +59,7 @@
           <article class="kpi card"><span>Saídas</span><strong id="kpiOutflows">R$ 0,00</strong><small>Despesas e sangrias</small></article>
           <article class="kpi card available-kpi"><span>Total disponível</span><strong id="kpiAvailable">R$ 0,00</strong><small>Cartão líquido + Pix líquido conferidos</small></article>
           <article id="kpiSangriaCard" class="kpi card sangria-kpi"><span>Sangria disponível</span><strong id="kpiSangria">R$ 0,00</strong><small id="kpiSangriaText">Nenhuma sangria disponível</small></article>
-          <article class="kpi card"><span>Divergência</span><strong id="kpiDiff">R$ 0,00</strong><small id="kpiDiffText">Sem divergência</small></article>
+          <article class="kpi card"><span>Resultado final das divergências</span><strong id="kpiDiff">Sem divergência</strong><small id="kpiDiffText">Sem divergência</small></article>
           <article class="kpi card"><span>Conferidos</span><strong id="kpiReviewed">0</strong><small>Aprovados pelo financeiro</small></article>
           <article class="kpi card"><span>Pendentes</span><strong id="kpiPending">0</strong><small>Aguardando conferência</small></article>
         </div>
@@ -108,7 +108,7 @@
               <div class="reconciliation"><div><span>Resultado operacional</span><strong id="diffTotal">R$ 0,00</strong><p id="diffExplanation">Aguardando o preenchimento dos valores.</p></div><div id="diffBadge" class="result-icon idle">…</div></div>
               <div id="closingDivergenceFields" class="divergence-fields hidden"><label>Motivo da divergência<select name="divergence_reason"><option value="">Selecione o motivo</option><option>Erro de lançamento</option><option>Venda não registrada</option><option>Estorno</option><option>Taxa diferente</option><option>Falta de dinheiro</option><option>Comprovante pendente</option><option>Outro</option></select></label></div><label class="closing-notes">Observações<textarea name="notes" rows="3" placeholder="Descreva divergências, comprovantes pendentes ou ocorrências do turno..."></textarea></label>
             </div>
-            <div class="closing-final-footer"><p>Confira os valores antes de enviar para o financeiro.</p><div class="form-actions"><button type="button" id="saveDraft" class="btn btn-secondary">Salvar rascunho</button><button type="submit" class="btn btn-primary">Enviar ao financeiro</button></div></div>
+            <div class="closing-final-footer"><div id="closingSubmitError" class="closing-submit-error hidden" role="alert"></div><p>Confira os valores antes de enviar para o financeiro.</p><div class="form-actions"><button type="button" id="saveDraft" class="btn btn-secondary">Salvar rascunho</button><button type="submit" class="btn btn-primary">Enviar ao financeiro</button></div></div>
           </article>
           </div>
           </div>
@@ -116,10 +116,10 @@
       </section>
 
       <section id="financeView" class="view finance-only">
-        <div class="filters card compact"><label>Data<input id="financeDate" type="date" /></label><label>Loja<select id="financeStore"></select></label><label>Status<select id="financeStatus"><option value="open">Todos em aberto</option><option value="pending">Aguardando conferência</option><option value="divergent">Com divergência</option><option value="attachments">Comprovante pendente</option><option value="pix">Pix pendente</option><option value="sangria">Aguardando sangria</option><option value="approved">Conferidos</option><option value="reopened">Reabertos</option><option value="returned">Devolvidos</option><option value="all">Todos</option></select></label><button id="loadFinance" class="btn btn-secondary">Buscar</button><button id="toggleRateSettings" class="btn btn-primary" type="button">Configurar taxas</button></div>
-        <article id="rateSettingsCard" class="card rate-settings-card hidden"><div class="card-title"><div><span class="block-label">CONFIGURAÇÃO FINANCEIRA</span><h3>Taxas por maquininha e tolerância</h3><p>Configure Crédito, Débito e Pix por maquininha e o limite de pequena diferença.</p></div><button id="saveRateSettings" class="btn btn-primary" type="button">Salvar configuração</button></div><label class="tolerance-setting">Tolerância de pequena diferença (R$)<input id="divergenceTolerance" inputmode="decimal" value="1" /><small>Até esse valor a divergência fica amarela; acima, vermelha.</small></label><div id="cardFeeSettings" class="rate-settings-grid"></div></article>
+        <div class="filters card compact"><label>Data<input id="financeDate" type="date" /></label><label>Loja<select id="financeStore"></select></label><label>Status<select id="financeStatus"><option value="open">Todos em aberto</option><option value="pending">Aguardando conferência</option><option value="divergent">Com divergência</option><option value="attachments">Comprovante pendente</option><option value="pix">Pix pendente</option><option value="sangria">Aguardando sangria</option><option value="approved">Conferidos</option><option value="reopened">Reabertos</option><option value="returned">Devolvidos</option><option value="all">Todos</option></select></label><button id="loadFinance" class="btn btn-secondary">Buscar</button><button id="toggleRateSettings" class="btn btn-primary" type="button">Configurar máquinas</button></div>
+        <article id="rateSettingsCard" class="card rate-settings-card hidden"><div class="card-title"><div><span class="block-label">CONFIGURAÇÃO FINANCEIRA</span><h3>Máquinas, taxas e tolerância</h3><p>Adicione, renomeie ou exclua máquinas e configure as taxas de Crédito, Débito e Pix.</p></div><div class="machine-settings-actions"><button id="addMachine" class="btn btn-secondary" type="button">+ Adicionar máquina</button><button id="saveRateSettings" class="btn btn-primary" type="button">Salvar configuração</button></div></div><label class="tolerance-setting">Tolerância de pequena diferença (R$)<input id="divergenceTolerance" inputmode="decimal" value="1" /><small>Até esse valor a divergência fica amarela; acima, vermelha.</small></label><div id="cardFeeSettings" class="rate-settings-grid"></div></article>
         <div class="kpi-grid finance-kpis">
-          <article class="kpi card"><span>Aguardando</span><strong id="financePending">0</strong><small>Caixas para conferir</small></article><article class="kpi card"><span>Conferidos</span><strong id="financeApproved">0</strong><small>Aprovações no período</small></article><article class="kpi card"><span>Reabertos</span><strong id="financeReopened">0</strong><small>Exigem nova análise</small></article><article class="kpi card"><span>Pix pendentes</span><strong id="financePixPending">0</strong><small>Motoboys e freelancers</small></article><article id="financeSangriaCard" class="kpi card sangria-kpi"><span>Sangria disponível</span><strong id="financeSangria">R$ 0,00</strong><small>Aguardando recebimento</small></article><article class="kpi card"><span>Com divergência</span><strong id="financeDivergent">0</strong><small>Exigem justificativa</small></article><article class="kpi card"><span>Divergência acumulada</span><strong id="financeTotalDiff">R$ 0,00</strong><small>Resultado das conferências</small></article>
+        <article class="kpi card"><span>Aguardando</span><strong id="financePending">0</strong><small>Caixas para conferir</small></article><article class="kpi card"><span>Conferidos</span><strong id="financeApproved">0</strong><small>Aprovações no período</small></article><article class="kpi card"><span>Reabertos</span><strong id="financeReopened">0</strong><small>Exigem nova análise</small></article><article class="kpi card"><span>Pix pendentes</span><strong id="financePixPending">0</strong><small>Motoboys e freelancers</small></article><article id="financeSangriaCard" class="kpi card sangria-kpi"><span>Sangria disponível</span><strong id="financeSangria">R$ 0,00</strong><small>Aguardando recebimento</small></article><article class="kpi card"><span>Com divergência</span><strong id="financeDivergent">0</strong><small>Exigem justificativa</small></article><article class="kpi card"><span>Resultado final das divergências</span><strong id="financeTotalDiff">Sem divergência</strong><small id="financeTotalDiffText">Sem divergência</small></article>
         </div>
         <article class="card finance-consolidated-card"><div class="card-title"><div><span class="block-label">RESUMO DO PERÍODO</span><h3>Consolidado financeiro</h3><p>Valores brutos, taxas, líquidos, saídas Pix, sangrias e resultado.</p></div></div><div id="financeSummaryGrid" class="finance-consolidated-grid"></div></article>
         <article class="card" id="financeQueueCard"><div class="card-title"><div><h3>Fila de conferência otimizada</h3><p>Ordenada por sangria, divergência crítica e tempo de espera.</p></div></div><div class="table-wrap mobile-card-table-wrap"><table class="mobile-card-table finance-queue-table"><thead><tr><th>Prioridade</th><th>Data</th><th>Loja</th><th>Operador</th><th>Sangria</th><th>Divergência</th><th>Comprovantes</th><th>Status</th><th></th></tr></thead><tbody id="financeRows"></tbody></table></div></article>
@@ -151,6 +151,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=2.5.2"></script>
+  <script type="module" src="app.js?v=2.5.5"></script>
 </body>
 </html>
