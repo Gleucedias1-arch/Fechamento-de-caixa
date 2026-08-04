@@ -1,0 +1,43 @@
+name: Testes e regras do Firebase
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - run: npm test
+
+  deploy-rules:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verificar credencial
+        if: env.FIREBASE_SERVICE_ACCOUNT == ''
+        run: |
+          echo "Secret FIREBASE_SERVICE_ACCOUNT não configurado."
+          exit 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --global firebase-tools
+      - name: Publicar regras do Realtime Database
+        run: |
+          CREDENTIAL_FILE="${RUNNER_TEMP}/firebase-service-account.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$CREDENTIAL_FILE"
+          GOOGLE_APPLICATION_CREDENTIALS="$CREDENTIAL_FILE" firebase deploy --only database --project house190-fechamento-caixa --non-interactive
