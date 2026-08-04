@@ -255,9 +255,9 @@
           ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)"
         },
         "openingFloatSourceId": {
-        ".validate": "!newData.exists() || (newData.isString() && newData.val().length > 0 && newData.val().length <= 160)"
-      },
-      "opening_float": {
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().length > 0 && newData.val().length <= 160)"
+        },
+        "opening_float": {
           ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)",
           ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'"
         },
@@ -338,6 +338,27 @@
           ".write": "auth != null && !data.exists() && newData.child('actorId').val() === auth.uid && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance' || root.child('closings').child($closingId).child('createdBy').val() === auth.uid)",
           ".validate": "newData.hasChildren(['action','timestamp','actorId','actorName','actorRole']) && newData.child('timestamp').isNumber() && newData.child('timestamp').val() <= now + 60000"
         }
+      }
+    },
+    "motoboyAudits": {
+      ".read": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance')",
+      "$id": {
+        ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance') && !data.exists()",
+        ".validate": "newData.hasChildren(['date','store','createdAt','createdBy']) && newData.child('createdAt').isNumber() && newData.child('createdAt').val() <= now + 60000"
+      }
+    },
+    "invoiceAudits": {
+      ".read": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance')",
+      "$id": {
+        ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance') && !data.exists()",
+        ".validate": "newData.hasChildren(['date','store','createdAt','createdBy']) && newData.child('createdAt').isNumber() && newData.child('createdAt').val() <= now + 60000"
+      }
+    },
+    "backups": {
+      ".read": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+      "$backupId": {
+        ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin') && !data.exists()",
+        ".validate": "newData.hasChildren(['schemaVersion','system','createdAt','createdBy','data'])"
       }
     }
   }
