@@ -5,7 +5,7 @@ import { firebaseConfig, ADMIN_EMAIL } from './firebase-config.js';
 import {
   SYSTEM_FIELDS, COUNTED_FIELDS, EXPENSE_FIELDS,
   FINANCE_MACHINE_FIELDS, FINANCE_CONFIRM_FIELDS,
-  numberFrom, machineDefinitions, validateClosingAmounts, calculateClosing, calculateFinanceReview, calculateOperationalFinancialSummary,
+  numberFrom, isValidAmount, machineDefinitions, validateClosingAmounts, calculateClosing, calculateFinanceReview, calculateOperationalFinancialSummary,
   summarizeFinance, differenceSeverity, formatBRL
 } from './calculations.js';
 
@@ -72,6 +72,48 @@ function summarizeDifferences(values = []) {
 function differenceBreakdown(summary) {
   if (nearZero(summary.shortage) && nearZero(summary.surplus)) return 'Sem divergência';
   return `Faltou ${formatBRL(summary.shortage)} · Sobrou ${formatBRL(summary.surplus)} · Resultado: ${describeDifference(summary.total)}`;
+}
+
+function methodDifferenceBreakdown(differences = {}) {
+  return [
+    ['Dinheiro',differences.cash],['Cartão',differences.card],['Pix',differences.pix]
+  ].map(([label,value]) => `${label}: ${describeDifference(value)}`).join(' · ');
+}
+
+function hasMethodDivergence(differences = {}) {
+  return ['cash','card','pix'].some(key => !nearZero(differences[key]));
+}
+
+function methodDifferenceSeverity(differences = {}) {
+  const greatestDifference = Math.max(...['cash','card','pix'].map(key => Math.abs(numberFrom(differences[key]))),0);
+  return differenceSeverity(greatestDifference,divergenceTolerance);
+}
+
+function amountFromInput(value, max = 10000000) {
+  return isValidAmount(value,max) ? numberFrom(value) : String(value ?? '').trim();
+}
+
+function firstInvalidAmountInput(root, max = 10000000) {
+  return $$('input[inputmode="decimal"]',root).find(input => !isValidAmount(input.value,max)) || null;
+}
+
+function amountInputLabel(input) {
+  const label = input?.closest('label');
+  const labelText = [...(label?.childNodes || [])]
+    .filter(node => node.nodeType === Node.TEXT_NODE)
+    .map(node => node.textContent.trim()).filter(Boolean).join(' ') || 'Campo de valor';
+  const machineName = input?.closest('.machine-entry-card,.machine-finance-card')?.querySelector('h4,h5')?.textContent?.trim();
+  return machineName ? `${machineName} · ${labelText}` : labelText;
+}
+
+function invalidAmountIssue(root, max = 10000000) {
+  const input = firstInvalidAmountInput(root,max);
+  if (!input) return null;
+  return {
+    severity:'error',title:'Valor inválido',
+    message:`${amountInputLabel(input)}: informe somente números entre ${formatBRL(0)} e ${formatBRL(max)}.`,
+    target:'amount',input
+  };
 }
 
 function divergenceValues(rows = []) {
@@ -204,14 +246,14 @@ function initDates() {
 
 function closingFormData() {
   const raw = Object.fromEntries(new FormData($('#closingForm')));
-  OPERATION_FIELDS.forEach(key => raw[key] = numberFrom(raw[key]));
+  OPERATION_FIELDS.forEach(key => raw[key] = amountFromInput(raw[key]));
   raw.selectedMachines = $$('.machine-select:checked').map(input => input.value);
   raw.machineDefinitions = Object.fromEntries(raw.selectedMachines.map(id => {
     const machine = closingMachineCatalog.find(item => item.id === id);
     return [id,{name:machine.name,credit:machine.credit,debit:machine.debit,pix:machine.pix}];
   }));
   machineDefinitions(raw).forEach(machine => {
-    [machine.credit,machine.debit,machine.pix].forEach(field => raw[field] = numberFrom(raw[field]));
+    [machine.credit,machine.debit,machine.pix].forEach(field => raw[field] = amountFromInput(raw[field]));
   });
   raw.sangria_delivered = $('[name="sangria_delivered"]').checked;
   if ($('#closingForm').dataset.openingFloatSourceId) {
@@ -220,13 +262,13 @@ function closingFormData() {
   raw.outflows = $$('.outflow-row').map(row => ({
     category:$('[data-outflow-field="category"]',row).value,
     description:$('[data-outflow-field="description"]',row).value.trim(),
-    amount:numberFrom($('[data-outflow-field="amount"]',row).value)
+    amount:amountFromInput($('[data-outflow-field="amount"]',row).value)
   })).filter(item => item.description || item.amount);
   raw.pixRequests = $$('.pix-request-row').map(row => ({
     type:$('[data-pix-field="type"]',row).value,
     name:$('[data-pix-field="name"]',row).value.trim(),
     pixKey:$('[data-pix-field="key"]',row).value.trim(),
-    amount:numberFrom($('[data-pix-field="amount"]',row).value),
+    amount:amountFromInput($('[data-pix-field="amount"]',row).value),
     notes:$('[data-pix-field="notes"]',row).value.trim(),
     status:'pending'
   })).filter(item => item.name || item.pixKey || item.amount);
@@ -235,9 +277,9 @@ function closingFormData() {
 
 function financeFormData() {
   const raw = Object.fromEntries(new FormData($('#financeReviewForm')));
-  FINANCE_FIELDS.forEach(key => { if (Object.hasOwn(raw,key)) raw[key] = numberFrom(raw[key]); });
+  FINANCE_FIELDS.forEach(key => { if (Object.hasOwn(raw,key)) raw[key] = amountFromInput(raw[key]); });
   $$('input[name^="finance_"][inputmode="decimal"]',$('#financeReviewForm')).forEach(input => {
-    raw[input.name] = numberFrom(input.value);
+    raw[input.name] = amountFromInput(input.value);
   });
   raw.finance_sangria_received = $('[name="finance_sangria_received"]').checked;
   FINANCE_CONFIRM_FIELDS.forEach(key => raw[key] = Boolean($(`[name="${key}"]`)?.checked));
@@ -312,16 +354,32 @@ function captureMachineSettings() {
   cardFeeRates = nextRates;
 }
 
+function machineSettingAmountIssue() {
+  const rateInput = $$('[data-rate-machine]').find(input => !isValidAmount(input.value,100));
+  if (rateInput) return {input:rateInput,message:'As taxas devem ser números entre 0% e 100%.'};
+  const toleranceInput = $('#divergenceTolerance');
+  if (!isValidAmount(toleranceInput.value,1000)) {
+    return {input:toleranceInput,message:'A tolerância deve ser um número entre R$ 0,00 e R$ 1.000,00.'};
+  }
+  return null;
+}
+
 function renderCardFeeSettings() {
   const container = $('#cardFeeSettings');
   if (!container) return;
   container.innerHTML = machineCatalog.map(machine => {
     const rates = cardFeeRates[machine.id] || {credit:0,debit:0,pix:0};
-    return `<article class="rate-machine-card" data-machine-setting="${escapeHtml(machine.id)}"><label class="machine-name-field">Nome da máquina<input data-machine-name="${escapeHtml(machine.id)}" value="${escapeHtml(machine.name)}" maxlength="40" /></label><button class="remove-machine" data-remove-machine="${escapeHtml(machine.id)}" type="button" aria-label="Excluir ${escapeHtml(machine.name)}">Excluir</button><label>Crédito (%)<input data-rate-machine="${escapeHtml(machine.id)}" data-rate-type="credit" inputmode="decimal" value="${rates.credit}" /></label><label>Débito (%)<input data-rate-machine="${escapeHtml(machine.id)}" data-rate-type="debit" inputmode="decimal" value="${rates.debit}" /></label><label>Pix (%)<input data-rate-machine="${escapeHtml(machine.id)}" data-rate-type="pix" inputmode="decimal" value="${rates.pix}" /></label></article>`;
+    return `<article class="rate-machine-card" data-machine-setting="${escapeHtml(machine.id)}"><label class="machine-name-field">Nome da máquina<input data-machine-name="${escapeHtml(machine.id)}" value="${escapeHtml(machine.name)}" maxlength="40" /></label><button class="remove-machine" data-remove-machine="${escapeHtml(machine.id)}" type="button" aria-label="Excluir ${escapeHtml(machine.name)}">Excluir</button><label>Crédito (%)<input data-rate-machine="${escapeHtml(machine.id)}" data-rate-type="credit" type="number" inputmode="decimal" min="0" max="100" step="0.01" value="${rates.credit}" /></label><label>Débito (%)<input data-rate-machine="${escapeHtml(machine.id)}" data-rate-type="debit" type="number" inputmode="decimal" min="0" max="100" step="0.01" value="${rates.debit}" /></label><label>Pix (%)<input data-rate-machine="${escapeHtml(machine.id)}" data-rate-type="pix" type="number" inputmode="decimal" min="0" max="100" step="0.01" value="${rates.pix}" /></label></article>`;
   }).join('');
 }
 
 function addMachineSetting() {
+  const amountIssue = machineSettingAmountIssue();
+  if (amountIssue) {
+    toast(amountIssue.message,true);
+    amountIssue.input.focus();
+    return;
+  }
   captureMachineSettings();
   const id = `custom_${Date.now().toString(36)}`;
   machineCatalog.push({
@@ -338,6 +396,12 @@ function removeMachineSetting(id) {
   if (!machine) return;
   if (machineCatalog.length === 1) {
     toast('Mantenha pelo menos uma máquina cadastrada.',true);
+    return;
+  }
+  const amountIssue = machineSettingAmountIssue();
+  if (amountIssue) {
+    toast(amountIssue.message,true);
+    amountIssue.input.focus();
     return;
   }
   if (!confirm(`Excluir ${machine.name} da lista de máquinas? Os fechamentos antigos serão preservados.`)) return;
@@ -380,6 +444,8 @@ async function loadCardFeeRates(showMessage = false) {
 }
 
 async function saveCardFeeRates() {
+  const amountIssue = machineSettingAmountIssue();
+  if (amountIssue) throw Object.assign(new Error(amountIssue.message),{input:amountIssue.input});
   captureMachineSettings();
   const nextCatalog = machineCatalog.map(machine => ({...machine}));
   if (!nextCatalog.length) throw new Error('Cadastre pelo menos uma máquina.');
@@ -394,7 +460,7 @@ async function saveCardFeeRates() {
     rates.credit < 0 || rates.credit > 100 || rates.debit < 0 || rates.debit > 100 || rates.pix < 0 || rates.pix > 100
   );
   if (invalid) throw new Error('As taxas devem ficar entre 0% e 100%.');
-  const nextTolerance = Math.max(0,numberFrom($('#divergenceTolerance').value));
+  const nextTolerance = numberFrom($('#divergenceTolerance').value);
   const savedMachines = Object.fromEntries(nextCatalog.map(machine => [machine.id,{name:machine.name,credit:machine.credit,debit:machine.debit,pix:machine.pix}]));
   await update(ref(db,'settings'),{machines:savedMachines,cardFeeRates:next,divergenceTolerance:nextTolerance});
   machineCatalog = nextCatalog;
@@ -676,6 +742,8 @@ function hasClosingAttachment(category) {
 function buildClosingIssues(data, result = calculateClosing(data)) {
   const issues = [];
   const add = (severity,title,message,target) => issues.push({severity,title,message,target});
+  const amountIssue = invalidAmountIssue($('#closingForm'));
+  if (amountIssue) issues.push(amountIssue);
   const systemMachineTotal = numberFrom(data.system_credit) + numberFrom(data.system_debit) + numberFrom(data.system_pix);
   const availableCashBeforeRemoval = numberFrom(data.opening_float) + numberFrom(data.system_cash) + numberFrom(data.cash_in);
   if (!String(data.operator || '').trim()) {
@@ -709,8 +777,8 @@ function buildClosingIssues(data, result = calculateClosing(data)) {
   if (!nearZero(result.differences.pix)) {
     add('warning','Pix não conciliado',`Diferença de ${formatBRL(result.differences.pix)} entre o site e as máquinas.`,'machine');
   }
-  if (!nearZero(result.difference) && (!String(data.divergence_reason || '').trim() || !String(data.notes || '').trim())) {
-    add('error','Divergência sem justificativa',`${describeDifference(result.difference)}. Selecione o motivo e descreva a diferença antes de enviar.`,'difference');
+  if (hasMethodDivergence(result.differences) && (!String(data.divergence_reason || '').trim() || !String(data.notes || '').trim())) {
+    add('error','Divergência sem justificativa',`${methodDifferenceBreakdown(result.differences)}. Resultado final: ${describeDifference(result.difference)}. Selecione o motivo e descreva a diferença antes de enviar.`,'difference');
   }
   if (suggestedOpeningFloat && !nearZero(numberFrom(data.opening_float) - suggestedOpeningFloat.value)) {
     add('warning','Saldo inicial diferente do fechamento anterior',
@@ -723,9 +791,10 @@ function focusClosingIssue(target) {
   const selectors = {
     operator:'[name="operator"]',machine:'.store-conference-card',attachment:'#attachmentCategory',
     sangria:'.sangria-control',movement:'.movement-card',difference:'.closing-notes',
-    opening:'[name="opening_float"]',outflow:'#outflowRows',pix:'#pixRequestRows'
+    opening:'[name="opening_float"]',outflow:'#outflowRows',pix:'#pixRequestRows',
+    amount:'input[inputmode="decimal"]'
   };
-  const element = $(selectors[target]);
+  const element = target === 'amount' ? firstInvalidAmountInput($('#closingForm')) : $(selectors[target]);
   element?.scrollIntoView({behavior:'smooth',block:'center'});
   if (element?.matches('input,select,textarea,button')) setTimeout(() => element.focus(),350);
 }
@@ -845,14 +914,13 @@ function updateClosingCalculation() {
     $('#closingDivergenceFields').classList.add('hidden');
     return;
   }
-  const severity = differenceSeverity(result.difference,divergenceTolerance);
+  const severity = methodDifferenceSeverity(result.differences);
   rec.style.borderLeftColor = severity === 'balanced' ? 'var(--green)' : severity === 'warning' ? 'var(--orange)' : 'var(--red)';
   icon.className = `result-icon ${severity === 'balanced' ? 'ok' : severity === 'warning' ? 'warn' : 'bad'}`;
   icon.textContent = severity === 'balanced' ? '✓' : '!';
-  $('#diffExplanation').textContent = severity === 'balanced' ? 'Os valores estão conciliados.'
-    : severity === 'warning' ? `${describeDifference(result.difference)}. Pequena diferença dentro da tolerância de ${formatBRL(divergenceTolerance)}.`
-    : `${describeDifference(result.difference)}. Diferença acima da tolerância.`;
-  $('#closingDivergenceFields').classList.toggle('hidden',nearZero(result.difference));
+  const methods = methodDifferenceBreakdown(result.differences);
+  $('#diffExplanation').textContent = `${methods} · Resultado final: ${describeDifference(result.difference)}.`;
+  $('#closingDivergenceFields').classList.toggle('hidden',!hasMethodDivergence(result.differences));
 }
 
 $('#closingValidationItems')?.addEventListener('click', event => {
@@ -952,7 +1020,11 @@ async function persistClosing(finalStatus) {
 
 $('#saveDraft').onclick = async () => {
   hideClosingSubmitError();
-  try { await persistClosing('draft'); } catch (error) { toast(closingPersistenceError(error,'salvar o rascunho'),true); }
+  try { await persistClosing('draft'); } catch (error) {
+    const issue = invalidAmountIssue($('#closingForm'));
+    if (issue) { showClosingSubmitError([issue]); focusClosingIssue('amount'); }
+    toast(closingPersistenceError(error,'salvar o rascunho'),true);
+  }
 };
 $('#closingForm').addEventListener('submit', async event => {
   event.preventDefault();
@@ -988,7 +1060,7 @@ $('#closingForm').addEventListener('submit', async event => {
     toast('Selecione onde está a sangria e informe a data/horário.',true);
     return;
   }
-  if (!nearZero(result.difference) && (!String(formData.divergence_reason || '').trim() || !$('[name="notes"]').value.trim())) {
+  if (hasMethodDivergence(result.differences) && (!String(formData.divergence_reason || '').trim() || !$('[name="notes"]').value.trim())) {
     toast('Selecione o motivo e descreva a divergência antes de enviar.',true);
     return;
   }
@@ -1100,11 +1172,6 @@ function financeState(record) {
   return 'pending';
 }
 
-function missingMachineReport(record) {
-  const machines = activeMachineEntries(record);
-  return machines.length > 0 && !(record.attachments || []).some(item => item.category === 'Relatório de maquininha');
-}
-
 function pendingPixRequestCount(record) {
   const statuses = record.financeReview?.pixPaymentStatuses || [];
   return (record.pixRequests || []).filter((request,index) =>
@@ -1116,10 +1183,8 @@ function queueCategory(record) {
   const state = financeState(record);
   if (['approved','reopened','returned','draft'].includes(state)) return state;
   if (sangriaAvailable(record) > 0) return 'sangria';
-  if (missingMachineReport(record)) return 'attachments';
   if (pendingPixRequestCount(record) > 0) return 'pix';
-  const difference = record.financeCalc?.totalDifference ?? record.difference;
-  if (!nearZero(difference)) return 'divergent';
+  if (divergenceValues([record]).some(value => !nearZero(value))) return 'divergent';
   return 'pending';
 }
 
@@ -1127,7 +1192,7 @@ function queueBadge(record) {
   const map = {
     approved:['ok','Conferido'],reopened:['warn','Reaberto'],returned:['bad','Devolvido'],
     draft:['draft','Rascunho'],pending:['warn','Aguardando'],divergent:['bad','Com divergência'],
-    sangria:['sangria','Aguardando sangria'],attachments:['bad','Comprovante pendente'],pix:['warn','Pix pendente']
+    sangria:['sangria','Aguardando sangria'],pix:['warn','Pix pendente']
   };
   const item = map[queueCategory(record)] || map.pending;
   return `<span class="badge ${item[0]}">${item[1]}</span>`;
@@ -1135,8 +1200,10 @@ function queueBadge(record) {
 
 function queuePriority(record) {
   const category = queueCategory(record);
-  const severity = differenceSeverity(record.financeCalc?.totalDifference ?? record.difference,divergenceTolerance);
-  const weights = {sangria:0,attachments:1,pix:2,divergent:severity === 'critical' ? 3 : 4,reopened:5,pending:6,returned:7,approved:8,draft:9};
+  const severity = methodDifferenceSeverity(record.financeCalc?.differences || record.differences || {
+    cash:record.financeCalc?.totalDifference ?? record.difference
+  });
+  const weights = {sangria:0,pix:1,divergent:severity === 'critical' ? 2 : 3,reopened:4,pending:5,returned:6,approved:7,draft:8};
   return weights[category] ?? 8;
 }
 
@@ -1260,7 +1327,7 @@ async function loadFinance() {
     const store = $('#financeStore').value || 'all';
     const status = $('#financeStatus').value || 'open';
     const scoped = financeClosings.filter(item => store === 'all' || item.store === store);
-    const openCategories = ['pending','divergent','sangria','attachments','pix','reopened'];
+    const openCategories = ['pending','divergent','sangria','pix','reopened'];
     const rows = scoped.filter(item => status === 'all' || (status === 'open' && openCategories.includes(queueCategory(item))) || queueCategory(item) === status);
     $('#financePending').textContent = scoped.filter(item => financeState(item) === 'pending').length;
     $('#financeApproved').textContent = scoped.filter(item => financeState(item) === 'approved').length;
@@ -1280,14 +1347,18 @@ async function loadFinance() {
     renderFinanceSummary(scoped);
     $('#financeRows').innerHTML = rows.length ? rows.sort((a,b) => queuePriority(a)-queuePriority(b) || numberFrom(a.submittedAt)-numberFrom(b.submittedAt)).map(item => {
       const diff = item.financeCalc?.totalDifference ?? item.difference;
-      const diffLabel = differenceLabel(diff);
+      const differences = item.financeCalc?.differences || item.differences || {};
+      const methodSeverity = methodDifferenceSeverity(differences);
+      const diffLabel = methodSeverity === 'critical' ? ['bad','Diferença crítica']
+        : methodSeverity === 'warning' ? ['warn','Pequena diferença'] : ['ok','Correto'];
       const category = queueCategory(item);
       const priority = category === 'sangria' ? ['sangria','Sangria']
-        : category === 'attachments' ? ['bad','Documento']
         : category === 'pix' ? ['warn','Pix']
-        : differenceSeverity(diff,divergenceTolerance) === 'critical' ? ['bad','Alta']
-        : differenceSeverity(diff,divergenceTolerance) === 'warning' ? ['warn','Média'] : ['draft','Normal'];
-      return `<tr><td data-label="Prioridade"><span class="badge ${priority[0]}">${priority[1]}</span></td><td data-label="Data">${formatDate(item.date)}</td><td data-label="Loja">${escapeHtml(item.store)}</td><td data-label="Operador">${escapeHtml(item.operator)}</td><td data-label="Sangria">${sangriaAvailable(item) ? `<span class="sangria-table-value">${formatBRL(sangriaAvailable(item))}</span>` : '—'}</td><td data-label="Divergência" class="${differenceClass(diff)}">${describeDifference(diff)}<small class="cell-note">${diffLabel[1]}</small></td><td data-label="Comprovantes">${(item.attachments || []).length}</td><td data-label="Status">${queueBadge(item)}</td><td data-label="Ação"><button class="table-action" data-review-id="${escapeHtml(item.id)}">${financeState(item)==='approved'?'Ver':'Conferir'}</button></td></tr>`;
+        : methodSeverity === 'critical' ? ['bad','Alta']
+        : methodSeverity === 'warning' ? ['warn','Média'] : ['draft','Normal'];
+      const methodBreakdown = methodDifferenceBreakdown(differences);
+      const differenceCss = {balanced:'positive',warning:'warning-text',critical:'negative'}[methodSeverity];
+      return `<tr><td data-label="Prioridade"><span class="badge ${priority[0]}">${priority[1]}</span></td><td data-label="Data">${formatDate(item.date)}</td><td data-label="Loja">${escapeHtml(item.store)}</td><td data-label="Operador">${escapeHtml(item.operator)}</td><td data-label="Sangria">${sangriaAvailable(item) ? `<span class="sangria-table-value">${formatBRL(sangriaAvailable(item))}</span>` : '—'}</td><td data-label="Divergência" class="${differenceCss}">${describeDifference(diff)}<small class="cell-note">${escapeHtml(methodBreakdown)} · ${diffLabel[1]}</small></td><td data-label="Status">${queueBadge(item)}</td><td data-label="Ação"><button class="table-action" data-review-id="${escapeHtml(item.id)}">${financeState(item)==='approved'?'Ver':'Conferir'}</button></td></tr>`;
     }).join('') : '<tr><td colspan="9" class="empty">Nenhum fechamento neste filtro.</td></tr>';
     $('#financeReviewPanel').classList.add('hidden');
     $('#financeQueueCard').classList.remove('hidden');
@@ -1524,9 +1595,15 @@ $('#saveOperatorCorrection').onclick = async () => {
     $('#operatorCorrectionReason').focus();
     return;
   }
+  const amountIssue = invalidAmountIssue($('#operatorCorrectionPanel'));
+  if (amountIssue) {
+    toast(amountIssue.message,true);
+    amountIssue.input.focus();
+    return;
+  }
   const entries = operatorCorrectionEntries(currentReviewRecord);
   const corrected = Object.fromEntries(entries.map(([field]) => [
-    field,numberFrom($(`[data-operator-correction-field="${field}"]`).value)
+    field,amountFromInput($(`[data-operator-correction-field="${field}"]`).value)
   ]));
   const changed = entries.filter(([field]) => numberFrom(currentReviewRecord[field]) !== corrected[field]);
   if (!changed.length) {
@@ -1568,9 +1645,8 @@ $('#saveOperatorCorrection').onclick = async () => {
 function buildFinancePendingItems(record,financeData,result) {
   const items = [];
   const add = (severity,title,message,target) => items.push({severity,title,message,target});
-  if (missingMachineReport(record)) {
-    add('error','Relatório de maquininha ausente','A loja selecionou máquinas, mas não anexou o relatório obrigatório.','attachments');
-  }
+  const amountIssue = invalidAmountIssue($('#financeReviewForm'));
+  if (amountIssue) add('error',amountIssue.title,amountIssue.message,'amount');
   const pixPending = financeData.pixPaymentStatuses.filter(item => item.status === 'pending').length;
   if (pixPending) {
     add('warning',`${pixPending} Pix aguardando decisão`,'Marque cada solicitação como paga ou recusada.','pix');
@@ -1583,7 +1659,7 @@ function buildFinancePendingItems(record,financeData,result) {
   if (missingConfirmations) {
     add('warning',`${missingConfirmations} confirmações pendentes`,'Confirme dinheiro, máquinas e saídas revisadas.','confirmations');
   }
-  if (!nearZero(result.totalDifference)
+  if (hasMethodDivergence(result.differences)
     && (!String(financeData.finance_divergence_reason || '').trim() || !String(financeData.finance_notes || '').trim())) {
     add('error','Diferença sem parecer completo','Informe o motivo e registre o parecer financeiro.','opinion');
   }
@@ -1592,10 +1668,10 @@ function buildFinancePendingItems(record,financeData,result) {
 
 function focusReviewPending(target) {
   const selectors = {
-    attachments:'.attachment-review-card',pix:'#financePixRequests',sangria:'#reviewSangriaAlert',
+    pix:'#financePixRequests',sangria:'#reviewSangriaAlert',amount:'input[inputmode="decimal"]',
     confirmations:'.finance-confirm-section',opinion:'[name="finance_divergence_reason"]'
   };
-  const element = $(selectors[target]);
+  const element = target === 'amount' ? firstInvalidAmountInput($('#financeReviewForm')) : $(selectors[target]);
   element?.scrollIntoView({behavior:'smooth',block:'center'});
   if (element?.matches('input,select,textarea,button')) setTimeout(() => element.focus(),350);
 }
@@ -1629,12 +1705,10 @@ function updateFinanceCalculation() {
   $('#reviewOutflows').textContent = formatBRL(result.totalOutflows);
   $('#reviewDifference').textContent = describeDifference(result.totalDifference);
   $('#financeReviewDiff').textContent = describeDifference(result.totalDifference);
-  const severity = differenceSeverity(result.totalDifference,divergenceTolerance);
+  const severity = methodDifferenceSeverity(result.differences);
   $('#financeReviewDiff').style.color = severity === 'balanced' ? 'var(--green)' : severity === 'warning' ? 'var(--orange)' : 'var(--red)';
-  $('#financeReviewMessage').textContent = severity === 'balanced' ? 'Valores financeiros conciliados.'
-    : severity === 'warning' ? `${describeDifference(result.totalDifference)}. Pequena diferença dentro da tolerância de ${formatBRL(divergenceTolerance)}.`
-    : `${describeDifference(result.totalDifference)}. Diferença crítica na conferência.`;
-  $('#financeDivergenceFields').classList.toggle('hidden',nearZero(result.totalDifference));
+  $('#financeReviewMessage').textContent = `${methodDifferenceBreakdown(result.differences)} · Resultado final: ${describeDifference(result.totalDifference)}.`;
+  $('#financeDivergenceFields').classList.toggle('hidden',!hasMethodDivergence(result.differences));
   $('#financePaidPix').textContent = formatBRL(result.paidPixRequests);
   $('#financeGrossCard').textContent = formatBRL(result.grossCard);
   $('#financeCardFees').textContent = `− ${formatBRL(result.cardFeeTotal)}`;
@@ -1676,13 +1750,15 @@ async function saveFinanceReview(decision) {
     return;
   }
   const data = financeFormData();
+  const amountIssue = invalidAmountIssue($('#financeReviewForm'));
+  if (amountIssue) {
+    toast(amountIssue.message,true);
+    focusReviewPending('amount');
+    return;
+  }
   data.cardFeeRates = effectiveFeeRates(currentReviewRecord);
   const calc = calculateFinanceReview(currentReviewRecord,data);
   const requiredConfirmations = requiredFinanceConfirmFields(currentReviewRecord);
-  if (decision === 'approved' && missingMachineReport(currentReviewRecord)) {
-    toast('Devolva para a loja anexar o relatório obrigatório das máquinas.',true);
-    return;
-  }
   if (decision === 'approved' && requiredConfirmations.some(key => !data[key])) {
     toast('Confirme o Dinheiro, as máquinas utilizadas e as saídas antes de aprovar.',true);
     return;
@@ -1695,7 +1771,7 @@ async function saveFinanceReview(decision) {
     toast('Confirme o recebimento da sangria/fechamento antes de aprovar.',true);
     return;
   }
-  if ((decision === 'returned' || !nearZero(calc.totalDifference)) && (!String(data.finance_divergence_reason || '').trim() || !String(data.finance_notes || '').trim())) {
+  if ((decision === 'returned' || hasMethodDivergence(calc.differences)) && (!String(data.finance_divergence_reason || '').trim() || !String(data.finance_notes || '').trim())) {
     toast('Selecione o motivo e registre o parecer para justificar a diferença ou devolução.',true);
     return;
   }
@@ -1891,7 +1967,10 @@ $('#toggleRateSettings').onclick = () => {
 };
 $('#saveRateSettings').onclick = async () => {
   try { await saveCardFeeRates(); }
-  catch (error) { toast(error.message || 'Não foi possível salvar as taxas.',true); }
+  catch (error) {
+    toast(error.message || 'Não foi possível salvar as taxas.',true);
+    error.input?.focus();
+  }
 };
 $('#addMachine').onclick = addMachineSetting;
 $('#cardFeeSettings').onclick = event => {

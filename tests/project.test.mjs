@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 
-const [html,app,css,rules,packageJson,driveScript,closingScript,selfieScript,firebaseJson] = await Promise.all([
+const [html,app,css,rules,packageJson,driveScript,closingScript,selfieScript,firebaseJson,workflow] = await Promise.all([
   fs.readFile(new URL('../index.html',import.meta.url),'utf8'),
   fs.readFile(new URL('../app.js',import.meta.url),'utf8'),
   fs.readFile(new URL('../styles.css',import.meta.url),'utf8'),
@@ -12,6 +12,7 @@ const [html,app,css,rules,packageJson,driveScript,closingScript,selfieScript,fir
   fs.readFile(new URL('../google-apps-script/fechamento/Code.gs',import.meta.url),'utf8'),
   fs.readFile(new URL('../google-apps-script/selfies/Code.gs',import.meta.url),'utf8'),
   fs.readFile(new URL('../firebase.json',import.meta.url),'utf8'),
+  fs.readFile(new URL('../.github/workflows/tests.yml',import.meta.url),'utf8'),
 ]);
 
 test('área financeira e indicadores existem na interface',()=>{
@@ -72,9 +73,9 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.5.5');
-  assert.match(html,/app\.js\?v=2\.5\.5/);
-  assert.match(html,/styles\.css\?v=2\.5\.5/);
+  assert.equal(JSON.parse(packageJson).version,'2.5.6');
+  assert.match(html,/app\.js\?v=2\.5\.6/);
+  assert.match(html,/styles\.css\?v=2\.5\.6/);
 });
 
 test('solicitação Pix mantém Nome e Chave amplos sem ultrapassar o cartão',()=>{
@@ -129,7 +130,7 @@ test('celular não usa tabelas largas nem força zoom nos campos',()=>{
   assert.match(html,/class="mobile-card-table divergence-table"/);
   assert.match(html,/class="mobile-card-table finance-queue-table"/);
   assert.match(app,/data-label="Divergência"/);
-  assert.match(app,/data-label="Comprovantes"/);
+  assert.doesNotMatch(app,/data-label="Comprovantes"/);
   assert.match(css,/@media \(max-width: 600px\)[\s\S]*\.closing-card-grid[\s\S]*grid-template-columns: 1fr/);
   assert.match(css,/input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\)[\s\S]*font-size: 16px !important/);
   assert.match(css,/\.mobile-card-table tbody tr[\s\S]*display: grid/);
@@ -210,12 +211,12 @@ test('fechamento inteligente conecta operação, financeiro e gestão',()=>{
   assert.doesNotMatch(html,/id="closingValidationPanel"/);
   assert.doesNotMatch(html,/id="operatorProjectedAvailable"/);
   assert.match(app,/function buildClosingIssues/);
-  assert.doesNotMatch(app,/Relatório da maquininha ausente/);
+  assert.doesNotMatch(app,/Relatório (?:da|de) maquininha ausente/i);
+  assert.doesNotMatch(app,/missingMachineReport/);
   assert.match(app,/function renderDashboardFinancialOverview/);
   assert.match(app,/function renderFinancePendingPanel/);
   assert.match(app,/function renderOperatorCorrectionComparison/);
   assert.match(app,/function loadOpeningFloatSuggestion/);
-  assert.match(app,/return 'attachments'/);
   assert.match(app,/return 'pix'/);
   assert.match(css,/\.closing-validation-panel/);
   assert.match(css,/\.financial-overview-grid/);
@@ -230,6 +231,7 @@ test('fila financeira possui todos os estados priorizados',()=>{
   assert.match(app,/function queueCategory/);
   assert.match(app,/function queuePriority/);
   assert.match(css,/\.badge\.sangria/);
+  assert.doesNotMatch(html,/<option value="attachments">/);
 });
 
 test('uploader do operador foi removido e o suporte legado do Drive permanece isolado',()=>{
@@ -292,6 +294,10 @@ test('divergências mostram falta e sobra separadas e compensam o resultado fina
   assert.match(app,/function summarizeDifferences/);
   assert.match(app,/summary\.total = summary\.surplus - summary\.shortage/);
   assert.match(app,/Resultado: \$\{describeDifference\(summary\.total\)\}/);
+  assert.match(app,/function methodDifferenceBreakdown/);
+  assert.match(app,/function methodDifferenceSeverity/);
+  assert.match(app,/\['Dinheiro',differences\.cash\],\['Cartão',differences\.card\],\['Pix',differences\.pix\]/);
+  assert.match(app,/hasMethodDivergence\(result\.differences\)/);
   assert.match(html,/Resultado final das divergências/);
 });
 
@@ -308,7 +314,36 @@ test('duplicidades e valores inválidos são bloqueados antes do envio',()=>{
   assert.match(app,/function closingDocumentId/);
   assert.match(app,/Já existe um fechamento para esta loja, data e turno/);
   assert.match(app,/validateClosingAmounts/);
+  assert.match(app,/function amountFromInput/);
+  assert.match(app,/isValidAmount\(value,max\) \? numberFrom\(value\) : String/);
+  assert.match(app,/function invalidAmountIssue/);
   assert.match(rules,/newData\.val\(\) >= 0 && newData\.val\(\) <= 10000000/);
+});
+
+test('tolerância e taxas são validadas antes da conversão para número',()=>{
+  assert.match(html,/id="divergenceTolerance" type="number"[^>]*max="1000"/);
+  assert.match(app,/function machineSettingAmountIssue/);
+  assert.match(app,/isValidAmount\(input\.value,100\)/);
+  assert.match(app,/isValidAmount\(toleranceInput\.value,1000\)/);
+  assert.match(app,/A tolerância deve ser um número entre R\$ 0,00 e R\$ 1\.000,00/);
+});
+
+test('financeiro corrige campos de máquinas personalizadas sem liberar outros campos',()=>{
+  const parsed=JSON.parse(rules);
+  const dynamic=parsed.rules.closings.$id.$other;
+  assert.match(dynamic['.write'],/role'\)\.val\(\) === 'finance'/);
+  assert.match(dynamic['.write'],/machine_custom_/);
+  assert.match(dynamic['.validate'],/newData\.isNumber\(\)/);
+  assert.match(dynamic['.validate'],/10000000/);
+});
+
+test('aprovação não exige relatório removido e regras são publicadas após os testes',()=>{
+  assert.doesNotMatch(app,/relatório obrigatório das máquinas/i);
+  assert.doesNotMatch(app,/Relatório de maquininha/);
+  assert.match(workflow,/deploy-database-rules:/);
+  assert.match(workflow,/needs: test/);
+  assert.match(workflow,/firebase-tools@14 deploy --only database/);
+  assert.match(workflow,/FIREBASE_SERVICE_ACCOUNT/);
 });
 
 test('operadores consultam somente a própria loja e financeiro corrige apenas valores autorizados',()=>{

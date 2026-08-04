@@ -2,7 +2,7 @@
 
 Sistema web responsivo para fechamento diário, conciliação e acompanhamento de divergências das lojas House 190.
 
-Versão 2.3.1 com correção auditável dos valores do operador pelo financeiro e comprovantes armazenados no Google Drive. O Firebase continua responsável por autenticação e dados; fotos e PDFs novos não são enviados ao Firebase Storage.
+Versão 2.5.6 com divergências discriminadas por origem, compensação no resultado final, validação estrita dos valores e cadastro editável de máquinas. O Firebase continua responsável por autenticação e dados; comprovantes legados permanecem disponíveis no histórico.
 
 ## Recursos
 
@@ -65,6 +65,8 @@ Para publicar somente as regras do banco:
 ```bash
 firebase deploy --only database
 ```
+
+Os envios para a branch `main` também publicam as regras automaticamente após os testes. Para isso, configure no GitHub o secret `FIREBASE_SERVICE_ACCOUNT` com a credencial de uma conta de serviço autorizada no projeto.
 
 ## Segurança
 

@@ -324,6 +324,10 @@
         "lastOperatorCorrection": {
           ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'",
           ".validate": "newData.hasChildren(['reason','fields','correctedAt','correctedBy','correctedByName'])"
+        },
+        "$other": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved' && $other.matches(/^machine_custom_[a-z0-9_]+_(credit|debit|pix)$/)",
+          ".validate": "!$other.matches(/^machine_custom_[a-z0-9_]+_(credit|debit|pix)$/) || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000)"
         }
       }
     },

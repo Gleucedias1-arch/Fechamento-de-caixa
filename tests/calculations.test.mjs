@@ -34,6 +34,16 @@ test('detecta falta e sobra',()=>{
   assert.equal(calculateClosing({system_cash:100,counted_cash:110}).status,'surplus');
 });
 
+test('mantém divergências por origem quando falta e sobra se compensam',()=>{
+  const result=calculateClosing({
+    system_cash:120,counted_cash:0,
+    system_credit:100,stone_credit:220
+  });
+  assert.deepEqual(result.differences,{cash:-120,card:120,pix:0});
+  assert.equal(result.difference,0);
+  assert.equal(result.status,'balanced');
+});
+
 test('concilia cartões de todas as operadoras',()=>{
   const result=calculateClosing({
     system_credit:100,system_debit:80,
