@@ -15,8 +15,9 @@ const DEFAULT_MACHINES = [
   ['cappta','Cappta'],['laranjinha','Laranjinha'],['wise','Wise']
 ].map(([id,name]) => ({id,name,credit:`${id}_credit`,debit:`${id}_debit`,pix:`${id}_pix`}));
 const FINANCE_FIELDS = [
-  'finance_cash',...FINANCE_MACHINE_FIELDS,'finance_adjustments'
+  ...FINANCE_MACHINE_FIELDS,'finance_adjustments'
 ];
+const MINOR_DIVERGENCE_LIMIT = 2;
 const OPERATION_FIELDS = [
   ...SYSTEM_FIELDS,...COUNTED_FIELDS,...EXPENSE_FIELDS,'opening_float','withdrawals',
   'cash_in','closing_float'
@@ -37,7 +38,7 @@ let currentReviewRecord = null;
 let machineCatalog = DEFAULT_MACHINES.map(machine => ({...machine}));
 let closingMachineCatalog = machineCatalog.map(machine => ({...machine}));
 let cardFeeRates = Object.fromEntries(machineCatalog.map(machine => [machine.id,{credit:0,debit:0,pix:0}]));
-let divergenceTolerance = 1;
+let divergenceTolerance = MINOR_DIVERGENCE_LIMIT;
 let pendingAttachments = [];
 let savedAttachments = [];
 let closingAmountsTouched = false;
@@ -358,8 +359,8 @@ function machineSettingAmountIssue() {
   const rateInput = $$('[data-rate-machine]').find(input => !isValidAmount(input.value,100));
   if (rateInput) return {input:rateInput,message:'As taxas devem ser números entre 0% e 100%.'};
   const toleranceInput = $('#divergenceTolerance');
-  if (!isValidAmount(toleranceInput.value,1000)) {
-    return {input:toleranceInput,message:'A tolerância deve ser um número entre R$ 0,00 e R$ 1.000,00.'};
+  if (!isValidAmount(toleranceInput.value,1000) || numberFrom(toleranceInput.value) < MINOR_DIVERGENCE_LIMIT) {
+    return {input:toleranceInput,message:'A tolerância deve ser um número entre R$ 2,00 e R$ 1.000,00.'};
   }
   return null;
 }
@@ -419,9 +420,11 @@ async function loadCardFeeRates(showMessage = false) {
         get(ref(db,'settings/divergenceTolerance'))
       ]);
       machineCatalog = normalizedMachineCatalog(machineSnap.exists() ? machineSnap.val() : null);
-      divergenceTolerance = toleranceSnap.exists() ? Math.max(0,numberFrom(toleranceSnap.val())) : 1;
+      divergenceTolerance = toleranceSnap.exists()
+        ? Math.max(MINOR_DIVERGENCE_LIMIT,numberFrom(toleranceSnap.val()))
+        : MINOR_DIVERGENCE_LIMIT;
       buildMachineSelection();
-    } catch { divergenceTolerance = 1; }
+    } catch { divergenceTolerance = MINOR_DIVERGENCE_LIMIT; }
     return;
   }
   try {
@@ -432,7 +435,9 @@ async function loadCardFeeRates(showMessage = false) {
     ]);
     machineCatalog = normalizedMachineCatalog(machineSnap.exists() ? machineSnap.val() : null);
     cardFeeRates = normalizedFeeRates(rateSnap.exists() ? rateSnap.val() : {});
-    divergenceTolerance = toleranceSnap.exists() ? Math.max(0,numberFrom(toleranceSnap.val())) : 1;
+    divergenceTolerance = toleranceSnap.exists()
+      ? Math.max(MINOR_DIVERGENCE_LIMIT,numberFrom(toleranceSnap.val()))
+      : MINOR_DIVERGENCE_LIMIT;
     if ($('#divergenceTolerance')) $('#divergenceTolerance').value = divergenceTolerance;
     renderCardFeeSettings();
     buildMachineSelection();
@@ -778,7 +783,7 @@ function buildClosingIssues(data, result = calculateClosing(data)) {
     add('warning','Pix não conciliado',`Diferença de ${formatBRL(result.differences.pix)} entre o site e as máquinas.`,'machine');
   }
   if (hasMethodDivergence(result.differences) && (!String(data.divergence_reason || '').trim() || !String(data.notes || '').trim())) {
-    add('error','Divergência sem justificativa',`${methodDifferenceBreakdown(result.differences)}. Resultado final: ${describeDifference(result.difference)}. Selecione o motivo e descreva a diferença antes de enviar.`,'difference');
+    add('error','Diferença sem explicação',`${methodDifferenceBreakdown(result.differences)}. Resultado final: ${describeDifference(result.difference)}. Escolha o que causou a diferença e explique o ocorrido antes de enviar.`,'difference');
   }
   if (suggestedOpeningFloat && !nearZero(numberFrom(data.opening_float) - suggestedOpeningFloat.value)) {
     add('warning','Saldo inicial diferente do fechamento anterior',
@@ -1065,7 +1070,7 @@ $('#closingForm').addEventListener('submit', async event => {
     return;
   }
   if (hasMethodDivergence(result.differences) && (!String(formData.divergence_reason || '').trim() || !$('[name="notes"]').value.trim())) {
-    toast('Selecione o motivo e descreva a divergência antes de enviar.',true);
+    toast('Escolha o que causou a diferença e explique o ocorrido antes de enviar.',true);
     return;
   }
   try { await persistClosing('submitted'); } catch (error) { toast(closingPersistenceError(error,'enviar o fechamento'),true); }
@@ -1481,12 +1486,6 @@ function renderFinancePixRequests(record, existing={}) {
   }).join('');
 }
 
-function renderReviewAttachments(record) {
-  const attachments = Array.isArray(record.attachments) ? record.attachments : [];
-  $('#reviewAttachmentCount').textContent = `${attachments.length} ${attachments.length === 1 ? 'arquivo' : 'arquivos'}`;
-  $('#reviewAttachments').innerHTML = attachments.length ? attachments.map(item => `<a class="review-attachment" href="${escapeHtml(item.url)}" target="_blank" rel="noopener"><span>${escapeHtml(item.category || 'Comprovante')}</span><b>${escapeHtml(item.name || 'Arquivo')}</b><small>${Math.round(numberFrom(item.size)/1024)} KB · enviado por ${escapeHtml(item.uploadedByName || 'loja')}</small><em>Abrir comprovante ↗</em></a>`).join('') : '<p class="empty-inline">Nenhum comprovante foi anexado pela loja.</p>';
-}
-
 async function renderAuditTimeline(closingId) {
   try {
     const snap = await get(ref(db,`auditLogs/${closingId}`));
@@ -1531,13 +1530,12 @@ function openFinanceReview(id) {
     + metric('Horário do registro',formatDateTime(currentReviewRecord.sangria_delivered_at),false)
     + metric('Divergência operacional',currentReviewRecord.difference);
   $('#reviewNotes').textContent = currentReviewRecord.notes || 'Nenhuma observação informada.';
-  renderReviewAttachments(currentReviewRecord);
   buildFinanceCardFields(currentReviewRecord);
   const form = $('#financeReviewForm');
   form.reset();
   $$('input[inputmode="decimal"]',form).forEach(input => input.value='0');
   const existing = currentReviewRecord.financeReview || {};
-  const defaults = {finance_cash:currentReviewRecord.counted_cash};
+  const defaults = {};
   activeMachineEntries(currentReviewRecord).forEach(machine => {
     [machine.credit,machine.debit,machine.pix].forEach(key => defaults[`finance_${key}`] = currentReviewRecord[key]);
   });
@@ -1661,7 +1659,7 @@ function buildFinancePendingItems(record,financeData,result) {
   const required = requiredFinanceConfirmFields(record);
   const missingConfirmations = required.filter(key => !financeData[key]).length;
   if (missingConfirmations) {
-    add('warning',`${missingConfirmations} confirmações pendentes`,'Confirme dinheiro, máquinas e saídas revisadas.','confirmations');
+    add('warning',`${missingConfirmations} confirmações pendentes`,'Confirme as máquinas utilizadas e as saídas revisadas.','confirmations');
   }
   if (hasMethodDivergence(result.differences)
     && (!String(financeData.finance_divergence_reason || '').trim() || !String(financeData.finance_notes || '').trim())) {
@@ -1744,7 +1742,7 @@ function requiredFinanceConfirmFields(record) {
   const machineConfirmations = activeMachineEntries(record).flatMap(machine =>
     [machine.credit,machine.debit,machine.pix].map(field => `finance_confirm_${field}`)
   );
-  return ['finance_confirm_cash',...machineConfirmations,'finance_confirm_outflows'];
+  return [...machineConfirmations,'finance_confirm_outflows'];
 }
 
 async function saveFinanceReview(decision) {
@@ -1764,7 +1762,7 @@ async function saveFinanceReview(decision) {
   const calc = calculateFinanceReview(currentReviewRecord,data);
   const requiredConfirmations = requiredFinanceConfirmFields(currentReviewRecord);
   if (decision === 'approved' && requiredConfirmations.some(key => !data[key])) {
-    toast('Confirme o Dinheiro, as máquinas utilizadas e as saídas antes de aprovar.',true);
+    toast('Confirme as máquinas utilizadas e as saídas antes de aprovar.',true);
     return;
   }
   if (decision === 'approved' && data.pixPaymentStatuses.some(item => item.status === 'pending')) {
@@ -1776,7 +1774,7 @@ async function saveFinanceReview(decision) {
     return;
   }
   if ((decision === 'returned' || hasMethodDivergence(calc.differences)) && (!String(data.finance_divergence_reason || '').trim() || !String(data.finance_notes || '').trim())) {
-    toast('Selecione o motivo e registre o parecer para justificar a diferença ou devolução.',true);
+    toast('Escolha o que causou a diferença e explique o ocorrido ou a devolução.',true);
     return;
   }
   const now = Date.now();

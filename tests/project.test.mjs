@@ -23,7 +23,7 @@ test('área financeira e indicadores existem na interface',()=>{
     ,'machineSelection','selectedMachineCards','pixConferenceTotal','selectedMachineCount',
     'kpiSangria','financeSangria','cardFeeSettings','financeGrossCard','financeCardFees',
     'financeNetCard','financeGrossPix','financePixFees','financeNetPix','financeNetAvailable','reviewSangriaAlert',
-    'financeSummaryGrid','financeReopened','reviewAttachments',
+    'financeSummaryGrid','financeReopened',
     'auditTimeline','reopenClosing','divergenceTolerance','closingDivergenceFields','financeDivergenceFields',
     'closingSubmitError','financeTotalDiffText','addMachine'
   ]) assert.match(html,new RegExp(`id="${id}"`));
@@ -44,6 +44,10 @@ test('conferência se limita a dinheiro, cartão e Pix, com cartão por máquina
 
 test('financeiro confirma campos e pagamentos Pix',()=>{
   assert.match(html,/name="finance_confirm_outflows"/);
+  assert.doesNotMatch(html,/name="finance_cash"/);
+  assert.doesNotMatch(html,/name="finance_confirm_cash"/);
+  assert.match(html,/O dinheiro já foi conferido pela loja/);
+  assert.doesNotMatch(app,/return \['finance_confirm_cash'/);
   assert.match(app,/pixPaymentStatuses/);
   assert.match(html,/Confirmo que conferi todas as saídas declaradas/);
   assert.match(html,/Pagamentos via Pix/);
@@ -73,9 +77,9 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.5.8');
-  assert.match(html,/app\.js\?v=2\.5\.8/);
-  assert.match(html,/styles\.css\?v=2\.5\.8/);
+  assert.equal(JSON.parse(packageJson).version,'2.5.9');
+  assert.match(html,/app\.js\?v=2\.5\.9/);
+  assert.match(html,/styles\.css\?v=2\.5\.9/);
 });
 
 test('seletores de vários elementos sempre retornam uma lista antes de usar forEach',()=>{
@@ -286,12 +290,23 @@ test('aprovação bloqueia o fechamento e reabertura exige administrador e motiv
   assert.match(rules,/root\.child\('closings'\)\.child\(\$id\)\.child\('status'\)\.val\(\) !== 'approved'/);
 });
 
-test('divergências exigem motivo e usam tolerância configurável',()=>{
+test('divergências exigem uma causa clara e usam tolerância mínima de dois reais',()=>{
   assert.match(html,/name="divergence_reason"/);
   assert.match(html,/name="finance_divergence_reason"/);
+  assert.match(html,/O que causou a diferença\?/);
+  assert.match(html,/Dinheiro faltando ou sobrando/);
+  assert.match(html,/Escolha a causa da falta ou sobra mostrada acima/);
   assert.match(app,/differenceSeverity/);
+  assert.match(app,/const MINOR_DIVERGENCE_LIMIT = 2/);
+  assert.match(app,/Math\.max\(MINOR_DIVERGENCE_LIMIT,numberFrom\(toleranceSnap\.val\(\)\)\)/);
   assert.match(app,/settings\/divergenceTolerance/);
   assert.match(rules,/divergenceTolerance/);
+});
+
+test('financeiro não exibe a área de comprovantes anexados',()=>{
+  assert.doesNotMatch(html,/Comprovantes anexados/);
+  assert.doesNotMatch(html,/id="reviewAttachments"/);
+  assert.doesNotMatch(app,/function renderReviewAttachments/);
 });
 
 test('divergências mostram falta e sobra separadas e compensam o resultado final',()=>{
@@ -327,11 +342,11 @@ test('duplicidades e valores inválidos são bloqueados antes do envio',()=>{
 });
 
 test('tolerância e taxas são validadas antes da conversão para número',()=>{
-  assert.match(html,/id="divergenceTolerance" type="number"[^>]*max="1000"/);
+  assert.match(html,/id="divergenceTolerance" type="number"[^>]*min="2"[^>]*max="1000"/);
   assert.match(app,/function machineSettingAmountIssue/);
   assert.match(app,/isValidAmount\(input\.value,100\)/);
   assert.match(app,/isValidAmount\(toleranceInput\.value,1000\)/);
-  assert.match(app,/A tolerância deve ser um número entre R\$ 0,00 e R\$ 1\.000,00/);
+  assert.match(app,/A tolerância deve ser um número entre R\$ 2,00 e R\$ 1\.000,00/);
 });
 
 test('financeiro corrige campos de máquinas personalizadas sem liberar outros campos',()=>{

@@ -2,7 +2,7 @@
 
 Sistema web responsivo para fechamento diário, conciliação e acompanhamento de divergências das lojas House 190.
 
-Versão 2.5.8 com divergências discriminadas por origem, compensação no resultado final, validação estrita dos valores, cadastro editável de máquinas e correção do envio de operadores com acesso restrito por loja. O Firebase continua responsável por autenticação e dados; comprovantes legados permanecem disponíveis no histórico.
+Versão 2.5.9 com divergências discriminadas por origem, compensação no resultado final, validação estrita dos valores, cadastro editável de máquinas e conferência financeira restrita a Cartão e Pix. Diferenças de até R$ 2,00 são classificadas como pequenas, e a antiga área de comprovantes foi retirada da conferência.
 
 ## Recursos
 

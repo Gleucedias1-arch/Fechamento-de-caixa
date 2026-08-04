@@ -330,8 +330,6 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
 .finance-confirm-section > .card-title h3 { color: #fff; }
 .finance-confirm-section > .card-title p { color: #c8c9cc; }
 .finance-confirm-section > .card-title .block-label { color: var(--yellow); }
-.finance-confirm-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-.cash-confirm-grid { grid-template-columns: minmax(260px, 420px); padding: 16px; }
 .finance-confirm-section > .subsection-title { margin: 0; padding: 13px 16px 8px; border: 0; color: var(--ink); }
 .confirm-field { border: 1px solid #dfe3e7; border-radius: 8px; padding: 10px; background: #fff; }
 .confirm-check { display: flex; grid-template-columns: auto 1fr; align-items: center; gap: 7px; margin-top: 9px; color: var(--blue); }
@@ -382,15 +380,7 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
 .pix-approval-row b { font-size: 12px; margin-top: 6px; }
 .pix-approval-row small { color: var(--muted); font-size: 9px; margin-top: 4px; }
 .empty-inline { padding: 16px; background: #f7f8f9; border-radius: 10px; color: var(--muted); font-size: 11px; }
-.attachment-review-card, .audit-card { margin-bottom: 14px; }
-.review-attachment-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; }
-.review-attachment { display: block; min-width: 0; padding: 12px; border: 1px solid var(--line); border-top: 4px solid var(--blue); border-radius: 9px; color: inherit; text-decoration: none; background: #fafbfc; transition: .15s; }
-.review-attachment:hover { transform: translateY(-1px); border-color: var(--blue); }
-.review-attachment span, .review-attachment b, .review-attachment small, .review-attachment em { display: block; }
-.review-attachment span { color: var(--blue); font-size: 8px; font-weight: 900; text-transform: uppercase; }
-.review-attachment b { margin-top: 5px; font-size: 11px; overflow-wrap: anywhere; }
-.review-attachment small { margin-top: 4px; color: var(--muted); font-size: 8px; }
-.review-attachment em { margin-top: 10px; color: var(--blue); font-size: 9px; font-style: normal; font-weight: 800; }
+.audit-card { margin-bottom: 14px; }
 .audit-timeline { display: grid; gap: 0; }
 .audit-entry { display: grid; grid-template-columns: 16px 1fr; gap: 9px; padding: 8px 0; }
 .audit-entry > span { width: 10px; height: 10px; margin-top: 4px; border: 2px solid #fff; border-radius: 50%; background: var(--yellow); box-shadow: 0 0 0 2px var(--black); }
@@ -468,7 +458,7 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
   .pix-approval-row label { grid-column: 1 / -1; }
   .rate-settings-card .card-title, .sangria-review-alert { align-items: flex-start; flex-direction: column; }
   .finance-workbench { padding: 0 9px 10px; }
-  .finance-consolidated-grid, .review-attachment-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .finance-consolidated-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .pix-request-row > label:nth-child(1) { grid-column: span 5; }
   .pix-request-row > label:nth-child(2) { grid-column: span 7; }
   .pix-request-row > label:nth-child(3) { grid-column: span 8; }
@@ -490,7 +480,7 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
   .review-heading { display: block; }
   .review-heading .badge { margin-top: 10px; }
   .subsection-heading, .machine-picker-heading, .pix-action-row { align-items: flex-start; flex-direction: column; }
-  .machine-entry-fields, .machine-pair, .cash-confirm-grid { grid-template-columns: 1fr; }
+  .machine-entry-fields, .machine-pair { grid-template-columns: 1fr; }
   .sheet-value-grid label,
   .machine-entry-fields label,
   .machine-pair .confirm-field > label:first-child { grid-template-columns: minmax(0, 1fr) minmax(112px, 42%); gap: 10px; }
@@ -531,7 +521,6 @@ td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
   .closing-final-footer .form-actions { flex-direction: row; }
   .attachment-controls, .sangria-detail-grid { grid-template-columns: 1fr; }
   .sangria-detail-grid p { grid-column: auto; }
-  .review-attachment-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
   .finance-consolidated-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 
@@ -782,7 +771,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--blue); box-shado
 .confirmation-highlight,
 .reopen-panel { border-color: #eee1b5; background: #fffaf0; }
 .rate-machine-card,
-.review-attachment,
 .note-box,
 .empty-inline { background: #fafcfd; }
 .sangria-review-alert { border: 1px solid #e9d582; background: #fff9e5; box-shadow: 0 8px 22px rgba(185,139,8,.07); }

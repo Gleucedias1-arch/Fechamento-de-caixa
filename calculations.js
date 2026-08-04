@@ -71,7 +71,6 @@ export function machineDefinitions(data = {}) {
 }
 
 export const FINANCE_CONFIRM_FIELDS = [
-  'finance_confirm_cash',
   ...FINANCE_MACHINE_FIELDS.map(field => `finance_confirm_${field.replace('finance_','')}`),
   'finance_confirm_outflows'
 ];
@@ -116,7 +115,7 @@ export function statusFromDifference(value) {
   return Math.abs(numberFrom(value)) < 0.01 ? 'balanced' : numberFrom(value) > 0 ? 'surplus' : 'shortage';
 }
 
-export function differenceSeverity(value, tolerance = 1) {
+export function differenceSeverity(value, tolerance = 2) {
   const difference = Math.abs(numberFrom(value));
   if (difference < 0.01) return 'balanced';
   return difference <= Math.max(0,numberFrom(tolerance)) ? 'warning' : 'critical';
@@ -227,7 +226,8 @@ export function calculateFinanceReview(record = {}, review = {}) {
     'finance_stone','finance_sipag','finance_cielo','finance_cappta','finance_laranjinha','finance_wise'
   ]);
   const actual = {
-    cash: numberFrom(review.finance_cash),
+    // O financeiro não reconta dinheiro: preserva a conferência feita pela loja.
+    cash: operational.countedByMethod.cash,
     card: machines.some(machine => review[`finance_${machine.credit}`] !== undefined || review[`finance_${machine.debit}`] !== undefined)
       ? sumFields(review, machines.flatMap(machine => [`finance_${machine.credit}`,`finance_${machine.debit}`])) : legacyFinanceCard,
     pix: machines.some(machine => review[`finance_${machine.pix}`] !== undefined)

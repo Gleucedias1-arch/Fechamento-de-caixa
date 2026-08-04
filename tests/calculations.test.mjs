@@ -67,16 +67,18 @@ test('ajuste autorizado antigo não altera mais a divergência',()=>{
   assert.equal(result.status,'balanced');
 });
 
-test('financeiro concilia dinheiro, débito e crédito por máquina e Pix',()=>{
+test('financeiro usa o dinheiro contado pela loja e concilia cartão e Pix',()=>{
   const record={
     system_cash:100,system_credit:200,system_debit:100,system_pix:50,
-    opening_float:20,withdrawals:10,outflows:[{amount:15}]
+    counted_cash:95,opening_float:20,withdrawals:10,outflows:[{amount:15}]
   };
   const review={
-    finance_cash:95,finance_stone_credit:200,finance_stone_debit:60,
+    finance_cash:0,finance_stone_credit:200,finance_stone_debit:60,
     finance_sipag_debit:40,finance_stone_pix:50
   };
   const result=calculateFinanceReview(record,review);
+  assert.equal(result.actual.cash,95);
+  assert.equal(result.differences.cash,0);
   assert.equal(result.totalDifference,0);
   assert.equal(result.actual.card,300);
   assert.equal(result.totalAvailable,350);
@@ -154,10 +156,11 @@ test('Pix de motoboy ou freelancer só vira saída após confirmação do financ
 });
 
 test('classifica divergência por tolerância configurada',()=>{
-  assert.equal(differenceSeverity(0,1),'balanced');
-  assert.equal(differenceSeverity(0.75,1),'warning');
-  assert.equal(differenceSeverity(-1,1),'warning');
-  assert.equal(differenceSeverity(1.01,1),'critical');
+  assert.equal(differenceSeverity(0),'balanced');
+  assert.equal(differenceSeverity(1.99),'warning');
+  assert.equal(differenceSeverity(-2),'warning');
+  assert.equal(differenceSeverity(2.01),'critical');
+  assert.equal(differenceSeverity(5,10),'warning');
 });
 
 test('consolida bruto, taxas, líquidos, Pix pago, sangria e divergência',()=>{
