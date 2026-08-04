@@ -78,8 +78,8 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 
 test('versão e cache estão atualizados',()=>{
   assert.equal(JSON.parse(packageJson).version,'2.6.1');
-  assert.match(html,/app\.js\?v=2\.6\.1/);
-  assert.match(html,/styles\.css\?v=2\.6\.1/);
+  assert.match(html,/app\.js\?v=2.7.0/);
+  assert.match(html,/styles\.css\?v=2.7.0/);
 });
 
 test('conferência financeira usa layout responsivo com navegação e ações persistentes',()=>{
@@ -471,4 +471,12 @@ test('finalização mantém apenas resultado, justificativa e ações essenciais
   assert.match(html,/name="notes"/);
   assert.match(html,/id="saveDraft"/);
   assert.match(html,/Enviar ao financeiro/);
+});
+
+
+test('auditorias, backup e nova identidade estão publicados',()=>{
+  assert.match(html,/management-audits\.js\?v=2\.7\.0/);
+  assert.match(rules,/motoboyAudits/);
+  assert.match(rules,/invoiceAudits/);
+  assert.match(rules,/backups/);
 });
