@@ -4,6 +4,13 @@ Sistema web responsivo para fechamento diário, conciliação e acompanhamento d
 
 Versão 2.6.1 com uma conferência financeira reorganizada e responsiva: filtros recolhíveis no celular, resumo e ações sempre acessíveis, seções em abas e melhor aproveitamento do desktop. A configuração das máquinas agora usa cartões alinhados, sem campos cortados, e o recebimento da sangria fica visualmente separado da justificativa financeira. Permanecem a compensação das divergências no resultado final, a validação estrita dos valores, o cadastro editável de máquinas e a conferência financeira restrita a Cartão e Pix. Diferenças de até R$ 2,00 são classificadas como pequenas, e a antiga área de comprovantes continua removida.
 
+## Novidades da versão 2.7.0
+
+- Auditoria de motoboys com divergência entre valor do sistema e valor pago.
+- Auditoria de notas por loja, data e canal, comparando quantidade e valor.
+- Backup automático diário protegido no Firebase e download independente em JSON.
+- Nova marca moderna House 190 aplicada ao login e à navegação.
+
 ## Recursos
 
 - Login por e-mail e senha com Firebase Authentication
