@@ -1403,9 +1403,29 @@ function methodRows(record) {
     const informed = record.countedByMethod[key];
     const diff = record.differences[key];
     const status = differenceLabel(diff);
-    return `<tr><td>${labels[key]}</td><td>${formatBRL(expected)}</td><td>${formatBRL(informed)}</td><td class="${differenceClass(diff)}">${formatBRL(diff)} <span class="badge ${status[0]}">${status[1]}</span></td></tr>`;
+    return `<tr><td data-label="Forma">${labels[key]}</td><td data-label="Site">${formatBRL(expected)}</td><td data-label="Conferido pela loja">${formatBRL(informed)}</td><td data-label="Diferença" class="${differenceClass(diff)}">${formatBRL(diff)} <span class="badge ${status[0]}">${status[1]}</span></td></tr>`;
   }).join('');
 }
+
+function setFinanceReviewTab(tab = 'overview') {
+  const availableTabs = new Set($$('[data-review-tab]').map(button => button.dataset.reviewTab));
+  const activeTab = availableTabs.has(tab) ? tab : 'overview';
+  $$('[data-review-tab]').forEach(button => {
+    const selected = button.dataset.reviewTab === activeTab;
+    button.classList.toggle('is-active',selected);
+    button.setAttribute('aria-selected',String(selected));
+  });
+  $$('[data-review-panel]').forEach(panel => {
+    const selected = panel.dataset.reviewPanel === activeTab;
+    panel.classList.toggle('is-active',selected);
+    panel.hidden = !selected;
+  });
+}
+
+$('.review-tabs').addEventListener('click',event => {
+  const button = event.target.closest('[data-review-tab]');
+  if (button) setFinanceReviewTab(button.dataset.reviewTab);
+});
 
 function metric(label, value, asMoney=true) {
   return `<div><span>${escapeHtml(label)}</span><b>${asMoney ? formatBRL(value) : escapeHtml(value)}</b></div>`;
@@ -1554,6 +1574,7 @@ function openFinanceReview(id) {
   $('#financePixRequests').innerHTML = renderFinancePixRequests(currentReviewRecord,existing);
   $('#reopenPanel').classList.add('hidden');
   $('#reopenReason').value = '';
+  setFinanceReviewTab('overview');
   updateFinanceCalculation();
   setFinanceReviewLocked(state === 'approved');
   renderAuditTimeline(currentReviewRecord.id);
@@ -1565,6 +1586,7 @@ function setFinanceReviewLocked(locked) {
   $('#approveClosing').classList.toggle('hidden',locked);
   $('#returnClosing').classList.toggle('hidden',locked);
   $('#reopenClosing').classList.toggle('hidden',!(locked && profile?.role === 'admin'));
+  $('.review-action-bar').classList.toggle('hidden',locked && profile?.role !== 'admin');
   $('#toggleOperatorCorrection').classList.toggle('hidden',locked);
   if (locked) $('#operatorCorrectionPanel').classList.add('hidden');
 }
@@ -1669,8 +1691,12 @@ function buildFinancePendingItems(record,financeData,result) {
 }
 
 function focusReviewPending(target) {
+  const targetTabs = {
+    amount:'payments',confirmations:'payments',pix:'movements',sangria:'movements',opinion:'movements'
+  };
+  setFinanceReviewTab(targetTabs[target] || 'overview');
   const selectors = {
-    pix:'#financePixRequests',sangria:'#reviewSangriaAlert',amount:'input[inputmode="decimal"]',
+    pix:'#financePixRequests',sangria:'[name="finance_sangria_received"]',amount:'input[inputmode="decimal"]',
     confirmations:'.finance-confirm-section',opinion:'[name="finance_divergence_reason"]'
   };
   const element = target === 'amount' ? firstInvalidAmountInput($('#financeReviewForm')) : $(selectors[target]);

@@ -77,9 +77,24 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.5.9');
-  assert.match(html,/app\.js\?v=2\.5\.9/);
-  assert.match(html,/styles\.css\?v=2\.5\.9/);
+  assert.equal(JSON.parse(packageJson).version,'2.6.0');
+  assert.match(html,/app\.js\?v=2\.6\.0/);
+  assert.match(html,/styles\.css\?v=2\.6\.0/);
+});
+
+test('conferência financeira usa layout responsivo com navegação e ações persistentes',()=>{
+  assert.match(html,/class="finance-filter-shell card"/);
+  assert.match(html,/class="review-tabs" role="tablist"/);
+  assert.match(html,/data-review-tab="overview"/);
+  assert.match(html,/data-review-panel="payments"/);
+  assert.match(html,/data-review-panel="movements"/);
+  assert.match(html,/data-review-panel="history"/);
+  assert.match(html,/class="finance-review-sidebar"/);
+  assert.match(html,/class="review-action-bar form-actions"/);
+  assert.match(app,/function setFinanceReviewTab/);
+  assert.match(app,/amount:'payments',confirmations:'payments',pix:'movements'/);
+  assert.match(css,/\.finance-review-layout \{/);
+  assert.match(css,/\.review-action-bar \{[\s\S]*position: fixed/);
 });
 
 test('seletores de vários elementos sempre retornam uma lista antes de usar forEach',()=>{
