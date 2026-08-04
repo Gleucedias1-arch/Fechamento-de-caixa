@@ -966,7 +966,12 @@ async function persistClosing(finalStatus) {
   const user = auth.currentUser;
   if (!allowedStores().includes(data.store)) throw new Error('Loja não autorizada.');
   const editingId = $('#closingForm').dataset.id || '';
-  const sameSlot = (await fetchClosings(data.date,data.date)).find(item =>
+  // Operadores só podem ler fechamentos por consultas filtradas pela loja.
+  // Uma leitura direta em closings/{id} é recusada pelas regras do Firebase,
+  // inclusive quando o registro ainda não existe. Reaproveitar esta consulta
+  // segura evita o falso erro de permissão antes do salvamento.
+  const scopedClosings = await fetchClosings(data.date,data.date);
+  const sameSlot = scopedClosings.find(item =>
     item.id !== editingId && item.store === data.store && item.date === data.date
       && (item.shift || 'Noite') === (data.shift || 'Noite')
   );
@@ -975,10 +980,9 @@ async function persistClosing(finalStatus) {
   }
   const id = editingId || closingDocumentId(data);
   const now = Date.now();
-  const existingSnap = await get(ref(db,`closings/${id}`));
-  const existingRecord = existingSnap.exists() ? existingSnap.val() : {};
-  if (!editingId && existingSnap.exists()) {
-    throw new Error('Este fechamento já existe. Abra o registro existente no Histórico.');
+  const existingRecord = editingId ? scopedClosings.find(item => item.id === editingId) : null;
+  if (editingId && !existingRecord) {
+    throw new Error('Não foi possível localizar este fechamento na loja permitida. Abra o registro novamente pelo Histórico.');
   }
   const uploaded = await uploadPendingAttachments(id,data);
   const attachments = [...savedAttachments,...uploaded];
@@ -989,8 +993,8 @@ async function persistClosing(finalStatus) {
   const record = {
     ...persistedData,...calc,id,attachments,status:finalStatus,locked:false,
     financeStatus: finalStatus === 'submitted' ? 'pending' : 'not_submitted',
-    createdBy:existingRecord.createdBy || user.uid,createdByName:existingRecord.createdByName || profile.name,
-    createdAt:existingRecord.createdAt || now,updatedAt:now,
+    createdBy:existingRecord?.createdBy || user.uid,createdByName:existingRecord?.createdByName || profile.name,
+    createdAt:existingRecord?.createdAt || now,updatedAt:now,
     submittedAt:finalStatus === 'submitted' ? now : null,
     searchDateStore:`${data.date}_${data.store}`
   };
@@ -1008,7 +1012,7 @@ async function persistClosing(finalStatus) {
   $('#formStatus').className = `badge ${finalStatus === 'submitted' ? 'warn' : 'draft'}`;
   await appendAudit(id,finalStatus === 'submitted' ? 'submitted' : 'draft_saved',
     finalStatus === 'submitted' ? `Fechamento enviado com ${attachments.length} comprovante(s).` : 'Rascunho salvo.').catch(()=>{});
-  if (data.openingFloatSourceId && data.openingFloatSourceId !== existingRecord.openingFloatSourceId) {
+  if (data.openingFloatSourceId && data.openingFloatSourceId !== existingRecord?.openingFloatSourceId) {
     await appendAudit(id,'opening_float_connected',
       `Saldo inicial de ${formatBRL(data.opening_float)} conectado ao fechamento anterior.`).catch(()=>{});
   }

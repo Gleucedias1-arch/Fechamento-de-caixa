@@ -73,9 +73,9 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.5.7');
-  assert.match(html,/app\.js\?v=2\.5\.7/);
-  assert.match(html,/styles\.css\?v=2\.5\.7/);
+  assert.equal(JSON.parse(packageJson).version,'2.5.8');
+  assert.match(html,/app\.js\?v=2\.5\.8/);
+  assert.match(html,/styles\.css\?v=2\.5\.8/);
 });
 
 test('seletores de vários elementos sempre retornam uma lista antes de usar forEach',()=>{
@@ -409,6 +409,12 @@ test('rascunho aceita perfis com store legado ou lista stores e erros de envio s
   assert.match(app,/firstIssue\.title/);
   assert.match(app,/Sem permissão para \$\{action\} nesta loja/);
   assert.match(css,/\.closing-submit-error/);
+});
+
+test('operador não faz leitura direta proibida antes de salvar o fechamento',()=>{
+  assert.match(app,/const scopedClosings = await fetchClosings\(data\.date,data\.date\)/);
+  assert.match(app,/const existingRecord = editingId \? scopedClosings\.find/);
+  assert.doesNotMatch(app,/get\(ref\(db,`closings\/\$\{id\}`\)\)/);
 });
 
 
