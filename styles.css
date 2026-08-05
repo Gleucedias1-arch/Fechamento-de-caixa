@@ -34,8 +34,19 @@ button, input, select, textarea { font: inherit; }
 .stack { display: grid; gap: 16px; margin-top: 28px; }
 
 label { display: grid; gap: 7px; font-size: 12px; font-weight: 700; color: #4b5563; }
-input, select, textarea { width: 100%; border: 1px solid #d8dde3; border-radius: 9px; padding: 10px 11px; background: #fff; color: var(--ink); outline: 0; transition: .15s; }
+input, select, textarea { width: 100%; border: 1px solid #d8dde3; border-radius: 9px; padding: 10px 11px; background: #fff; color: var(--ink); outline: 0; transition: .15s; font-size: 15px; }
 input:focus, select:focus, textarea:focus { border-color: var(--yellow-dark); box-shadow: 0 0 0 3px rgba(248, 196, 0, .17); }
+
+/* Prevent iOS Safari from auto-zooming when focusing an input on mobile.
+   Any font-size < 16px triggers the zoom, so force 16px on small screens. */
+@media (max-width: 760px) {
+  html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  input, select, textarea { font-size: 16px !important; }
+  .sheet-value-grid input,
+  .machine-entry-fields input,
+  .machine-choice span,
+  .cash-count-card input { font-size: 16px !important; }
+}
 .btn { border: 0; border-radius: 10px; padding: 11px 17px; font-weight: 750; cursor: pointer; transition: .15s; min-height: 42px; }
 .btn:hover { transform: translateY(-1px); filter: brightness(.98); }
 .btn-primary { background: var(--yellow); color: #171717; }

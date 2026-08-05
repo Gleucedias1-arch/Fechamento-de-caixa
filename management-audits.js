@@ -56,18 +56,21 @@ function injectStyles() {
   .modern-house-mark.small .logo-number{right:2px;bottom:2px;font-size:6px!important}
   .audit-view{display:none;padding:28px;max-width:1450px;margin:auto}.audit-view.active-view{display:block}
   .audit-hero{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:18px;padding:20px;border-radius:16px;background:linear-gradient(135deg,#17384f,#285f80);color:#fff}
-  .audit-hero-body{display:flex;align-items:center;gap:14px}
+  .audit-hero-body{display:flex;align-items:center;gap:14px;min-width:0;flex:1}
   .audit-hero-icon{display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:14px;background:#ffffff1f;font-size:26px;line-height:1;flex-shrink:0}
   .audit-title-icon{margin-right:6px;font-size:1.05em;line-height:1}
-  .audit-hero h3{margin:0;font-size:19px}.audit-hero p{margin:5px 0 0;color:#dbe9f1;font-size:11px}.audit-hero span{padding:7px 11px;border-radius:999px;background:#ffffff18;font-size:10px;font-weight:800}
+  .audit-hero-badge{padding:7px 11px;border-radius:999px;background:#ffffff18;font-size:10px;font-weight:800;white-space:nowrap;letter-spacing:.04em}
+  .audit-hero h3{margin:0;font-size:19px;text-align:left;line-height:1.2}
+  .audit-hero p{margin:5px 0 0;color:#dbe9f1;font-size:11px;text-align:left;line-height:1.4}
   .audit-layout{display:grid;grid-template-columns:minmax(330px,.72fr) minmax(0,1.28fr);gap:16px}.audit-form{display:grid;gap:13px}.audit-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}.audit-form-grid .wide{grid-column:1/-1}
   .audit-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.audit-metric{padding:14px;border:1px solid var(--line);border-radius:11px;background:#f8fafb}.audit-metric span,.audit-metric small{display:block;color:var(--muted);font-size:9px}.audit-metric strong{display:block;margin:5px 0;font-size:18px}.audit-metric.positive strong{color:var(--green)}.audit-metric.negative strong{color:var(--red)}
   .audit-list{display:grid;gap:10px}.audit-record{display:grid;grid-template-columns:1.1fr .8fr .8fr .8fr;gap:12px;align-items:center;padding:13px;border:1px solid var(--line);border-radius:11px;background:#fff;position:relative;padding-bottom:24px}.audit-record b,.audit-record span,.audit-record small{display:block}.audit-record span,.audit-record small{margin-top:3px;color:var(--muted);font-size:9px}.audit-record .difference{font-size:14px;font-weight:900}.difference.ok{color:var(--green)}.difference.bad{color:var(--red)}
   .audit-record .audit-author{position:absolute;left:13px;right:13px;bottom:6px;margin:0;padding-top:6px;border-top:1px dashed #e7ecf1;color:#7a8592;font-size:9px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;display:flex;align-items:center;gap:6px}
   .audit-record .audit-author::before{content:"👤";font-size:11px}
   .backup-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.backup-card{padding:20px;border:1px solid var(--line);border-radius:14px;background:#fff}.backup-card h4{margin:0}.backup-card p{min-height:44px;color:var(--muted);font-size:10px;line-height:1.55}.backup-status{margin-top:15px;padding:12px;border-radius:10px;background:var(--blue-soft);color:var(--blue);font-size:10px;font-weight:800}
-  @media(max-width:900px){.audit-layout{grid-template-columns:1fr}.backup-grid{grid-template-columns:1fr}.audit-record{grid-template-columns:1fr 1fr}}
-  @media(max-width:620px){.audit-view{padding:14px}.audit-form-grid,.audit-summary,.audit-record{grid-template-columns:1fr}.audit-hero{align-items:flex-start;flex-direction:column}}
+  @media(max-width:1200px){.audit-view{padding:22px}.audit-layout{grid-template-columns:minmax(300px,.8fr) minmax(0,1.2fr)}}
+  @media(max-width:960px){.audit-layout{grid-template-columns:1fr;gap:14px}.backup-grid{grid-template-columns:1fr}.audit-record{grid-template-columns:1fr 1fr}}
+  @media(max-width:640px){.audit-view{padding:14px}.audit-form-grid,.audit-summary,.audit-record{grid-template-columns:1fr}.audit-hero{flex-direction:column;align-items:stretch;gap:12px;padding:16px}.audit-hero-body{align-items:flex-start}.audit-hero-icon{width:44px;height:44px;font-size:22px;border-radius:12px}.audit-hero h3{font-size:17px}.audit-hero p{font-size:11px}.audit-hero-badge{align-self:flex-start;font-size:9px;padding:5px 9px}.audit-record{padding-bottom:28px}}
 
   /* Daily audit summary card injected into the closing view */
   .daily-audit-card{margin:0 0 16px;padding:16px 18px;border-radius:16px;border:1px solid var(--line);background:linear-gradient(135deg,#fff,#f4f7fa);display:grid;gap:12px}
@@ -129,7 +132,7 @@ function injectNavigationAndViews() {
     <button class="nav-item admin-only audit-nav" data-audit-view="backupCenter">⟳ <span>Backups</span></button>`);
   workspace.insertAdjacentHTML('beforeend',`
     <section id="motoboyAuditView" class="audit-view">
-      <div class="audit-hero"><div class="audit-hero-body"><span class="audit-hero-icon" aria-hidden="true">🏍️</span><div><h3><span class="audit-title-icon" aria-hidden="true">🏍️</span>Auditoria de motoboys</h3><p>Compare o valor de entrega lançado no sistema com o valor efetivamente pago.</p></div></div><span>CONFERÊNCIA DIÁRIA</span></div>
+      <div class="audit-hero"><div class="audit-hero-body"><span class="audit-hero-icon" aria-hidden="true">🏍️</span><div><h3>Auditoria de motoboys</h3><p>Compare o valor de entrega lançado no sistema com o valor efetivamente pago.</p></div></div><span class="audit-hero-badge">CONFERÊNCIA DIÁRIA</span></div>
       <div class="audit-layout">
         <article class="card"><div class="card-title"><div><h3>Nova conferência</h3><p>Registre os dois valores para calcular a divergência.</p></div></div>
           <form id="motoboyAuditForm" class="audit-form"><div class="audit-form-grid">
@@ -143,7 +146,7 @@ function injectNavigationAndViews() {
       </div>
     </section>
     <section id="invoiceAuditView" class="audit-view">
-      <div class="audit-hero"><div class="audit-hero-body"><span class="audit-hero-icon" aria-hidden="true">🧾</span><div><h3><span class="audit-title-icon" aria-hidden="true">🧾</span>Auditoria de lançamento de notas</h3><p>Concilie iFood, máquinas fiscais e a nota fiscal emitida do dia.</p></div></div><span>CONFERÊNCIA DIÁRIA</span></div>
+      <div class="audit-hero"><div class="audit-hero-body"><span class="audit-hero-icon" aria-hidden="true">🧾</span><div><h3>Auditoria de lançamento de notas</h3><p>Concilie iFood, máquinas fiscais e a nota fiscal emitida do dia.</p></div></div><span class="audit-hero-badge">CONFERÊNCIA DIÁRIA</span></div>
       <div class="audit-layout">
         <article class="card"><div class="card-title"><div><h3>Nova conferência</h3><p>Informe os três valores do dia para conferir a emissão.</p></div></div>
           <form id="invoiceAuditForm" class="audit-form"><div class="audit-form-grid">
