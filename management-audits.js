@@ -14,7 +14,7 @@ const number = value => Number(String(value ?? 0).replace(',','.')) || 0;
 const dateBR = value => value ? value.split('-').reverse().join('/') : '—';
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const today = () => new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
-const canAudit = () => ['admin','finance'].includes(currentProfile?.role);
+const canAudit = () => ['admin','finance','operator','manager'].includes(currentProfile?.role);
 const canBackup = () => currentProfile?.role === 'admin';
 
 function notify(message,error=false) {
@@ -43,6 +43,9 @@ function injectStyles() {
   .modern-house-mark.small .logo-number{right:2px;bottom:2px;font-size:6px!important}
   .audit-view{display:none;padding:28px;max-width:1450px;margin:auto}.audit-view.active-view{display:block}
   .audit-hero{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:18px;padding:20px;border-radius:16px;background:linear-gradient(135deg,#17384f,#285f80);color:#fff}
+  .audit-hero-body{display:flex;align-items:center;gap:14px}
+  .audit-hero-icon{display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:14px;background:#ffffff1f;font-size:26px;line-height:1;flex-shrink:0}
+  .audit-title-icon{margin-right:6px;font-size:1.05em;line-height:1}
   .audit-hero h3{margin:0;font-size:19px}.audit-hero p{margin:5px 0 0;color:#dbe9f1;font-size:11px}.audit-hero span{padding:7px 11px;border-radius:999px;background:#ffffff18;font-size:10px;font-weight:800}
   .audit-layout{display:grid;grid-template-columns:minmax(330px,.72fr) minmax(0,1.28fr);gap:16px}.audit-form{display:grid;gap:13px}.audit-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}.audit-form-grid .wide{grid-column:1/-1}
   .audit-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.audit-metric{padding:14px;border:1px solid var(--line);border-radius:11px;background:#f8fafb}.audit-metric span,.audit-metric small{display:block;color:var(--muted);font-size:9px}.audit-metric strong{display:block;margin:5px 0;font-size:18px}.audit-metric.positive strong{color:var(--green)}.audit-metric.negative strong{color:var(--red)}
@@ -62,40 +65,37 @@ function injectNavigationAndViews() {
   const workspace=document.querySelector('.workspace');
   if (!nav || !workspace || document.querySelector('[data-audit-view="motoboyAudit"]')) return;
   nav.insertAdjacentHTML('beforeend',`
-    <button class="nav-item finance-only audit-nav" data-audit-view="motoboyAudit">⇄ <span>Auditoria motoboys</span></button>
-    <button class="nav-item finance-only audit-nav" data-audit-view="invoiceAudit">▤ <span>Auditoria de notas</span></button>
+    <button class="nav-item audit-nav operator-audit-nav" data-audit-view="motoboyAudit">🏍️ <span>Auditoria motoboys</span></button>
+    <button class="nav-item audit-nav operator-audit-nav" data-audit-view="invoiceAudit">🧾 <span>Auditoria de notas</span></button>
     <button class="nav-item admin-only audit-nav" data-audit-view="backupCenter">⟳ <span>Backups</span></button>`);
   workspace.insertAdjacentHTML('beforeend',`
     <section id="motoboyAuditView" class="audit-view">
-      <div class="audit-hero"><div><h3>Auditoria de motoboys</h3><p>Compare o valor de entrega lançado no sistema com o valor efetivamente pago.</p></div><span>CONFERÊNCIA FINANCEIRA</span></div>
+      <div class="audit-hero"><div class="audit-hero-body"><span class="audit-hero-icon" aria-hidden="true">🏍️</span><div><h3><span class="audit-title-icon" aria-hidden="true">🏍️</span>Auditoria de motoboys</h3><p>Compare o valor de entrega lançado no sistema com o valor efetivamente pago.</p></div></div><span>CONFERÊNCIA DIÁRIA</span></div>
       <div class="audit-layout">
         <article class="card"><div class="card-title"><div><h3>Nova conferência</h3><p>Registre os dois valores para calcular a divergência.</p></div></div>
           <form id="motoboyAuditForm" class="audit-form"><div class="audit-form-grid">
             <label>Data<input name="date" type="date" required></label><label>Loja<select name="store" required>${storesOptions()}</select></label>
-            <label class="wide">Motoboy<input name="driver" maxlength="100" required placeholder="Nome do motoboy"></label>
-            <label>Valor no sistema<input name="systemAmount" type="number" min="0" max="10000000" step="0.01" required></label>
-            <label>Valor pago<input name="paidAmount" type="number" min="0" max="10000000" step="0.01" required></label>
-            <label class="wide">Observação<textarea name="notes" maxlength="500" rows="3" placeholder="Explique ajustes, descontos ou pagamentos adicionais"></textarea></label>
+            <label>Valor de motoboy no sistema<input name="systemAmount" type="number" min="0" max="10000000" step="0.01" required placeholder="0,00"></label>
+            <label>Valor realmente pago<input name="paidAmount" type="number" min="0" max="10000000" step="0.01" required placeholder="0,00"></label>
+            <label class="wide">Observação<textarea name="notes" maxlength="500" rows="3" placeholder="Motoboy conferido, ajustes, descontos ou pagamentos adicionais"></textarea></label>
           </div><div id="motoboyPreview" class="audit-summary"></div><button class="btn btn-primary" type="submit">Registrar auditoria</button></form>
         </article>
         <article class="card"><div class="card-title"><div><h3>Últimas auditorias</h3><p>Histórico preservado para conferência.</p></div><button id="refreshMotoboyAudit" class="btn btn-secondary btn-small">Atualizar</button></div><div id="motoboyAuditList" class="audit-list"></div></article>
       </div>
     </section>
     <section id="invoiceAuditView" class="audit-view">
-      <div class="audit-hero"><div><h3>Auditoria de emissão de notas</h3><p>Compare vendas do iFood e máquinas com as notas emitidas no dia.</p></div><span>QUANTIDADE + VALOR</span></div>
+      <div class="audit-hero"><div class="audit-hero-body"><span class="audit-hero-icon" aria-hidden="true">🧾</span><div><h3><span class="audit-title-icon" aria-hidden="true">🧾</span>Auditoria de lançamento de notas</h3><p>Concilie iFood, máquinas fiscais e a nota fiscal emitida do dia.</p></div></div><span>CONFERÊNCIA DIÁRIA</span></div>
       <div class="audit-layout">
-        <article class="card"><div class="card-title"><div><h3>Nova conferência</h3><p>Informe vendas e notas emitidas no mesmo canal.</p></div></div>
+        <article class="card"><div class="card-title"><div><h3>Nova conferência</h3><p>Informe os três valores do dia para conferir a emissão.</p></div></div>
           <form id="invoiceAuditForm" class="audit-form"><div class="audit-form-grid">
             <label>Data<input name="date" type="date" required></label><label>Loja<select name="store" required>${storesOptions()}</select></label>
-            <label class="wide">Canal<select name="channel" required>${channelsOptions()}</select></label>
-            <label>Quantidade de vendas<input name="salesCount" type="number" min="0" max="100000" step="1" required></label>
-            <label>Valor vendido<input name="salesAmount" type="number" min="0" max="10000000" step="0.01" required></label>
-            <label>Quantidade de notas emitidas<input name="issuedCount" type="number" min="0" max="100000" step="1" required></label>
-            <label>Valor total emitido<input name="issuedAmount" type="number" min="0" max="10000000" step="0.01" required></label>
+            <label>Valor vendido no iFood<input name="ifoodAmount" type="number" min="0" max="10000000" step="0.01" required placeholder="0,00"></label>
+            <label>Valor passado nas máquinas fiscais<input name="machinesAmount" type="number" min="0" max="10000000" step="0.01" required placeholder="0,00"></label>
+            <label class="wide">Valor de nota fiscal emitida<input name="invoiceAmount" type="number" min="0" max="10000000" step="0.01" required placeholder="0,00"></label>
             <label class="wide">Observação<textarea name="notes" maxlength="500" rows="3" placeholder="Explique notas pendentes, canceladas ou diferenças"></textarea></label>
           </div><div id="invoicePreview" class="audit-summary"></div><button class="btn btn-primary" type="submit">Registrar auditoria</button></form>
         </article>
-        <article class="card"><div class="card-title"><div><h3>Últimas auditorias</h3><p>iFood e máquinas conferidos por dia.</p></div><button id="refreshInvoiceAudit" class="btn btn-secondary btn-small">Atualizar</button></div><div id="invoiceAuditList" class="audit-list"></div></article>
+        <article class="card"><div class="card-title"><div><h3>Últimas auditorias</h3><p>iFood, máquinas fiscais e nota emitida por dia.</p></div><button id="refreshInvoiceAudit" class="btn btn-secondary btn-small">Atualizar</button></div><div id="invoiceAuditList" class="audit-list"></div></article>
       </div>
     </section>
     <section id="backupCenterView" class="audit-view">
@@ -139,12 +139,17 @@ function motoboyPreview(){
 }
 function invoicePreview(){
   const form=document.querySelector('#invoiceAuditForm'); if(!form)return;
-  const countDiff=number(form.issuedCount.value)-number(form.salesCount.value);
-  const amountDiff=number(form.issuedAmount.value)-number(form.salesAmount.value);
+  const ifood=number(form.ifoodAmount.value);
+  const machines=number(form.machinesAmount.value);
+  const invoice=number(form.invoiceAmount.value);
+  const expected=ifood+machines;
+  const diff=expected-invoice;
+  const isEven=Math.abs(diff)<.01;
+  const statusLabel=isEven?'Nota confere com iFood + máquinas':diff>0?'Nota emitida a menos':'Nota emitida a mais';
   document.querySelector('#invoicePreview').innerHTML=`
-    <div class="audit-metric ${countDiff===0?'positive':'negative'}"><span>DIFERENÇA EM NOTAS</span><strong>${countDiff}</strong><small>${countDiff===0?'Quantidade confere':countDiff>0?'Notas a mais':'Notas pendentes'}</small></div>
-    <div class="audit-metric ${Math.abs(amountDiff)<.01?'positive':'negative'}"><span>DIFERENÇA EM VALOR</span><strong>${money(amountDiff)}</strong></div>
-    <div class="audit-metric"><span>CANAL</span><strong>${escapeHtml(form.channel.value||'—')}</strong></div>`;
+    <div class="audit-metric"><span>IFOOD + MÁQUINAS</span><strong>${money(expected)}</strong><small>${money(ifood)} + ${money(machines)}</small></div>
+    <div class="audit-metric"><span>NF EMITIDA</span><strong>${money(invoice)}</strong></div>
+    <div class="audit-metric ${isEven?'positive':'negative'}"><span>DIFERENÇA (ESPERADO − NF)</span><strong>${money(diff)}</strong><small>${statusLabel}</small></div>`;
 }
 
 function bindForms(){
@@ -153,17 +158,21 @@ function bindForms(){
   motoboy?.addEventListener('input',motoboyPreview); invoice?.addEventListener('input',invoicePreview);
   motoboyPreview(); invoicePreview();
   motoboy?.addEventListener('submit',async event=>{
-    event.preventDefault(); if(!canAudit())return notify('Acesso restrito ao financeiro.',true);
+    event.preventDefault(); if(!canAudit())return notify('Acesso restrito à equipe autorizada.',true);
     const data=Object.fromEntries(new FormData(motoboy));
     const systemAmount=number(data.systemAmount),paidAmount=number(data.paidAmount);
-    const record={date:data.date,store:data.store,driver:String(data.driver).trim(),systemAmount,paidAmount,difference:paidAmount-systemAmount,notes:String(data.notes||'').trim(),createdAt:Date.now(),createdBy:auth.currentUser.uid,createdByName:currentProfile.name||auth.currentUser.email};
+    const record={date:data.date,store:data.store,systemAmount,paidAmount,difference:paidAmount-systemAmount,notes:String(data.notes||'').trim(),createdAt:Date.now(),createdBy:auth.currentUser.uid,createdByName:currentProfile.name||auth.currentUser.email};
     try{await set(push(ref(db,'motoboyAudits')),record);notify('Auditoria do motoboy registrada.');motoboy.reset();motoboy.date.value=today();motoboyPreview();loadMotoboyAudits();}catch(error){notify('Não foi possível registrar: '+error.message,true);}
   });
   invoice?.addEventListener('submit',async event=>{
-    event.preventDefault(); if(!canAudit())return notify('Acesso restrito ao financeiro.',true);
+    event.preventDefault(); if(!canAudit())return notify('Acesso restrito à equipe autorizada.',true);
     const data=Object.fromEntries(new FormData(invoice));
-    const record={date:data.date,store:data.store,channel:data.channel,salesCount:number(data.salesCount),salesAmount:number(data.salesAmount),issuedCount:number(data.issuedCount),issuedAmount:number(data.issuedAmount),notes:String(data.notes||'').trim(),createdAt:Date.now(),createdBy:auth.currentUser.uid,createdByName:currentProfile.name||auth.currentUser.email};
-    record.countDifference=record.issuedCount-record.salesCount; record.amountDifference=record.issuedAmount-record.salesAmount;
+    const ifoodAmount=number(data.ifoodAmount);
+    const machinesAmount=number(data.machinesAmount);
+    const invoiceAmount=number(data.invoiceAmount);
+    const expectedAmount=ifoodAmount+machinesAmount;
+    const difference=expectedAmount-invoiceAmount;
+    const record={date:data.date,store:data.store,ifoodAmount,machinesAmount,invoiceAmount,expectedAmount,difference,notes:String(data.notes||'').trim(),createdAt:Date.now(),createdBy:auth.currentUser.uid,createdByName:currentProfile.name||auth.currentUser.email};
     try{await set(push(ref(db,'invoiceAudits')),record);notify('Auditoria de notas registrada.');invoice.reset();invoice.date.value=today();invoicePreview();loadInvoiceAudits();}catch(error){notify('Não foi possível registrar: '+error.message,true);}
   });
   document.querySelector('#refreshMotoboyAudit')?.addEventListener('click',loadMotoboyAudits);
@@ -175,14 +184,31 @@ function bindForms(){
 async function loadMotoboyAudits(){
   const list=document.querySelector('#motoboyAuditList'); if(!list||!canAudit())return;
   list.innerHTML='<p class="empty">Carregando…</p>';
-  try{const snap=await get(query(ref(db,'motoboyAudits'),orderByChild('createdAt'),limitToLast(40)));const rows=Object.values(snap.val()||{}).reverse();list.innerHTML=rows.length?rows.map(item=>`
-    <div class="audit-record"><div><b>${escapeHtml(item.driver)}</b><span>${escapeHtml(item.store)} · ${dateBR(item.date)}</span></div><div><small>Sistema</small><b>${money(item.systemAmount)}</b></div><div><small>Pago</small><b>${money(item.paidAmount)}</b></div><div><small>Divergência</small><b class="difference ${Math.abs(item.difference)<.01?'ok':'bad'}">${money(item.difference)}</b><span>${Math.abs(item.difference)<.01?'Conferido':item.difference>0?'Pago a mais':'Pago a menos'}</span></div></div>`).join(''):'<p class="empty">Nenhuma auditoria registrada.</p>';}catch(error){list.innerHTML='<p class="empty">Não foi possível carregar.</p>';}
+  try{const snap=await get(query(ref(db,'motoboyAudits'),orderByChild('createdAt'),limitToLast(40)));const rows=Object.values(snap.val()||{}).reverse();list.innerHTML=rows.length?rows.map(item=>{
+    const sys=number(item.systemAmount);const paid=number(item.paidAmount);
+    const diff=item.difference!=null?number(item.difference):(paid-sys);
+    const title=item.driver?escapeHtml(item.driver):'🏍️ Motoboys do dia';
+    return `<div class="audit-record"><div><b>${title}</b><span>${escapeHtml(item.store||'—')} · ${dateBR(item.date)}</span></div><div><small>Sistema</small><b>${money(sys)}</b></div><div><small>Pago</small><b>${money(paid)}</b></div><div><small>Divergência</small><b class="difference ${Math.abs(diff)<.01?'ok':'bad'}">${money(diff)}</b><span>${Math.abs(diff)<.01?'Conferido':diff>0?'Pago a mais':'Pago a menos'}</span></div></div>`;
+  }).join(''):'<p class="empty">Nenhuma auditoria registrada.</p>';}catch(error){list.innerHTML='<p class="empty">Não foi possível carregar.</p>';}
 }
 async function loadInvoiceAudits(){
   const list=document.querySelector('#invoiceAuditList'); if(!list||!canAudit())return;
   list.innerHTML='<p class="empty">Carregando…</p>';
-  try{const snap=await get(query(ref(db,'invoiceAudits'),orderByChild('createdAt'),limitToLast(40)));const rows=Object.values(snap.val()||{}).reverse();list.innerHTML=rows.length?rows.map(item=>`
-    <div class="audit-record"><div><b>${escapeHtml(item.channel)}</b><span>${escapeHtml(item.store)} · ${dateBR(item.date)}</span></div><div><small>Vendas</small><b>${item.salesCount} · ${money(item.salesAmount)}</b></div><div><small>Notas emitidas</small><b>${item.issuedCount} · ${money(item.issuedAmount)}</b></div><div><small>Divergência</small><b class="difference ${item.countDifference===0&&Math.abs(item.amountDifference)<.01?'ok':'bad'}">${item.countDifference} nota(s)</b><span>${money(item.amountDifference)}</span></div></div>`).join(''):'<p class="empty">Nenhuma auditoria registrada.</p>';}catch(error){list.innerHTML='<p class="empty">Não foi possível carregar.</p>';}
+  try{const snap=await get(query(ref(db,'invoiceAudits'),orderByChild('createdAt'),limitToLast(40)));const rows=Object.values(snap.val()||{}).reverse();list.innerHTML=rows.length?rows.map(item=>{
+    const hasNew=item.ifoodAmount!=null||item.machinesAmount!=null||item.invoiceAmount!=null;
+    if(hasNew){
+      const ifood=number(item.ifoodAmount);const machines=number(item.machinesAmount);const invoice=number(item.invoiceAmount);
+      const expected=item.expectedAmount!=null?number(item.expectedAmount):(ifood+machines);
+      const diff=item.difference!=null?number(item.difference):(expected-invoice);
+      const isEven=Math.abs(diff)<.01;
+      const label=isEven?'Nota confere':diff>0?'Nota emitida a menos':'Nota emitida a mais';
+      return `<div class="audit-record"><div><b>🧾 ${escapeHtml(item.store||'—')}</b><span>${dateBR(item.date)}</span></div><div><small>iFood + Máquinas</small><b>${money(expected)}</b><span>${money(ifood)} + ${money(machines)}</span></div><div><small>NF emitida</small><b>${money(invoice)}</b></div><div><small>Divergência</small><b class="difference ${isEven?'ok':'bad'}">${money(diff)}</b><span>${label}</span></div></div>`;
+    }
+    const salesAmt=number(item.salesAmount);const issuedAmt=number(item.issuedAmount);
+    const amountDiff=item.amountDifference!=null?number(item.amountDifference):(issuedAmt-salesAmt);
+    const countDiff=item.countDifference!=null?item.countDifference:((item.issuedCount||0)-(item.salesCount||0));
+    return `<div class="audit-record legacy-record"><div><b>${escapeHtml(item.channel||'—')}</b><span>${escapeHtml(item.store||'—')} · ${dateBR(item.date)}</span><small>Registro anterior</small></div><div><small>Vendas</small><b>${item.salesCount??'—'} · ${money(salesAmt)}</b></div><div><small>Notas emitidas</small><b>${item.issuedCount??'—'} · ${money(issuedAmt)}</b></div><div><small>Divergência</small><b class="difference ${countDiff===0&&Math.abs(amountDiff)<.01?'ok':'bad'}">${countDiff} nota(s)</b><span>${money(amountDiff)}</span></div></div>`;
+  }).join(''):'<p class="empty">Nenhuma auditoria registrada.</p>';}catch(error){list.innerHTML='<p class="empty">Não foi possível carregar.</p>';}
 }
 
 async function collectBackup(){
@@ -213,5 +239,5 @@ async function downloadLatestBackup(){
 document.addEventListener('DOMContentLoaded',()=>{injectStyles();modernizeBrand();injectNavigationAndViews();});
 onAuthStateChanged(auth,async user=>{
   if(!user){currentProfile=null;return;}
-  try{const snap=await get(ref(db,'users/'+user.uid));currentProfile=snap.val();document.querySelectorAll('.audit-nav.finance-only').forEach(el=>el.classList.toggle('hidden',!canAudit()));document.querySelectorAll('.audit-nav.admin-only').forEach(el=>el.classList.toggle('hidden',!canBackup()));if(canBackup())ensureDailyBackup();}catch{currentProfile=null;}
+  try{const snap=await get(ref(db,'users/'+user.uid));currentProfile=snap.val();document.querySelectorAll('.audit-nav.operator-audit-nav').forEach(el=>el.classList.toggle('hidden',!canAudit()));document.querySelectorAll('.audit-nav.admin-only').forEach(el=>el.classList.toggle('hidden',!canBackup()));if(canBackup())ensureDailyBackup();}catch{currentProfile=null;}
 });

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 
-const [html,app,css,rules,packageJson,driveScript,closingScript,selfieScript,firebaseJson,workflow] = await Promise.all([
+const [html,app,css,rules,packageJson,driveScript,closingScript,selfieScript,firebaseJson,workflow,audits] = await Promise.all([
   fs.readFile(new URL('../index.html',import.meta.url),'utf8'),
   fs.readFile(new URL('../app.js',import.meta.url),'utf8'),
   fs.readFile(new URL('../styles.css',import.meta.url),'utf8'),
@@ -13,6 +13,7 @@ const [html,app,css,rules,packageJson,driveScript,closingScript,selfieScript,fir
   fs.readFile(new URL('../google-apps-script/selfies/Code.gs',import.meta.url),'utf8'),
   fs.readFile(new URL('../firebase.json',import.meta.url),'utf8'),
   fs.readFile(new URL('../.github/workflows/tests.yml',import.meta.url),'utf8'),
+  fs.readFile(new URL('../management-audits.js',import.meta.url),'utf8'),
 ]);
 
 test('área financeira e indicadores existem na interface',()=>{
@@ -479,4 +480,38 @@ test('auditorias, backup e nova identidade estão publicados',()=>{
   assert.match(rules,/motoboyAudits/);
   assert.match(rules,/invoiceAudits/);
   assert.match(rules,/backups/);
+});
+
+test('auditoria de motoboys pede somente sistema x pago com ícone de moto',()=>{
+  assert.match(audits,/Auditoria de motoboys/);
+  assert.match(audits,/🏍️/);
+  assert.match(audits,/name="systemAmount"/);
+  assert.match(audits,/name="paidAmount"/);
+  assert.match(audits,/Valor de motoboy no sistema/);
+  assert.match(audits,/Valor realmente pago/);
+  assert.doesNotMatch(audits,/name="driver"/);
+});
+
+test('auditoria de notas usa iFood, máquinas fiscais e NF emitida com ícone de nota',()=>{
+  assert.match(audits,/Auditoria de lançamento de notas/);
+  assert.match(audits,/🧾/);
+  assert.match(audits,/name="ifoodAmount"/);
+  assert.match(audits,/name="machinesAmount"/);
+  assert.match(audits,/name="invoiceAmount"/);
+  assert.match(audits,/Valor vendido no iFood/);
+  assert.match(audits,/Valor passado nas máquinas fiscais/);
+  assert.match(audits,/Valor de nota fiscal emitida/);
+  assert.doesNotMatch(audits,/name="salesCount"/);
+  assert.doesNotMatch(audits,/name="issuedCount"/);
+});
+
+test('regra financeira e permissão diária permitem operador nas auditorias',()=>{
+  assert.match(audits,/canAudit[\s\S]*?operator/);
+  assert.match(audits,/expectedAmount=ifoodAmount\+machinesAmount/);
+  assert.match(audits,/difference=expectedAmount-invoiceAmount/);
+  assert.match(rules,/"ifoodAmount"/);
+  assert.match(rules,/"machinesAmount"/);
+  assert.match(rules,/"invoiceAmount"/);
+  assert.match(rules,/"expectedAmount"/);
+  assert.doesNotMatch(rules,/"motoboyAudits":[\s\S]*?"role"\).val\(\) === 'finance'\)"[\s]*\},[\s]*"\$id"/);
 });
