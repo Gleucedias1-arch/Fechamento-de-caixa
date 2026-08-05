@@ -12,6 +12,19 @@ let currentProfile = null;
 const money = value => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value)||0);
 const number = value => Number(String(value ?? 0).replace(',','.')) || 0;
 const dateBR = value => value ? value.split('-').reverse().join('/') : '—';
+const dateTimeBR = value => {
+  const timestamp = Number(value);
+  if (!timestamp) return '—';
+  return new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(timestamp));
+};
+const authorLabel = item => {
+  const name = String(item?.createdByName || '').trim();
+  const when = dateTimeBR(item?.createdAt);
+  if (!name && when === '—') return '';
+  if (!name) return `Lançado em ${when}`;
+  if (when === '—') return `Lançado por ${name}`;
+  return `Lançado por ${name} · ${when}`;
+};
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const today = () => new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
 const canAudit = () => ['admin','finance','operator','manager'].includes(currentProfile?.role);
@@ -49,7 +62,9 @@ function injectStyles() {
   .audit-hero h3{margin:0;font-size:19px}.audit-hero p{margin:5px 0 0;color:#dbe9f1;font-size:11px}.audit-hero span{padding:7px 11px;border-radius:999px;background:#ffffff18;font-size:10px;font-weight:800}
   .audit-layout{display:grid;grid-template-columns:minmax(330px,.72fr) minmax(0,1.28fr);gap:16px}.audit-form{display:grid;gap:13px}.audit-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}.audit-form-grid .wide{grid-column:1/-1}
   .audit-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.audit-metric{padding:14px;border:1px solid var(--line);border-radius:11px;background:#f8fafb}.audit-metric span,.audit-metric small{display:block;color:var(--muted);font-size:9px}.audit-metric strong{display:block;margin:5px 0;font-size:18px}.audit-metric.positive strong{color:var(--green)}.audit-metric.negative strong{color:var(--red)}
-  .audit-list{display:grid;gap:10px}.audit-record{display:grid;grid-template-columns:1.1fr .8fr .8fr .8fr;gap:12px;align-items:center;padding:13px;border:1px solid var(--line);border-radius:11px;background:#fff}.audit-record b,.audit-record span,.audit-record small{display:block}.audit-record span,.audit-record small{margin-top:3px;color:var(--muted);font-size:9px}.audit-record .difference{font-size:14px;font-weight:900}.difference.ok{color:var(--green)}.difference.bad{color:var(--red)}
+  .audit-list{display:grid;gap:10px}.audit-record{display:grid;grid-template-columns:1.1fr .8fr .8fr .8fr;gap:12px;align-items:center;padding:13px;border:1px solid var(--line);border-radius:11px;background:#fff;position:relative;padding-bottom:24px}.audit-record b,.audit-record span,.audit-record small{display:block}.audit-record span,.audit-record small{margin-top:3px;color:var(--muted);font-size:9px}.audit-record .difference{font-size:14px;font-weight:900}.difference.ok{color:var(--green)}.difference.bad{color:var(--red)}
+  .audit-record .audit-author{position:absolute;left:13px;right:13px;bottom:6px;margin:0;padding-top:6px;border-top:1px dashed #e7ecf1;color:#7a8592;font-size:9px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;display:flex;align-items:center;gap:6px}
+  .audit-record .audit-author::before{content:"👤";font-size:11px}
   .backup-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.backup-card{padding:20px;border:1px solid var(--line);border-radius:14px;background:#fff}.backup-card h4{margin:0}.backup-card p{min-height:44px;color:var(--muted);font-size:10px;line-height:1.55}.backup-status{margin-top:15px;padding:12px;border-radius:10px;background:var(--blue-soft);color:var(--blue);font-size:10px;font-weight:800}
   @media(max-width:900px){.audit-layout{grid-template-columns:1fr}.backup-grid{grid-template-columns:1fr}.audit-record{grid-template-columns:1fr 1fr}}
   @media(max-width:620px){.audit-view{padding:14px}.audit-form-grid,.audit-summary,.audit-record{grid-template-columns:1fr}.audit-hero{align-items:flex-start;flex-direction:column}}
@@ -64,6 +79,8 @@ function injectStyles() {
   .daily-audit-item .daily-audit-title{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:800}
   .daily-audit-item .daily-audit-title .icon{font-size:16px;line-height:1}
   .daily-audit-item .daily-audit-value{font-size:16px;font-weight:800}
+  .daily-audit-item .daily-audit-author{font-size:10px;color:#6c7683;font-weight:600;display:flex;align-items:center;gap:6px}
+  .daily-audit-item .daily-audit-author::before{content:"👤";font-size:11px}
   .daily-audit-item .daily-audit-status{font-size:11px;font-weight:700}
   .daily-audit-item.pending{border-color:#f0c17a;background:#fff8ec}
   .daily-audit-item.pending .daily-audit-status{color:#a4670a}
@@ -230,13 +247,15 @@ async function loadMotoboyAudits(){
     const sys=number(item.systemAmount);const paid=number(item.paidAmount);
     const diff=item.difference!=null?number(item.difference):(paid-sys);
     const title=item.driver?escapeHtml(item.driver):'🏍️ Motoboys do dia';
-    return `<div class="audit-record"><div><b>${title}</b><span>${escapeHtml(item.store||'—')} · ${dateBR(item.date)}</span></div><div><small>Sistema</small><b>${money(sys)}</b></div><div><small>Pago</small><b>${money(paid)}</b></div><div><small>Divergência</small><b class="difference ${Math.abs(diff)<.01?'ok':'bad'}">${money(diff)}</b><span>${Math.abs(diff)<.01?'Conferido':diff>0?'Pago a mais':'Pago a menos'}</span></div></div>`;
+    const author=authorLabel(item);const authorHtml=author?`<p class="audit-author">${escapeHtml(author)}</p>`:'';
+    return `<div class="audit-record"><div><b>${title}</b><span>${escapeHtml(item.store||'—')} · ${dateBR(item.date)}</span></div><div><small>Sistema</small><b>${money(sys)}</b></div><div><small>Pago</small><b>${money(paid)}</b></div><div><small>Divergência</small><b class="difference ${Math.abs(diff)<.01?'ok':'bad'}">${money(diff)}</b><span>${Math.abs(diff)<.01?'Conferido':diff>0?'Pago a mais':'Pago a menos'}</span></div>${authorHtml}</div>`;
   }).join(''):'<p class="empty">Nenhuma auditoria registrada.</p>';renderDivergenceChart('motoboyAuditChart',rows,{title:'Divergência de motoboys (últimos 14 dias)',subtitle:'Valor pago menos valor no sistema.',valueOf:item=>item.difference!=null?number(item.difference):(number(item.paidAmount)-number(item.systemAmount))});}catch(error){list.innerHTML='<p class="empty">Não foi possível carregar.</p>';}
 }
 async function loadInvoiceAudits(){
   const list=document.querySelector('#invoiceAuditList'); if(!list||!canAudit())return;
   list.innerHTML='<p class="empty">Carregando…</p>';
   try{const snap=await get(query(ref(db,'invoiceAudits'),orderByChild('createdAt'),limitToLast(120)));const rows=Object.values(snap.val()||{}).reverse();const preview=rows.slice(0,40);list.innerHTML=preview.length?preview.map(item=>{
+    const author=authorLabel(item);const authorHtml=author?`<p class="audit-author">${escapeHtml(author)}</p>`:'';
     const hasNew=item.ifoodAmount!=null||item.machinesAmount!=null||item.invoiceAmount!=null;
     if(hasNew){
       const ifood=number(item.ifoodAmount);const machines=number(item.machinesAmount);const invoice=number(item.invoiceAmount);
@@ -244,12 +263,12 @@ async function loadInvoiceAudits(){
       const diff=item.difference!=null?number(item.difference):(expected-invoice);
       const isEven=Math.abs(diff)<.01;
       const label=isEven?'Nota confere':diff>0?'Nota emitida a menos':'Nota emitida a mais';
-      return `<div class="audit-record"><div><b>🧾 ${escapeHtml(item.store||'—')}</b><span>${dateBR(item.date)}</span></div><div><small>iFood + Máquinas</small><b>${money(expected)}</b><span>${money(ifood)} + ${money(machines)}</span></div><div><small>NF emitida</small><b>${money(invoice)}</b></div><div><small>Divergência</small><b class="difference ${isEven?'ok':'bad'}">${money(diff)}</b><span>${label}</span></div></div>`;
+      return `<div class="audit-record"><div><b>🧾 ${escapeHtml(item.store||'—')}</b><span>${dateBR(item.date)}</span></div><div><small>iFood + Máquinas</small><b>${money(expected)}</b><span>${money(ifood)} + ${money(machines)}</span></div><div><small>NF emitida</small><b>${money(invoice)}</b></div><div><small>Divergência</small><b class="difference ${isEven?'ok':'bad'}">${money(diff)}</b><span>${label}</span></div>${authorHtml}</div>`;
     }
     const salesAmt=number(item.salesAmount);const issuedAmt=number(item.issuedAmount);
     const amountDiff=item.amountDifference!=null?number(item.amountDifference):(issuedAmt-salesAmt);
     const countDiff=item.countDifference!=null?item.countDifference:((item.issuedCount||0)-(item.salesCount||0));
-    return `<div class="audit-record legacy-record"><div><b>${escapeHtml(item.channel||'—')}</b><span>${escapeHtml(item.store||'—')} · ${dateBR(item.date)}</span><small>Registro anterior</small></div><div><small>Vendas</small><b>${item.salesCount??'—'} · ${money(salesAmt)}</b></div><div><small>Notas emitidas</small><b>${item.issuedCount??'—'} · ${money(issuedAmt)}</b></div><div><small>Divergência</small><b class="difference ${countDiff===0&&Math.abs(amountDiff)<.01?'ok':'bad'}">${countDiff} nota(s)</b><span>${money(amountDiff)}</span></div></div>`;
+    return `<div class="audit-record legacy-record"><div><b>${escapeHtml(item.channel||'—')}</b><span>${escapeHtml(item.store||'—')} · ${dateBR(item.date)}</span><small>Registro anterior</small></div><div><small>Vendas</small><b>${item.salesCount??'—'} · ${money(salesAmt)}</b></div><div><small>Notas emitidas</small><b>${item.issuedCount??'—'} · ${money(issuedAmt)}</b></div><div><small>Divergência</small><b class="difference ${countDiff===0&&Math.abs(amountDiff)<.01?'ok':'bad'}">${countDiff} nota(s)</b><span>${money(amountDiff)}</span></div>${authorHtml}</div>`;
   }).join(''):'<p class="empty">Nenhuma auditoria registrada.</p>';renderDivergenceChart('invoiceAuditChart',rows,{title:'Divergência de notas (últimos 14 dias)',subtitle:'(iFood + Máquinas) menos NF emitida.',valueOf:item=>{if(item.difference!=null)return number(item.difference);if(item.expectedAmount!=null||item.ifoodAmount!=null||item.invoiceAmount!=null){const exp=item.expectedAmount!=null?number(item.expectedAmount):(number(item.ifoodAmount)+number(item.machinesAmount));return exp-number(item.invoiceAmount);}return number(item.amountDifference);}});}catch(error){list.innerHTML='<p class="empty">Não foi possível carregar.</p>';}
 }
 
@@ -322,12 +341,14 @@ function injectClosingDailyCard(){
         <span class="daily-audit-title"><span class="icon" aria-hidden="true">🏍️</span>Motoboy</span>
         <strong class="daily-audit-value" data-audit-value>—</strong>
         <small class="daily-audit-status" data-audit-status>Ainda não lançada</small>
+        <small class="daily-audit-author" data-audit-author hidden></small>
         <button type="button" class="daily-audit-link" data-audit-jump="motoboyAudit">Abrir auditoria</button>
       </div>
       <div class="daily-audit-item pending" data-audit-item="invoice">
         <span class="daily-audit-title"><span class="icon" aria-hidden="true">🧾</span>Notas fiscais</span>
         <strong class="daily-audit-value" data-audit-value>—</strong>
         <small class="daily-audit-status" data-audit-status>Ainda não lançada</small>
+        <small class="daily-audit-author" data-audit-author hidden></small>
         <button type="button" class="daily-audit-link" data-audit-jump="invoiceAudit">Abrir auditoria</button>
       </div>
     </div>
@@ -376,11 +397,13 @@ async function refreshDailyAuditSummary(){
   const setItem=(item,record,formatter)=>{
     const valueEl=item.querySelector('[data-audit-value]');
     const statusEl=item.querySelector('[data-audit-status]');
+    const authorEl=item.querySelector('[data-audit-author]');
     item.classList.remove('pending','ok','diff');
-    if(!record){item.classList.add('pending');valueEl.textContent='—';statusEl.textContent='Ainda não lançada';return false;}
+    if(!record){item.classList.add('pending');valueEl.textContent='—';statusEl.textContent='Ainda não lançada';if(authorEl){authorEl.hidden=true;authorEl.textContent='';}return false;}
     const {value,statusText,isEven}=formatter(record);
     valueEl.textContent=value;statusEl.textContent=statusText;
     item.classList.add(isEven?'ok':'diff');
+    if(authorEl){const label=authorLabel(record);if(label){authorEl.hidden=false;authorEl.textContent=label;}else{authorEl.hidden=true;authorEl.textContent='';}}
     return true;
   };
   if(!store||!date){meta.textContent='Selecione data e loja para carregar.';gate.textContent='Aguardando…';gate.className='badge draft';setItem(motoItem,null,()=>({}));setItem(invItem,null,()=>({}));banner.classList.add('hidden');return;}

@@ -533,3 +533,11 @@ test('resumo diário no fechamento e gráfico de divergência estão publicados'
   assert.match(audits,/renderDivergenceChart\(/);
   assert.match(audits,/data-chart-store/);
 });
+
+test('histórico do operador aparece nas listas de auditoria e no resumo diário',()=>{
+  assert.match(audits,/authorLabel\s*=\s*item\s*=>/);
+  assert.match(audits,/Lançado por/);
+  assert.match(audits,/data-audit-author/);
+  assert.match(audits,/class="audit-author"/);
+  assert.match(audits,/dateTimeBR/);
+});
