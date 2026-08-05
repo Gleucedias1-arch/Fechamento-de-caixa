@@ -515,3 +515,21 @@ test('regra financeira e permissão diária permitem operador nas auditorias',()
   assert.match(rules,/"expectedAmount"/);
   assert.doesNotMatch(rules,/"motoboyAudits":[\s\S]*?"role"\).val\(\) === 'finance'\)"[\s]*\},[\s]*"\$id"/);
 });
+
+test('trava diária bloqueia envio do fechamento sem as duas auditorias',()=>{
+  assert.match(app,/window\.HouseAudits\?\.checkDailyAudits/);
+  assert.match(app,/Auditorias do dia pendentes/);
+  assert.match(audits,/window\.HouseAudits\s*=\s*\{/);
+  assert.match(audits,/async checkDailyAudits\(store,date\)/);
+});
+
+test('resumo diário no fechamento e gráfico de divergência estão publicados',()=>{
+  assert.match(audits,/id=['"]dailyAuditSummary['"]/);
+  assert.match(audits,/data-audit-item="motoboy"/);
+  assert.match(audits,/data-audit-item="invoice"/);
+  assert.match(audits,/id=['"]dailyAuditBlockBanner['"]/);
+  assert.match(audits,/id=['"]motoboyAuditChart['"]/);
+  assert.match(audits,/id=['"]invoiceAuditChart['"]/);
+  assert.match(audits,/renderDivergenceChart\(/);
+  assert.match(audits,/data-chart-store/);
+});

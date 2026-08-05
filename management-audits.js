@@ -1,6 +1,6 @@
 import { getApps, getApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
-import { getDatabase, ref, get, set, push, query, orderByChild, limitToLast } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
+import { getDatabase, ref, get, set, push, query, orderByChild, limitToLast, equalTo } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
 
 const app = getApps().length ? getApp() : null;
 const auth = getAuth(app);
@@ -53,6 +53,48 @@ function injectStyles() {
   .backup-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.backup-card{padding:20px;border:1px solid var(--line);border-radius:14px;background:#fff}.backup-card h4{margin:0}.backup-card p{min-height:44px;color:var(--muted);font-size:10px;line-height:1.55}.backup-status{margin-top:15px;padding:12px;border-radius:10px;background:var(--blue-soft);color:var(--blue);font-size:10px;font-weight:800}
   @media(max-width:900px){.audit-layout{grid-template-columns:1fr}.backup-grid{grid-template-columns:1fr}.audit-record{grid-template-columns:1fr 1fr}}
   @media(max-width:620px){.audit-view{padding:14px}.audit-form-grid,.audit-summary,.audit-record{grid-template-columns:1fr}.audit-hero{align-items:flex-start;flex-direction:column}}
+
+  /* Daily audit summary card injected into the closing view */
+  .daily-audit-card{margin:0 0 16px;padding:16px 18px;border-radius:16px;border:1px solid var(--line);background:linear-gradient(135deg,#fff,#f4f7fa);display:grid;gap:12px}
+  .daily-audit-card .daily-audit-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .daily-audit-card h4{margin:0;font-size:14px;letter-spacing:.02em}
+  .daily-audit-card small.daily-audit-meta{color:var(--muted);font-size:10px}
+  .daily-audit-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .daily-audit-item{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;display:grid;gap:6px;position:relative}
+  .daily-audit-item .daily-audit-title{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:800}
+  .daily-audit-item .daily-audit-title .icon{font-size:16px;line-height:1}
+  .daily-audit-item .daily-audit-value{font-size:16px;font-weight:800}
+  .daily-audit-item .daily-audit-status{font-size:11px;font-weight:700}
+  .daily-audit-item.pending{border-color:#f0c17a;background:#fff8ec}
+  .daily-audit-item.pending .daily-audit-status{color:#a4670a}
+  .daily-audit-item.ok{border-color:#bbe7c1;background:#f2fbf3}
+  .daily-audit-item.ok .daily-audit-status{color:var(--green)}
+  .daily-audit-item.diff .daily-audit-status{color:var(--red)}
+  .daily-audit-item.diff{border-color:#f2b8b8;background:#fff5f5}
+  .daily-audit-item .daily-audit-link{position:absolute;top:10px;right:12px;font-size:10px;color:var(--blue);cursor:pointer;background:none;border:0;padding:0;text-decoration:underline}
+
+  /* Blocked submit banner */
+  #dailyAuditBlockBanner{margin:8px 0 0;padding:11px 13px;border-radius:10px;background:#fdecec;border:1px solid #f2b8b8;color:#932e2e;font-size:12px;font-weight:600}
+  #dailyAuditBlockBanner.hidden{display:none}
+
+  /* Mini divergence chart */
+  .audit-chart-card{margin-top:14px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:#fff}
+  .audit-chart-card .audit-chart-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap}
+  .audit-chart-card h4{margin:0;font-size:13px}
+  .audit-chart-card small{color:var(--muted);font-size:10px}
+  .audit-chart-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:10px;color:var(--muted)}
+  .audit-chart-legend span{display:inline-flex;align-items:center;gap:6px}
+  .audit-chart-legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+  .audit-chart-svg{width:100%;height:150px;display:block}
+  .audit-chart-svg .grid-line{stroke:#e5e9ee;stroke-width:1}
+  .audit-chart-svg .zero-line{stroke:#9ca8b3;stroke-dasharray:3 3;stroke-width:1}
+  .audit-chart-svg .axis-label{font-size:9px;fill:#8b95a2;font-family:Inter,system-ui,sans-serif}
+  .audit-chart-svg .bar-positive{fill:#4caf7a}
+  .audit-chart-svg .bar-negative{fill:#d95757}
+  .audit-chart-svg .bar:hover{opacity:.75}
+  .audit-chart-empty{padding:24px;text-align:center;color:var(--muted);font-size:11px}
+
+  @media(max-width:620px){.daily-audit-grid{grid-template-columns:1fr}}
   `;
   document.head.appendChild(style);
 }
@@ -80,7 +122,7 @@ function injectNavigationAndViews() {
             <label class="wide">Observação<textarea name="notes" maxlength="500" rows="3" placeholder="Motoboy conferido, ajustes, descontos ou pagamentos adicionais"></textarea></label>
           </div><div id="motoboyPreview" class="audit-summary"></div><button class="btn btn-primary" type="submit">Registrar auditoria</button></form>
         </article>
-        <article class="card"><div class="card-title"><div><h3>Últimas auditorias</h3><p>Histórico preservado para conferência.</p></div><button id="refreshMotoboyAudit" class="btn btn-secondary btn-small">Atualizar</button></div><div id="motoboyAuditList" class="audit-list"></div></article>
+        <article class="card"><div class="card-title"><div><h3>Últimas auditorias</h3><p>Histórico preservado para conferência.</p></div><button id="refreshMotoboyAudit" class="btn btn-secondary btn-small">Atualizar</button></div><div id="motoboyAuditList" class="audit-list"></div><div id="motoboyAuditChart" class="audit-chart-card"></div></article>
       </div>
     </section>
     <section id="invoiceAuditView" class="audit-view">
@@ -95,7 +137,7 @@ function injectNavigationAndViews() {
             <label class="wide">Observação<textarea name="notes" maxlength="500" rows="3" placeholder="Explique notas pendentes, canceladas ou diferenças"></textarea></label>
           </div><div id="invoicePreview" class="audit-summary"></div><button class="btn btn-primary" type="submit">Registrar auditoria</button></form>
         </article>
-        <article class="card"><div class="card-title"><div><h3>Últimas auditorias</h3><p>iFood, máquinas fiscais e nota emitida por dia.</p></div><button id="refreshInvoiceAudit" class="btn btn-secondary btn-small">Atualizar</button></div><div id="invoiceAuditList" class="audit-list"></div></article>
+        <article class="card"><div class="card-title"><div><h3>Últimas auditorias</h3><p>iFood, máquinas fiscais e nota emitida por dia.</p></div><button id="refreshInvoiceAudit" class="btn btn-secondary btn-small">Atualizar</button></div><div id="invoiceAuditList" class="audit-list"></div><div id="invoiceAuditChart" class="audit-chart-card"></div></article>
       </div>
     </section>
     <section id="backupCenterView" class="audit-view">
@@ -162,7 +204,7 @@ function bindForms(){
     const data=Object.fromEntries(new FormData(motoboy));
     const systemAmount=number(data.systemAmount),paidAmount=number(data.paidAmount);
     const record={date:data.date,store:data.store,systemAmount,paidAmount,difference:paidAmount-systemAmount,notes:String(data.notes||'').trim(),createdAt:Date.now(),createdBy:auth.currentUser.uid,createdByName:currentProfile.name||auth.currentUser.email};
-    try{await set(push(ref(db,'motoboyAudits')),record);notify('Auditoria do motoboy registrada.');motoboy.reset();motoboy.date.value=today();motoboyPreview();loadMotoboyAudits();}catch(error){notify('Não foi possível registrar: '+error.message,true);}
+    try{await set(push(ref(db,'motoboyAudits')),record);notify('Auditoria do motoboy registrada.');motoboy.reset();motoboy.date.value=today();motoboyPreview();loadMotoboyAudits();refreshDailyAuditSummary();}catch(error){notify('Não foi possível registrar: '+error.message,true);}
   });
   invoice?.addEventListener('submit',async event=>{
     event.preventDefault(); if(!canAudit())return notify('Acesso restrito à equipe autorizada.',true);
@@ -173,7 +215,7 @@ function bindForms(){
     const expectedAmount=ifoodAmount+machinesAmount;
     const difference=expectedAmount-invoiceAmount;
     const record={date:data.date,store:data.store,ifoodAmount,machinesAmount,invoiceAmount,expectedAmount,difference,notes:String(data.notes||'').trim(),createdAt:Date.now(),createdBy:auth.currentUser.uid,createdByName:currentProfile.name||auth.currentUser.email};
-    try{await set(push(ref(db,'invoiceAudits')),record);notify('Auditoria de notas registrada.');invoice.reset();invoice.date.value=today();invoicePreview();loadInvoiceAudits();}catch(error){notify('Não foi possível registrar: '+error.message,true);}
+    try{await set(push(ref(db,'invoiceAudits')),record);notify('Auditoria de notas registrada.');invoice.reset();invoice.date.value=today();invoicePreview();loadInvoiceAudits();refreshDailyAuditSummary();}catch(error){notify('Não foi possível registrar: '+error.message,true);}
   });
   document.querySelector('#refreshMotoboyAudit')?.addEventListener('click',loadMotoboyAudits);
   document.querySelector('#refreshInvoiceAudit')?.addEventListener('click',loadInvoiceAudits);
@@ -184,17 +226,17 @@ function bindForms(){
 async function loadMotoboyAudits(){
   const list=document.querySelector('#motoboyAuditList'); if(!list||!canAudit())return;
   list.innerHTML='<p class="empty">Carregando…</p>';
-  try{const snap=await get(query(ref(db,'motoboyAudits'),orderByChild('createdAt'),limitToLast(40)));const rows=Object.values(snap.val()||{}).reverse();list.innerHTML=rows.length?rows.map(item=>{
+  try{const snap=await get(query(ref(db,'motoboyAudits'),orderByChild('createdAt'),limitToLast(120)));const rows=Object.values(snap.val()||{}).reverse();const preview=rows.slice(0,40);list.innerHTML=preview.length?preview.map(item=>{
     const sys=number(item.systemAmount);const paid=number(item.paidAmount);
     const diff=item.difference!=null?number(item.difference):(paid-sys);
     const title=item.driver?escapeHtml(item.driver):'🏍️ Motoboys do dia';
     return `<div class="audit-record"><div><b>${title}</b><span>${escapeHtml(item.store||'—')} · ${dateBR(item.date)}</span></div><div><small>Sistema</small><b>${money(sys)}</b></div><div><small>Pago</small><b>${money(paid)}</b></div><div><small>Divergência</small><b class="difference ${Math.abs(diff)<.01?'ok':'bad'}">${money(diff)}</b><span>${Math.abs(diff)<.01?'Conferido':diff>0?'Pago a mais':'Pago a menos'}</span></div></div>`;
-  }).join(''):'<p class="empty">Nenhuma auditoria registrada.</p>';}catch(error){list.innerHTML='<p class="empty">Não foi possível carregar.</p>';}
+  }).join(''):'<p class="empty">Nenhuma auditoria registrada.</p>';renderDivergenceChart('motoboyAuditChart',rows,{title:'Divergência de motoboys (últimos 14 dias)',subtitle:'Valor pago menos valor no sistema.',valueOf:item=>item.difference!=null?number(item.difference):(number(item.paidAmount)-number(item.systemAmount))});}catch(error){list.innerHTML='<p class="empty">Não foi possível carregar.</p>';}
 }
 async function loadInvoiceAudits(){
   const list=document.querySelector('#invoiceAuditList'); if(!list||!canAudit())return;
   list.innerHTML='<p class="empty">Carregando…</p>';
-  try{const snap=await get(query(ref(db,'invoiceAudits'),orderByChild('createdAt'),limitToLast(40)));const rows=Object.values(snap.val()||{}).reverse();list.innerHTML=rows.length?rows.map(item=>{
+  try{const snap=await get(query(ref(db,'invoiceAudits'),orderByChild('createdAt'),limitToLast(120)));const rows=Object.values(snap.val()||{}).reverse();const preview=rows.slice(0,40);list.innerHTML=preview.length?preview.map(item=>{
     const hasNew=item.ifoodAmount!=null||item.machinesAmount!=null||item.invoiceAmount!=null;
     if(hasNew){
       const ifood=number(item.ifoodAmount);const machines=number(item.machinesAmount);const invoice=number(item.invoiceAmount);
@@ -208,8 +250,171 @@ async function loadInvoiceAudits(){
     const amountDiff=item.amountDifference!=null?number(item.amountDifference):(issuedAmt-salesAmt);
     const countDiff=item.countDifference!=null?item.countDifference:((item.issuedCount||0)-(item.salesCount||0));
     return `<div class="audit-record legacy-record"><div><b>${escapeHtml(item.channel||'—')}</b><span>${escapeHtml(item.store||'—')} · ${dateBR(item.date)}</span><small>Registro anterior</small></div><div><small>Vendas</small><b>${item.salesCount??'—'} · ${money(salesAmt)}</b></div><div><small>Notas emitidas</small><b>${item.issuedCount??'—'} · ${money(issuedAmt)}</b></div><div><small>Divergência</small><b class="difference ${countDiff===0&&Math.abs(amountDiff)<.01?'ok':'bad'}">${countDiff} nota(s)</b><span>${money(amountDiff)}</span></div></div>`;
-  }).join(''):'<p class="empty">Nenhuma auditoria registrada.</p>';}catch(error){list.innerHTML='<p class="empty">Não foi possível carregar.</p>';}
+  }).join(''):'<p class="empty">Nenhuma auditoria registrada.</p>';renderDivergenceChart('invoiceAuditChart',rows,{title:'Divergência de notas (últimos 14 dias)',subtitle:'(iFood + Máquinas) menos NF emitida.',valueOf:item=>{if(item.difference!=null)return number(item.difference);if(item.expectedAmount!=null||item.ifoodAmount!=null||item.invoiceAmount!=null){const exp=item.expectedAmount!=null?number(item.expectedAmount):(number(item.ifoodAmount)+number(item.machinesAmount));return exp-number(item.invoiceAmount);}return number(item.amountDifference);}});}catch(error){list.innerHTML='<p class="empty">Não foi possível carregar.</p>';}
 }
+
+function renderDivergenceChart(containerId,rows,{title,subtitle,valueOf}){
+  const container=document.querySelector('#'+containerId); if(!container)return;
+  const validRows=(rows||[]).filter(item=>item&&item.date&&item.store);
+  const stores=Array.from(new Set(validRows.map(item=>item.store))).sort();
+  const currentFilter=container.dataset.storeFilter||'__all__';
+  const filteredRows=currentFilter==='__all__'?validRows:validRows.filter(item=>item.store===currentFilter);
+  // Aggregate by date within selected filter (sum of divergences per day).
+  const byDate=new Map();
+  filteredRows.forEach(item=>{
+    const v=Number(valueOf(item))||0;
+    byDate.set(item.date,(byDate.get(item.date)||0)+v);
+  });
+  const sortedDates=Array.from(byDate.keys()).sort().slice(-14);
+  const values=sortedDates.map(date=>({date,value:byDate.get(date)}));
+  const maxAbs=Math.max(1,...values.map(item=>Math.abs(item.value)));
+  const width=560,height=150,padLeft=44,padRight=12,padTop=14,padBottom=26;
+  const chartW=width-padLeft-padRight,chartH=height-padTop-padBottom;
+  const zeroY=padTop+chartH/2;
+  const barW=values.length?Math.max(6,Math.min(28,(chartW-8)/values.length-4)):0;
+  const gap=values.length?(chartW-barW*values.length)/(values.length+1):0;
+  const yTickTop=padTop,yTickBottom=padTop+chartH;
+  const filterOptions=['__all__',...stores].map(store=>`<option value="${escapeHtml(store)}"${store===currentFilter?' selected':''}>${store==='__all__'?'Todas as lojas':escapeHtml(store)}</option>`).join('');
+  const emptyMessage=`<div class="audit-chart-empty">Sem dados suficientes para gerar o gráfico.</div>`;
+  let bars='';
+  values.forEach((item,index)=>{
+    const barH=Math.abs(item.value)/maxAbs*(chartH/2);
+    const x=padLeft+gap+(index)*(barW+gap);
+    const y=item.value>=0?zeroY-barH:zeroY;
+    const cls=item.value>=0?'bar bar-positive':'bar bar-negative';
+    const label=`${dateBR(item.date)} · ${money(item.value)}`;
+    bars+=`<rect class="${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(2,barH).toFixed(1)}" rx="2"><title>${escapeHtml(label)}</title></rect>`;
+    const dayLabel=item.date.split('-').slice(1).reverse().join('/');
+    bars+=`<text class="axis-label" x="${(x+barW/2).toFixed(1)}" y="${(padTop+chartH+16).toFixed(1)}" text-anchor="middle">${escapeHtml(dayLabel)}</text>`;
+  });
+  const yLabelTop=money(maxAbs);const yLabelBottom=money(-maxAbs);
+  const svg=values.length?`<svg class="audit-chart-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(title)}">
+    <line class="grid-line" x1="${padLeft}" y1="${yTickTop}" x2="${width-padRight}" y2="${yTickTop}"></line>
+    <line class="grid-line" x1="${padLeft}" y1="${yTickBottom}" x2="${width-padRight}" y2="${yTickBottom}"></line>
+    <line class="zero-line" x1="${padLeft}" y1="${zeroY}" x2="${width-padRight}" y2="${zeroY}"></line>
+    <text class="axis-label" x="${padLeft-6}" y="${yTickTop+4}" text-anchor="end">${escapeHtml(yLabelTop)}</text>
+    <text class="axis-label" x="${padLeft-6}" y="${zeroY+3}" text-anchor="end">R$ 0,00</text>
+    <text class="axis-label" x="${padLeft-6}" y="${yTickBottom+4}" text-anchor="end">${escapeHtml(yLabelBottom)}</text>
+    ${bars}
+  </svg>`:emptyMessage;
+  container.innerHTML=`<div class="audit-chart-head"><div><h4>${escapeHtml(title)}</h4><small>${escapeHtml(subtitle)}</small></div><label class="audit-chart-filter"><small>Loja</small><select data-chart-store>${filterOptions}</select></label></div>
+    <div class="audit-chart-legend"><span><i style="background:#4caf7a"></i>A favor da loja</span><span><i style="background:#d95757"></i>Contra a loja</span></div>
+    ${svg}`;
+  const select=container.querySelector('[data-chart-store]');
+  select?.addEventListener('change',event=>{container.dataset.storeFilter=event.target.value;renderDivergenceChart(containerId,rows,{title,subtitle,valueOf});});
+}
+
+// ============================================================
+// Daily audit summary card injected into the closing view
+// ============================================================
+function injectClosingDailyCard(){
+  if(document.querySelector('#dailyAuditSummary'))return;
+  const form=document.querySelector('#closingForm');
+  const heading=form?.querySelector('.form-heading');
+  if(!form||!heading)return;
+  const card=document.createElement('article');
+  card.id='dailyAuditSummary';
+  card.className='card daily-audit-card';
+  card.innerHTML=`
+    <div class="daily-audit-head"><div><h4>Auditorias do dia</h4><small class="daily-audit-meta" id="dailyAuditMeta">Selecione data e loja para carregar.</small></div><span id="dailyAuditGate" class="badge draft">Aguardando…</span></div>
+    <div class="daily-audit-grid">
+      <div class="daily-audit-item pending" data-audit-item="motoboy">
+        <span class="daily-audit-title"><span class="icon" aria-hidden="true">🏍️</span>Motoboy</span>
+        <strong class="daily-audit-value" data-audit-value>—</strong>
+        <small class="daily-audit-status" data-audit-status>Ainda não lançada</small>
+        <button type="button" class="daily-audit-link" data-audit-jump="motoboyAudit">Abrir auditoria</button>
+      </div>
+      <div class="daily-audit-item pending" data-audit-item="invoice">
+        <span class="daily-audit-title"><span class="icon" aria-hidden="true">🧾</span>Notas fiscais</span>
+        <strong class="daily-audit-value" data-audit-value>—</strong>
+        <small class="daily-audit-status" data-audit-status>Ainda não lançada</small>
+        <button type="button" class="daily-audit-link" data-audit-jump="invoiceAudit">Abrir auditoria</button>
+      </div>
+    </div>
+    <p id="dailyAuditBlockBanner" class="hidden" role="alert">Você precisa registrar as duas auditorias do dia para conseguir enviar o fechamento.</p>`;
+  heading.after(card);
+  card.querySelectorAll('[data-audit-jump]').forEach(btn=>btn.addEventListener('click',()=>{
+    const target=document.querySelector(`[data-audit-view="${btn.dataset.auditJump}"]`);
+    target?.click();
+  }));
+  const dateInput=form.querySelector('input[name="date"]');
+  const storeInput=form.querySelector('[name="store"]');
+  const trigger=()=>refreshDailyAuditSummary();
+  dateInput?.addEventListener('change',trigger);
+  storeInput?.addEventListener('change',trigger);
+  // Also refresh whenever closing view becomes active.
+  document.querySelectorAll('.nav-item[data-view="closing"]').forEach(btn=>btn.addEventListener('click',()=>setTimeout(refreshDailyAuditSummary,50)));
+  refreshDailyAuditSummary();
+}
+
+async function fetchDailyAuditsFor(store,date){
+  if(!store||!date||!canAudit())return {motoboy:null,invoice:null};
+  const [motoSnap,invSnap]=await Promise.all([
+    get(query(ref(db,'motoboyAudits'),orderByChild('date'),equalTo(date))).catch(()=>null),
+    get(query(ref(db,'invoiceAudits'),orderByChild('date'),equalTo(date))).catch(()=>null),
+  ]);
+  const pickForStore=(snap)=>{
+    if(!snap||!snap.exists())return null;
+    const rows=Object.values(snap.val()||{}).filter(item=>item.store===store);
+    if(!rows.length)return null;
+    rows.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    return rows[0];
+  };
+  return {motoboy:pickForStore(motoSnap),invoice:pickForStore(invSnap)};
+}
+
+async function refreshDailyAuditSummary(){
+  const card=document.querySelector('#dailyAuditSummary'); if(!card)return;
+  const form=document.querySelector('#closingForm'); if(!form)return;
+  const store=form.querySelector('[name="store"]')?.value||'';
+  const date=form.querySelector('input[name="date"]')?.value||'';
+  const meta=card.querySelector('#dailyAuditMeta');
+  const gate=card.querySelector('#dailyAuditGate');
+  const banner=card.querySelector('#dailyAuditBlockBanner');
+  const motoItem=card.querySelector('[data-audit-item="motoboy"]');
+  const invItem=card.querySelector('[data-audit-item="invoice"]');
+  const setItem=(item,record,formatter)=>{
+    const valueEl=item.querySelector('[data-audit-value]');
+    const statusEl=item.querySelector('[data-audit-status]');
+    item.classList.remove('pending','ok','diff');
+    if(!record){item.classList.add('pending');valueEl.textContent='—';statusEl.textContent='Ainda não lançada';return false;}
+    const {value,statusText,isEven}=formatter(record);
+    valueEl.textContent=value;statusEl.textContent=statusText;
+    item.classList.add(isEven?'ok':'diff');
+    return true;
+  };
+  if(!store||!date){meta.textContent='Selecione data e loja para carregar.';gate.textContent='Aguardando…';gate.className='badge draft';setItem(motoItem,null,()=>({}));setItem(invItem,null,()=>({}));banner.classList.add('hidden');return;}
+  meta.textContent=`${escapeHtml(store)} · ${dateBR(date)}`;
+  gate.textContent='Verificando…';gate.className='badge draft';
+  try{
+    const {motoboy,invoice}=await fetchDailyAuditsFor(store,date);
+    const motoOk=setItem(motoItem,motoboy,record=>{
+      const diff=record.difference!=null?number(record.difference):(number(record.paidAmount)-number(record.systemAmount));
+      const isEven=Math.abs(diff)<.01;
+      return {value:money(diff),statusText:isEven?'Motoboys conferidos':(diff>0?'Pago a mais':'Pago a menos'),isEven};
+    });
+    const invOk=setItem(invItem,invoice,record=>{
+      const diff=record.difference!=null?number(record.difference):(number(record.expectedAmount||(number(record.ifoodAmount)+number(record.machinesAmount)))-number(record.invoiceAmount));
+      const isEven=Math.abs(diff)<.01;
+      return {value:money(diff),statusText:isEven?'Notas conferem':(diff>0?'NF emitida a menos':'NF emitida a mais'),isEven};
+    });
+    if(motoOk&&invOk){gate.textContent='Auditorias OK';gate.className='badge success';banner.classList.add('hidden');}
+    else{gate.textContent='Faltam auditorias';gate.className='badge warn';banner.classList.remove('hidden');}
+  }catch(error){meta.textContent='Não foi possível verificar as auditorias.';gate.textContent='Erro';gate.className='badge warn';}
+}
+
+// ============================================================
+// Public API used by app.js to enforce the daily lock
+// ============================================================
+window.HouseAudits={
+  async checkDailyAudits(store,date){
+    try{
+      const {motoboy,invoice}=await fetchDailyAuditsFor(store,date);
+      return {motoboy:!!motoboy,invoice:!!invoice,ok:!!motoboy&&!!invoice};
+    }catch{return {motoboy:false,invoice:false,ok:false,error:true};}
+  },
+  refreshClosingSummary:refreshDailyAuditSummary,
+};
 
 async function collectBackup(){
   const paths=['users','settings','closings','motoboyAudits','invoiceAudits'];
@@ -236,8 +441,8 @@ async function downloadLatestBackup(){
   try{const backup=await collectBackup();const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=url;anchor.download=`house190-backup-${today()}.json`;anchor.click();URL.revokeObjectURL(url);notify('Arquivo de backup baixado.');}catch(error){notify('Não foi possível gerar o arquivo.',true);}
 }
 
-document.addEventListener('DOMContentLoaded',()=>{injectStyles();modernizeBrand();injectNavigationAndViews();});
+document.addEventListener('DOMContentLoaded',()=>{injectStyles();modernizeBrand();injectNavigationAndViews();injectClosingDailyCard();});
 onAuthStateChanged(auth,async user=>{
   if(!user){currentProfile=null;return;}
-  try{const snap=await get(ref(db,'users/'+user.uid));currentProfile=snap.val();document.querySelectorAll('.audit-nav.operator-audit-nav').forEach(el=>el.classList.toggle('hidden',!canAudit()));document.querySelectorAll('.audit-nav.admin-only').forEach(el=>el.classList.toggle('hidden',!canBackup()));if(canBackup())ensureDailyBackup();}catch{currentProfile=null;}
+  try{const snap=await get(ref(db,'users/'+user.uid));currentProfile=snap.val();document.querySelectorAll('.audit-nav.operator-audit-nav').forEach(el=>el.classList.toggle('hidden',!canAudit()));document.querySelectorAll('.audit-nav.admin-only').forEach(el=>el.classList.toggle('hidden',!canBackup()));if(canBackup())ensureDailyBackup();refreshDailyAuditSummary();}catch{currentProfile=null;}
 });

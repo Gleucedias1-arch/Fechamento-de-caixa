@@ -1073,6 +1073,21 @@ $('#closingForm').addEventListener('submit', async event => {
     toast('Escolha o que causou a diferença e explique o ocorrido antes de enviar.',true);
     return;
   }
+  if (window.HouseAudits?.checkDailyAudits && formData.store && formData.date) {
+    try {
+      const auditStatus = await window.HouseAudits.checkDailyAudits(formData.store,formData.date);
+      if (!auditStatus.ok) {
+        const missing = [];
+        if (!auditStatus.motoboy) missing.push('motoboy');
+        if (!auditStatus.invoice) missing.push('notas fiscais');
+        const label = missing.join(' e ');
+        showClosingSubmitError([{title:'Auditorias do dia pendentes',message:`Registre a auditoria de ${label} desta loja/dia antes de enviar.`,target:'amount',severity:'error'}]);
+        toast(`Registre a auditoria de ${label} do dia antes de enviar o fechamento.`,true);
+        document.querySelector('#dailyAuditSummary')?.scrollIntoView({behavior:'smooth',block:'start'});
+        return;
+      }
+    } catch (err) { /* Se falhar, seguir sem travar para não bloquear operação. */ }
+  }
   try { await persistClosing('submitted'); } catch (error) { toast(closingPersistenceError(error,'enviar o fechamento'),true); }
 });
 
