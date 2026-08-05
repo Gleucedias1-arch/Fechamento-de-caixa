@@ -77,7 +77,7 @@ test('perfil financeiro e aprovação estão protegidos nas regras',()=>{
 });
 
 test('versão e cache estão atualizados',()=>{
-  assert.equal(JSON.parse(packageJson).version,'2.6.1');
+  assert.equal(JSON.parse(packageJson).version,'2.7.0');
   assert.match(html,/app\.js\?v=2.7.0/);
   assert.match(html,/styles\.css\?v=2.7.0/);
 });
