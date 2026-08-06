@@ -127,6 +127,19 @@ function injectStyles() {
   .audit-chart-empty{padding:24px;text-align:center;color:var(--muted);font-size:11px}
 
   @media(max-width:620px){.daily-audit-grid{grid-template-columns:1fr}}
+
+  /* Histórico compacto + Ver mais/Ver menos */
+  .audit-list.collapsed .audit-record:nth-child(n+5){display:none}
+  .audit-collapse-toggle{width:100%;margin-top:10px;padding:11px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--blue);font-weight:800;font-size:12px;cursor:pointer;transition:background .18s ease,border-color .18s ease}
+  .audit-collapse-toggle:hover{background:var(--blue-soft);border-color:var(--blue)}
+  @media(max-width:640px){
+    .audit-record{grid-template-columns:1fr 1fr!important;gap:8px 14px;padding:12px 13px 22px}
+    .audit-record>div:first-child{grid-column:1/-1;margin-bottom:2px}
+    .audit-record b{font-size:14px}
+    .audit-record .difference{font-size:14px}
+    .audit-record span,.audit-record small{font-size:9px}
+    .audit-record .audit-author{font-size:8px}
+  }
   `;
   document.head.appendChild(style);
 }
@@ -255,6 +268,23 @@ function bindForms(){
   document.querySelector('#downloadBackup')?.addEventListener('click',downloadLatestBackup);
 }
 
+const AUDIT_COLLAPSE_LIMIT=4;
+function applyAuditCollapse(list){
+  if(!list||!list.parentElement)return;
+  const old=list.parentElement.querySelector('.audit-collapse-toggle');
+  if(old)old.remove();
+  const records=list.querySelectorAll('.audit-record');
+  list.classList.remove('collapsed');
+  if(records.length<=AUDIT_COLLAPSE_LIMIT)return;
+  list.classList.add('collapsed');
+  const hidden=records.length-AUDIT_COLLAPSE_LIMIT;
+  const btn=document.createElement('button');
+  btn.type='button';btn.className='audit-collapse-toggle';
+  const setLabel=()=>{btn.textContent=list.classList.contains('collapsed')?`Ver mais ${hidden} auditoria(s)`:'Ver menos';};
+  setLabel();
+  btn.addEventListener('click',()=>{list.classList.toggle('collapsed');setLabel();});
+  list.insertAdjacentElement('afterend',btn);
+}
 async function loadMotoboyAudits(){
   const list=document.querySelector('#motoboyAuditList'); if(!list||!canAudit())return;
   list.innerHTML='<p class="empty">Carregando…</p>';
@@ -264,7 +294,7 @@ async function loadMotoboyAudits(){
     const title=item.driver?escapeHtml(item.driver):`${iconMotoboy(15)} Motoboys do dia`;
     const author=authorLabel(item);const authorHtml=author?`<p class="audit-author">${escapeHtml(author)}</p>`:'';
     return `<div class="audit-record"><div><b>${title}</b><span>${escapeHtml(item.store||'—')} · ${dateBR(item.date)}</span></div><div><small>Sistema</small><b>${money(sys)}</b></div><div><small>Pago</small><b>${money(paid)}</b></div><div><small>Divergência</small><b class="difference ${Math.abs(diff)<.01?'ok':'bad'}">${money(diff)}</b><span>${Math.abs(diff)<.01?'Conferido':diff>0?'Pago a mais':'Pago a menos'}</span></div>${authorHtml}</div>`;
-  }).join(''):'<p class="empty">Nenhuma auditoria registrada.</p>';renderDivergenceChart('motoboyAuditChart',rows,{title:'Divergência de motoboys (últimos 14 dias)',subtitle:'Valor pago menos valor no sistema.',valueOf:item=>item.difference!=null?number(item.difference):(number(item.paidAmount)-number(item.systemAmount))});}catch(error){list.innerHTML='<p class="empty">Não foi possível carregar.</p>';}
+  }).join(''):'<p class="empty">Nenhuma auditoria registrada.</p>';applyAuditCollapse(list);renderDivergenceChart('motoboyAuditChart',rows,{title:'Divergência de motoboys (últimos 14 dias)',subtitle:'Valor pago menos valor no sistema.',valueOf:item=>item.difference!=null?number(item.difference):(number(item.paidAmount)-number(item.systemAmount))});}catch(error){list.innerHTML='<p class="empty">Não foi possível carregar.</p>';}
 }
 async function loadInvoiceAudits(){
   const list=document.querySelector('#invoiceAuditList'); if(!list||!canAudit())return;
@@ -284,7 +314,7 @@ async function loadInvoiceAudits(){
     const amountDiff=item.amountDifference!=null?number(item.amountDifference):(issuedAmt-salesAmt);
     const countDiff=item.countDifference!=null?item.countDifference:((item.issuedCount||0)-(item.salesCount||0));
     return `<div class="audit-record legacy-record"><div><b>${escapeHtml(item.channel||'—')}</b><span>${escapeHtml(item.store||'—')} · ${dateBR(item.date)}</span><small>Registro anterior</small></div><div><small>Vendas</small><b>${item.salesCount??'—'} · ${money(salesAmt)}</b></div><div><small>Notas emitidas</small><b>${item.issuedCount??'—'} · ${money(issuedAmt)}</b></div><div><small>Divergência</small><b class="difference ${countDiff===0&&Math.abs(amountDiff)<.01?'ok':'bad'}">${countDiff} nota(s)</b><span>${money(amountDiff)}</span></div>${authorHtml}</div>`;
-  }).join(''):'<p class="empty">Nenhuma auditoria registrada.</p>';renderDivergenceChart('invoiceAuditChart',rows,{title:'Divergência de notas (últimos 14 dias)',subtitle:'(iFood + Máquinas) menos NF emitida.',valueOf:item=>{if(item.difference!=null)return number(item.difference);if(item.expectedAmount!=null||item.ifoodAmount!=null||item.invoiceAmount!=null){const exp=item.expectedAmount!=null?number(item.expectedAmount):(number(item.ifoodAmount)+number(item.machinesAmount));return exp-number(item.invoiceAmount);}return number(item.amountDifference);}});}catch(error){list.innerHTML='<p class="empty">Não foi possível carregar.</p>';}
+  }).join(''):'<p class="empty">Nenhuma auditoria registrada.</p>';applyAuditCollapse(list);renderDivergenceChart('invoiceAuditChart',rows,{title:'Divergência de notas (últimos 14 dias)',subtitle:'(iFood + Máquinas) menos NF emitida.',valueOf:item=>{if(item.difference!=null)return number(item.difference);if(item.expectedAmount!=null||item.ifoodAmount!=null||item.invoiceAmount!=null){const exp=item.expectedAmount!=null?number(item.expectedAmount):(number(item.ifoodAmount)+number(item.machinesAmount));return exp-number(item.invoiceAmount);}return number(item.amountDifference);}});}catch(error){list.innerHTML='<p class="empty">Não foi possível carregar.</p>';}
 }
 
 function renderDivergenceChart(containerId,rows,{title,subtitle,valueOf}){
