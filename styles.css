@@ -1870,3 +1870,17 @@ tbody tr:hover { background: #f7fafc; }
   .topbar { padding: 0 18px; height: 66px; }
 }
 @keyframes fadeIn { from { opacity: 0; } }
+
+/* ---------- Troca de máquina (financeiro) ---------- */
+.machine-swap-panel { margin: 4px 0 16px; padding: 16px; border: 1px dashed #cdd8e2; border-radius: 14px; background: linear-gradient(135deg, #fff, var(--blue-soft)); display: grid; gap: 12px; animation: cardIn .3s ease both; }
+.machine-swap-head span { color: var(--blue); }
+.machine-swap-head h4 { margin: 4px 0 2px; font-family: var(--font-display); font-size: 14px; }
+.machine-swap-head p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.machine-swap-grid { display: grid; gap: 10px; }
+.machine-swap-row { display: grid; grid-template-columns: 1.3fr auto; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.machine-swap-from small, .machine-swap-to small { display: block; color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .08em; font-weight: 800; }
+.machine-swap-from b { display: block; font-size: 14px; margin: 3px 0; font-family: var(--font-display); }
+.machine-swap-from span { display: block; color: var(--muted); font-size: 10px; }
+.machine-swap-to { min-width: 160px; }
+.machine-swap-to select { margin-top: 4px; }
+@media (max-width: 640px) { .machine-swap-row { grid-template-columns: 1fr; } .machine-swap-to { min-width: 0; } }

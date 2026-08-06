@@ -1576,6 +1576,7 @@ function openFinanceReview(id) {
     + metric('Divergência operacional',currentReviewRecord.difference);
   $('#reviewNotes').textContent = currentReviewRecord.notes || 'Nenhuma observação informada.';
   buildFinanceCardFields(currentReviewRecord);
+  renderMachineSwap(currentReviewRecord);
   const form = $('#financeReviewForm');
   form.reset();
   $$('input[inputmode="decimal"]',form).forEach(input => input.value='0');
@@ -2012,6 +2013,122 @@ function buildFinanceCardFields(record = {}) {
     return `<article class="machine-finance-card"><div class="machine-sheet-title"><span>Conferência financeira</span><h4>${escapeHtml(machine.name)}</h4></div><div class="machine-sheet-subtitle">LOJA × FINANCEIRO × LÍQUIDO</div><div class="machine-verify-head"><span>Forma</span><span>Informado</span><span>Encontrado</span><span>Desconto</span><span>OK</span></div><div class="machine-pair">${row('Crédito',machine.credit,financeCredit,'credit')}${row('Débito',machine.debit,financeDebit,'debit')}${row('Pix',machine.pix,financePix,'pix')}</div><footer class="machine-settlement-footer"><span>Taxas <b data-finance-machine-fees="${escapeHtml(machine.id)}">R$ 0,00</b></span><span>Total líquido <strong data-finance-machine-net="${escapeHtml(machine.id)}">R$ 0,00</strong></span></footer></article>`;
   }).join('') : '<p class="empty-inline">A loja não selecionou nenhuma máquina.</p>';
 }
+
+function swapCatalogMachines() {
+  const extra = activeMachineEntries(currentReviewRecord || {}).filter(machine => !machineCatalog.some(item => item.id === machine.id));
+  return [...machineCatalog, ...extra];
+}
+
+function renderMachineSwap(record = {}) {
+  const container = $('#machineSwapFields');
+  if (!container) return;
+  const used = activeMachineEntries(record);
+  const catalog = swapCatalogMachines();
+  container.innerHTML = used.length ? used.map(machine => {
+    const options = catalog.map(option => `<option value="${escapeHtml(option.id)}" ${option.id === machine.id ? 'selected' : ''}>${escapeHtml(option.name)}</option>`).join('');
+    const total = numberFrom(record[machine.credit]) + numberFrom(record[machine.debit]) + numberFrom(record[machine.pix]);
+    return `<div class="machine-swap-row" data-swap-old="${escapeHtml(machine.id)}"><div class="machine-swap-from"><small>Máquina informada</small><b>${escapeHtml(machine.name)}</b><span>Cré ${formatBRL(record[machine.credit])} · Déb ${formatBRL(record[machine.debit])} · Pix ${formatBRL(record[machine.pix])} · Total ${formatBRL(total)}</span></div><div class="machine-swap-to"><small>Trocar para</small><select data-swap-select="${escapeHtml(machine.id)}">${options}</select></div></div>`;
+  }).join('') : '<p class="empty-inline">A loja não selecionou nenhuma máquina para trocar.</p>';
+  $('#machineSwapReason').value = '';
+}
+
+function closeMachineSwap() {
+  $('#machineSwapPanel').classList.add('hidden');
+  $('#toggleMachineSwap').textContent = 'Trocar máquina';
+  if (currentReviewRecord) renderMachineSwap(currentReviewRecord);
+}
+
+$('#toggleMachineSwap').onclick = () => {
+  if (!currentReviewRecord || financeState(currentReviewRecord) === 'approved') {
+    toast('Reabra o fechamento antes de trocar a máquina.',true);
+    return;
+  }
+  const panel = $('#machineSwapPanel');
+  panel.classList.toggle('hidden');
+  const open = !panel.classList.contains('hidden');
+  $('#toggleMachineSwap').textContent = open ? 'Fechar troca' : 'Trocar máquina';
+  if (open) renderMachineSwap(currentReviewRecord);
+};
+
+$('#cancelMachineSwap').onclick = closeMachineSwap;
+
+$('#saveMachineSwap').onclick = async () => {
+  if (!currentReviewRecord || !isFinance() || financeState(currentReviewRecord) === 'approved') return;
+  const reason = $('#machineSwapReason').value.trim();
+  if (!reason) {
+    toast('Informe o motivo da troca de máquina.',true);
+    $('#machineSwapReason').focus();
+    return;
+  }
+  const catalog = swapCatalogMachines();
+  const used = activeMachineEntries(currentReviewRecord);
+  const swaps = [];
+  for (const machine of used) {
+    const targetId = $(`[data-swap-select="${machine.id}"]`)?.value;
+    if (!targetId || targetId === machine.id) continue;
+    const target = catalog.find(item => item.id === targetId);
+    if (!target) continue;
+    swaps.push({from:machine, to:target});
+  }
+  if (!swaps.length) {
+    toast('Selecione ao menos uma máquina diferente para trocar.',true);
+    return;
+  }
+  const targetIds = swaps.map(swap => swap.to.id);
+  if (new Set(targetIds).size !== targetIds.length) {
+    toast('Você escolheu a mesma máquina de destino duas vezes.',true);
+    return;
+  }
+  const keptIds = used.filter(machine => !swaps.some(swap => swap.from.id === machine.id)).map(machine => machine.id);
+  const clash = targetIds.find(id => keptIds.includes(id));
+  if (clash) {
+    toast('A máquina de destino já está em uso neste fechamento.',true);
+    return;
+  }
+
+  const nextRecord = {...currentReviewRecord};
+  const nextDefs = {...(currentReviewRecord.machineDefinitions || {})};
+  const nextSelected = Array.isArray(currentReviewRecord.selectedMachines) ? [...currentReviewRecord.selectedMachines] : used.map(machine => machine.id);
+  const fieldUpdates = {};
+  swaps.forEach(({from,to}) => {
+    ['credit','debit','pix'].forEach(type => {
+      fieldUpdates[to[type]] = numberFrom(currentReviewRecord[from[type]]);
+      fieldUpdates[from[type]] = 0;
+      nextRecord[to[type]] = numberFrom(currentReviewRecord[from[type]]);
+      nextRecord[from[type]] = 0;
+    });
+    delete nextDefs[from.id];
+    nextDefs[to.id] = {name:to.name, credit:to.credit, debit:to.debit, pix:to.pix};
+    const index = nextSelected.indexOf(from.id);
+    if (index >= 0) nextSelected[index] = to.id; else nextSelected.push(to.id);
+  });
+  nextRecord.machineDefinitions = nextDefs;
+  nextRecord.selectedMachines = nextSelected;
+
+  const {status:calculationStatus,...calc} = calculateClosing(nextRecord);
+  const now = Date.now();
+  const swapRecord = {
+    reason,
+    changes: swaps.map(({from,to}) => ({fromId:from.id,fromName:from.name,toId:to.id,toName:to.name})),
+    swappedAt:now, swappedBy:auth.currentUser.uid, swappedByName:profile.name || auth.currentUser.email
+  };
+  const id = currentReviewRecord.id;
+  try {
+    await update(ref(db,`closings/${id}`),{
+      ...fieldUpdates,...calc,calculationStatus,
+      selectedMachines:nextSelected,machineDefinitions:nextDefs,
+      lastMachineSwap:swapRecord,updatedAt:now
+    });
+    const detail = swaps.map(({from,to}) => `${from.name} → ${to.name}`).join(' | ');
+    await appendAudit(id,'machine_swapped',`${reason} · ${detail}`).catch(()=>{});
+    toast('Máquina trocada. Os valores foram transferidos para a nova máquina.');
+    await loadDashboard();
+    await loadFinance();
+    openFinanceReview(id);
+  } catch (error) {
+    toast(error.message || 'Não foi possível trocar a máquina.',true);
+  }
+};
 
 $('#toggleRateSettings').onclick = () => {
   $('#rateSettingsCard').classList.toggle('hidden');

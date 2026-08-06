@@ -44,3 +44,12 @@ Depois foram pedidas melhorias adicionais:
 - Menu mobile com drawer + backdrop (body.nav-open) fechando ao tocar fora.
 - Arquivos: styles.css (tokens :root + bloco "REDESIGN 3.0"), index.html (fontes v3.0.0 + ícones), app.js (menu mobile), management-audits.js (logo + ícones).
 - Deploy: publicar via "Save to GitHub" (GitHub Pages/Action).
+
+## Regras publicadas + Troca de máquina (financeiro) — Junho/2026
+- Regras do Realtime Database publicadas no Firebase (via chave de serviço fornecida pelo usuário e já removida do ambiente). Corrigiu "Permission denied" global. Verificado lendo as regras ao vivo.
+- Nova feature: financeiro pode TROCAR a máquina usada após o envio do caixa (quando o operador seleciona a errada).
+  - UI: aba "Cartão e Pix" da conferência → botão "Trocar máquina" abre painel com dropdown por máquina + motivo obrigatório.
+  - Lógica (app.js): renderMachineSwap + handlers saveMachineSwap; transfere valores Cré/Déb/Pix da máquina antiga para a nova, atualiza selectedMachines/machineDefinitions, recalcula totais, grava lastMachineSwap + auditLog.
+  - Regras (database.rules.json): finance pode gravar selectedMachines, machineDefinitions e lastMachineSwap quando status != approved.
+  - Bloqueado quando o caixa está aprovado (precisa reabrir).
+- Pendente de teste e2e real: requer login de financeiro + caixa enviado (não testável pelas ferramentas por exigir Firebase Auth do cliente).

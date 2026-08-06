@@ -104,6 +104,27 @@
         "createdBy": {
           ".validate": "newData.isString()"
         },
+        "selectedMachines": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'",
+          "$index": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
+          }
+        },
+        "machineDefinitions": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'",
+          "$mid": {
+            ".validate": "newData.hasChildren(['name','credit','debit','pix'])",
+            "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
+            "credit": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120" },
+            "debit": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120" },
+            "pix": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120" },
+            "$other": { ".validate": false }
+          }
+        },
+        "lastMachineSwap": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'finance' && root.child('closings').child($id).child('status').val() !== 'approved'",
+          ".validate": "newData.hasChildren(['reason','changes','swappedAt','swappedBy','swappedByName'])"
+        },
         "outflows": {
           "$item": {
             "amount": {
