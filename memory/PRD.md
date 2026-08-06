@@ -59,3 +59,8 @@ Depois foram pedidas melhorias adicionais:
 - Correção: adicionada regra filha `createdAt` (isNumber, <= now+60000) e `.indexOn: ["createdAt","date"]` em ambas as seções. Deploy publicado.
 - Verificado com requisições REST autenticadas como operador e financeiro reais (custom token -> idToken): READ (com query), WRITE motoboy e WRITE nota = 200. Registros de teste removidos.
 - Dados dos usuários conferidos: 5 usuários, todos com chave = UID de auth e active=true booleano (não havia problema de dado).
+
+## Correção permissões de Backup + tela Usuários — Junho/2026
+- Bug: nó `users` só tinha `.read` por `$uid`, sem `.read` de coleção. collectBackup() lê `/users` inteiro -> falhava (401) mesmo p/ admin, quebrando o backup e a tela Usuários do admin.
+- Correção: adicionado `.read` de coleção em `users` para admin (email admin OU role admin). Deploy publicado.
+- Verificado autenticado: admin lê /users, settings, closings, motoboy, notas (200) e grava /backups (200); operador e financeiro seguem bloqueados em /users e /backups (401). Backup completo OK.
