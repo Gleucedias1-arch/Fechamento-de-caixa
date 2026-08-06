@@ -45,11 +45,7 @@ function notify(message,error=false) {
 }
 
 function modernizeBrand() {
-  document.querySelectorAll('.brand-mark').forEach(mark=>{
-    mark.innerHTML='<span class="logo-190">190</span>';
-    mark.setAttribute('aria-label','House 190');
-    mark.classList.add('modern-house-mark');
-  });
+  document.querySelectorAll('.brand-mark').forEach(mark=>mark.remove());
 }
 
 function injectStyles() {
