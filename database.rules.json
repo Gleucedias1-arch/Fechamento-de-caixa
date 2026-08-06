@@ -363,6 +363,7 @@
     },
     "motoboyAudits": {
       ".read": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('active').val() === true)",
+      ".indexOn": ["createdAt", "date"],
       "$id": {
         ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('active').val() === true) && !data.exists()",
         ".validate": "newData.hasChildren(['date','store','systemAmount','paidAmount','difference','createdAt','createdBy']) && newData.child('createdAt').isNumber() && newData.child('createdAt').val() <= now + 60000",
@@ -384,6 +385,9 @@
         "notes": {
           ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 500)"
         },
+        "createdAt": {
+          ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+        },
         "createdBy": {
           ".validate": "newData.isString() && newData.val() === auth.uid"
         },
@@ -397,6 +401,7 @@
     },
     "invoiceAudits": {
       ".read": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('active').val() === true)",
+      ".indexOn": ["createdAt", "date"],
       "$id": {
         ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('active').val() === true) && !data.exists()",
         ".validate": "newData.hasChildren(['date','store','ifoodAmount','machinesAmount','invoiceAmount','expectedAmount','difference','createdAt','createdBy']) && newData.child('createdAt').isNumber() && newData.child('createdAt').val() <= now + 60000",
@@ -423,6 +428,9 @@
         },
         "notes": {
           ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 500)"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber() && newData.val() <= now + 60000"
         },
         "createdBy": {
           ".validate": "newData.isString() && newData.val() === auth.uid"

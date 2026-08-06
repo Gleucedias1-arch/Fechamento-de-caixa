@@ -53,3 +53,9 @@ Depois foram pedidas melhorias adicionais:
   - Regras (database.rules.json): finance pode gravar selectedMachines, machineDefinitions e lastMachineSwap quando status != approved.
   - Bloqueado quando o caixa está aprovado (precisa reabrir).
 - Pendente de teste e2e real: requer login de financeiro + caixa enviado (não testável pelas ferramentas por exigir Firebase Auth do cliente).
+
+## Correção ABSOLUTA do Permission Denied (auditorias) — Junho/2026
+- Causa raiz real: regra de `motoboyAudits` e `invoiceAudits` exigia `createdAt` no `.validate` do pai, mas NÃO havia regra filha para `createdAt` → caía no `"$other": {".validate": false}` → toda gravação rejeitada (regra autocontraditória). Também faltava `.indexOn` para a query `orderByChild('createdAt')`.
+- Correção: adicionada regra filha `createdAt` (isNumber, <= now+60000) e `.indexOn: ["createdAt","date"]` em ambas as seções. Deploy publicado.
+- Verificado com requisições REST autenticadas como operador e financeiro reais (custom token -> idToken): READ (com query), WRITE motoboy e WRITE nota = 200. Registros de teste removidos.
+- Dados dos usuários conferidos: 5 usuários, todos com chave = UID de auth e active=true booleano (não havia problema de dado).
