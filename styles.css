@@ -1,20 +1,29 @@
 :root {
-  --yellow: #e7b928;
-  --yellow-dark: #b98b08;
-  --yellow-soft: #fff9e8;
-  --black: #18364d;
-  --ink: #243746;
-  --muted: #71808d;
-  --line: #e4eaf0;
-  --bg: #f7f9fb;
+  --yellow: #e6a92c;
+  --yellow-dark: #bd831a;
+  --yellow-soft: #fbf1d7;
+  --gold: #e6a92c;
+  --gold-dark: #c0871a;
+  --gold-soft: #fbf1d7;
+  --black: #0d2536;
+  --ink: #1a3243;
+  --muted: #6c7d8b;
+  --line: #e5ecf2;
+  --bg: #f3f6f9;
   --white: #fff;
-  --blue: #286184;
-  --blue-soft: #edf4f8;
-  --green: #23845d;
-  --green-soft: #edf8f3;
-  --red: #c94a4a;
+  --blue: #226a9c;
+  --blue-soft: #e9f2f8;
+  --green: #1f875f;
+  --green-soft: #e9f7f0;
+  --red: #d24b4b;
   --orange: #c67a1d;
-  --shadow: 0 8px 24px rgba(24, 54, 77, .055);
+  --shadow: 0 10px 30px rgba(13, 37, 54, .06), 0 2px 8px rgba(13, 37, 54, .04);
+  --shadow-lg: 0 26px 64px rgba(13, 37, 54, .14);
+  --radius: 16px;
+  --sidebar-1: #0b2231;
+  --sidebar-2: #133a54;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Sora', 'Inter', system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -1715,3 +1724,149 @@ input:focus, select:focus, textarea:focus { border-color: var(--blue); box-shado
   .verify-fee { text-align: left; }
   .verify-check { align-self: end; justify-self: end; }
 }
+
+/* ============================================================
+   REDESIGN 3.0 — tema premium (sidebar escura, fontes, motion)
+   ============================================================ */
+body { font-family: var(--font-body); background:
+    radial-gradient(1200px 500px at 100% -10%, rgba(230,169,44,.05), transparent 60%),
+    linear-gradient(180deg, #fbfcfe 0, var(--bg) 260px); }
+h1, h2, h3, h4,
+.login-card h1, .topbar h2, .card-title h3, .form-heading h3,
+.eyebrow, .block-label, .sheet-step { font-family: var(--font-display); }
+.kpi strong, .audit-metric strong, .subtotal strong, .settlement-total strong {
+  font-family: var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+
+/* ---------- Sidebar escura elegante ---------- */
+.sidebar {
+  background: linear-gradient(185deg, var(--sidebar-1), var(--sidebar-2));
+  color: #e8eef3; border-right: 0;
+  box-shadow: 18px 0 48px rgba(9,26,38,.18);
+}
+.side-brand { border-bottom: 1px solid rgba(255,255,255,.08); padding-bottom: 22px; }
+.side-brand b { color: #fff; font-family: var(--font-display); font-weight: 700; letter-spacing: .2px; }
+.side-brand small { color: #8ba4b6; }
+.sidebar nav { margin-top: 22px; }
+.nav-item {
+  color: #a7bccc; font-weight: 600; border-radius: 12px; padding: 11px 13px;
+  align-items: center; letter-spacing: .1px;
+  transition: background .2s ease, color .2s ease, transform .2s ease;
+}
+.nav-item .nav-ico { width: 19px; height: 19px; flex-shrink: 0; opacity: .9; transition: transform .2s ease; }
+.nav-item:hover { background: rgba(255,255,255,.06); color: #fff; transform: translateX(3px); }
+.nav-item:hover .nav-ico { transform: scale(1.08); }
+.nav-item.active {
+  background: linear-gradient(90deg, rgba(230,169,44,.20), rgba(230,169,44,.02));
+  color: #fff; box-shadow: inset 3px 0 var(--gold);
+}
+.nav-item.active .nav-ico { color: var(--gold); opacity: 1; }
+.logout { color: #8ea6b7; margin-top: auto; }
+.logout:hover { background: rgba(210,75,75,.14); color: #ffd7d7; transform: translateX(3px); }
+
+/* ---------- Topbar ---------- */
+.topbar {
+  height: 78px; background: rgba(255,255,255,.82); backdrop-filter: saturate(160%) blur(14px);
+  border-bottom: 1px solid var(--line); padding: 0 30px;
+}
+.topbar h2 { font-size: 20px; font-weight: 700; letter-spacing: -.2px; }
+.icon-btn { color: var(--ink); }
+.icon-btn svg { width: 24px; height: 24px; }
+.user-chip { padding: 6px 8px; border-radius: 14px; transition: background .2s; }
+.user-chip:hover { background: var(--blue-soft); }
+.user-chip > span {
+  width: 38px; height: 38px; border-radius: 12px;
+  background: linear-gradient(140deg, var(--gold), var(--gold-dark)); color: #14304a;
+  font-family: var(--font-display); font-weight: 800;
+}
+
+/* ---------- Cards + entrada animada ---------- */
+.card {
+  border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow);
+  transition: box-shadow .25s ease, transform .25s ease, border-color .25s ease;
+}
+.dashboard-grid > .card:hover, .kpi:hover { box-shadow: var(--shadow-lg); transform: translateY(-3px); }
+.card-title h3, .form-heading h3 { font-size: 15px; letter-spacing: -.1px; color: #16303f; }
+.block-label, .sheet-step, .compact-card-heading span { letter-spacing: .14em; }
+
+.active-view { animation: viewIn .42s cubic-bezier(.22,.68,.32,1) both; }
+.active-view > .card,
+.active-view > .kpi-grid > .kpi,
+.active-view > .dashboard-grid > .card,
+.active-view > .filters { animation: cardIn .5s cubic-bezier(.22,.68,.32,1) both; }
+.active-view > *:nth-child(2) { animation-delay: .04s; }
+.active-view > *:nth-child(3) { animation-delay: .08s; }
+.active-view > *:nth-child(4) { animation-delay: .12s; }
+.active-view > *:nth-child(5) { animation-delay: .16s; }
+.kpi-grid > .kpi:nth-child(2){animation-delay:.05s}.kpi-grid > .kpi:nth-child(3){animation-delay:.1s}
+.kpi-grid > .kpi:nth-child(4){animation-delay:.15s}.kpi-grid > .kpi:nth-child(5){animation-delay:.2s}
+.kpi-grid > .kpi:nth-child(6){animation-delay:.25s}.kpi-grid > .kpi:nth-child(7){animation-delay:.3s}
+@keyframes viewIn { from { opacity: 0; transform: translateY(8px); } }
+@keyframes cardIn { from { opacity: 0; transform: translateY(14px); } }
+@media (prefers-reduced-motion: reduce) { *, .active-view, .active-view > * { animation: none !important; } }
+
+/* ---------- KPI cards ---------- */
+.kpi { position: relative; overflow: hidden; border-radius: 16px; }
+.kpi::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+  background: linear-gradient(90deg, var(--gold), var(--gold-dark)); opacity: .0; transition: opacity .25s;
+}
+.kpi:hover::before { opacity: 1; }
+.kpi span { font-weight: 700; letter-spacing: .02em; text-transform: uppercase; font-size: 10px; }
+.kpi strong { font-size: 25px; margin: 10px 0 6px; }
+.available-kpi::before, .available-kpi:hover::before { opacity: 1; background: linear-gradient(90deg, var(--blue), #3a92c9); }
+.sangria-kpi::before { background: linear-gradient(90deg, var(--gold), var(--gold-dark)); }
+
+/* ---------- Botões ---------- */
+.btn { border-radius: 12px; font-weight: 700; letter-spacing: .1px; position: relative; overflow: hidden; }
+.btn-primary { background: linear-gradient(135deg, var(--blue), #17527b); color: #fff; box-shadow: 0 8px 20px rgba(34,106,156,.24); }
+.btn-primary:hover { background: linear-gradient(135deg, #266fa3, #134a70); box-shadow: 0 12px 26px rgba(34,106,156,.3); }
+.btn-secondary { border: 1px solid var(--line); color: var(--blue); background: #fff; }
+.btn-secondary:hover { border-color: var(--blue); background: var(--blue-soft); }
+.btn:active { transform: translateY(0) scale(.99); }
+
+/* ---------- Badges ---------- */
+.badge { letter-spacing: .04em; padding: 6px 11px; }
+.badge.sangria { background: var(--gold-soft); color: #7d6007; }
+
+/* ---------- Inputs ---------- */
+input:focus, select:focus, textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(34,106,156,.14); }
+
+/* ---------- Login premium ---------- */
+.login-shell {
+  background:
+    radial-gradient(700px 420px at 82% 12%, rgba(230,169,44,.16), transparent 60%),
+    radial-gradient(620px 520px at 8% 92%, rgba(34,106,156,.28), transparent 60%),
+    linear-gradient(160deg, #0b2231, #123a54);
+}
+.login-card {
+  border: 1px solid rgba(255,255,255,.6); border-radius: 26px; padding: 42px 40px;
+  box-shadow: var(--shadow-lg); animation: cardIn .6s cubic-bezier(.22,.68,.32,1) both;
+}
+.login-card h1 { font-size: 30px; font-weight: 800; letter-spacing: -.6px; }
+.login-card .eyebrow { color: var(--gold-dark); }
+.login-card .btn-primary { width: 100%; min-height: 48px; font-size: 15px; }
+
+/* ---------- Estados vazios & tabelas ---------- */
+.empty, .empty-inline, .audit-chart-empty { color: var(--muted); }
+tbody:empty::after { content: "Nenhum registro para exibir."; display: block; padding: 22px; color: var(--muted); font-size: 12px; }
+th { background: #f5f8fa; letter-spacing: .08em; }
+tr { transition: background .15s; }
+tbody tr:hover { background: #f7fafc; }
+
+/* ---------- Scrollbar & seleção ---------- */
+::selection { background: rgba(230,169,44,.28); }
+* { scrollbar-width: thin; scrollbar-color: #c4d2dd transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: #c4d2dd; border-radius: 20px; border: 3px solid var(--bg); }
+*::-webkit-scrollbar-thumb:hover { background: #a7bccc; }
+
+/* ---------- Drawer mobile com backdrop ---------- */
+@media (max-width: 760px) {
+  .sidebar { z-index: 60; box-shadow: 24px 0 60px rgba(9,26,38,.4); }
+  body.nav-open::after {
+    content: ""; position: fixed; inset: 0; background: rgba(9,26,38,.5);
+    backdrop-filter: blur(2px); z-index: 40; animation: fadeIn .2s ease both;
+  }
+  .topbar { padding: 0 18px; height: 66px; }
+}
+@keyframes fadeIn { from { opacity: 0; } }

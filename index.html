@@ -7,8 +7,8 @@
   <title>House 190 | Fechamento de Caixa</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2.7.0" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=3.0.0" />
 </head>
 <body>
   <div id="toast" class="toast" aria-live="polite"></div>
@@ -32,18 +32,18 @@
     <aside class="sidebar">
       <div class="side-brand"><div class="brand-mark small">H<span>190</span></div><div><b>House 190</b><small>Fechamento de Caixa</small></div></div>
       <nav>
-        <button class="nav-item active" data-view="dashboard">▦ <span>Dashboard</span></button>
-        <button class="nav-item" data-view="closing">＋ <span>Novo fechamento</span></button>
-        <button class="nav-item finance-only" data-view="finance">✓ <span>Conferência financeira</span></button>
-        <button class="nav-item" data-view="history">◷ <span>Histórico</span></button>
-        <button class="nav-item admin-only" data-view="users">♙ <span>Usuários</span></button>
+        <button class="nav-item active" data-view="dashboard"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg> <span>Dashboard</span></button>
+        <button class="nav-item" data-view="closing"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z"/><path d="M12 11v6"/><path d="M9 14h6"/></svg> <span>Novo fechamento</span></button>
+        <button class="nav-item finance-only" data-view="finance"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg> <span>Conferência financeira</span></button>
+        <button class="nav-item" data-view="history"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9 9 0 0 0-8 5"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg> <span>Histórico</span></button>
+        <button class="nav-item admin-only" data-view="users"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> <span>Usuários</span></button>
       </nav>
-      <button id="logoutBtn" class="nav-item logout">↪ <span>Sair</span></button>
+      <button id="logoutBtn" class="nav-item logout"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg> <span>Sair</span></button>
     </aside>
 
     <div class="workspace">
       <header class="topbar">
-        <button id="menuBtn" class="icon-btn" aria-label="Abrir menu">☰</button>
+        <button id="menuBtn" class="icon-btn" aria-label="Abrir menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
         <div><h2 id="pageTitle">Dashboard</h2><p id="todayLabel"></p></div>
         <div class="user-chip"><span id="userInitial">G</span><div><b id="userName">Usuário</b><small id="userRole">Administrador</small></div></div>
       </header>

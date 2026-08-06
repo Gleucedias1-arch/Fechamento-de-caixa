@@ -35,3 +35,12 @@ Depois foram pedidas melhorias adicionais:
 - P1: exportar auditorias filtradas em CSV para conciliação semanal com o contador.
 - P2: histórico consolidado das auditorias por operador (quem lançou, quando).
 - P2: notificação/webhook para o financeiro quando uma auditoria fica pendente após o fim do turno.
+
+## Redesign 3.0 — Junho/2026
+- Novo tema visual premium: sidebar escura em gradiente navy, paleta refinada (ouro + azul), fontes Sora (display) + Inter (corpo), fundo texturizado.
+- Nova logo "House 190" (squircle dourado, casa branca com porta vazada em degradê + selo "190").
+- Ícones SVG na sidebar/topbar (Dashboard, Fechamento, Conferência, Histórico, Usuários, Sair, Backups) e substituição dos emojis de Motoboy (🏍️) e Nota (🧾) por ícones SVG.
+- KPI cards com linha de destaque, números tabulares e hover; botões com gradiente; microinterações (entrada de views/cards, hover, scrollbar, seleção, estados vazios).
+- Menu mobile com drawer + backdrop (body.nav-open) fechando ao tocar fora.
+- Arquivos: styles.css (tokens :root + bloco "REDESIGN 3.0"), index.html (fontes v3.0.0 + ícones), app.js (menu mobile), management-audits.js (logo + ícones).
+- Deploy: publicar via "Save to GitHub" (GitHub Pages/Action).

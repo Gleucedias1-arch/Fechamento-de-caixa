@@ -45,7 +45,7 @@ function notify(message,error=false) {
 }
 
 function modernizeBrand() {
-  const logo = `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M10 30 32 12l22 18v24H39V38H25v16H10Z"/><path class="logo-cut" d="M27 25h10v8H27z"/></svg><span class="logo-number">190</span>`;
+  const logo = `<svg viewBox="0 0 48 48" aria-hidden="true"><path class="logo-house" fill-rule="evenodd" d="M24 6 43 20.5a1.6 1.6 0 0 1-1 2.9H40V41a1.5 1.5 0 0 1-1.5 1.5h-29A1.5 1.5 0 0 1 8 41V23.4H6a1.6 1.6 0 0 1-1-2.9L24 6Z M20 41.5V31a4 4 0 0 1 8 0v10.5Z"/></svg><span class="logo-number">190</span>`;
   document.querySelectorAll('.brand-mark').forEach(mark=>{
     mark.innerHTML=logo;
     mark.setAttribute('aria-label','House 190');
@@ -56,9 +56,12 @@ function modernizeBrand() {
 function injectStyles() {
   const style=document.createElement('style');
   style.textContent=`
-  .modern-house-mark{position:relative!important;background:linear-gradient(145deg,#f6cd48,#dba913)!important;color:#142f43!important;overflow:hidden;box-shadow:0 10px 24px #0b223522!important;letter-spacing:0!important}
-  .modern-house-mark svg{width:62%;height:62%;fill:#142f43}.modern-house-mark .logo-cut{fill:#f3c43b}.modern-house-mark .logo-number{position:absolute;right:5px;bottom:4px;padding:1px 4px;border-radius:5px;background:#142f43;color:#fff;font-size:9px!important;font-weight:900;line-height:1.25}
-  .modern-house-mark.small .logo-number{right:2px;bottom:2px;font-size:6px!important}
+  .modern-house-mark{position:relative!important;background:linear-gradient(145deg,#f0c04a,#c9891a)!important;color:#0d2536!important;overflow:hidden;border-radius:16px!important;box-shadow:0 10px 26px rgba(201,137,26,.34),inset 0 1px 0 rgba(255,255,255,.4)!important;letter-spacing:0!important}
+  .modern-house-mark::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 80% at 20% 0,rgba(255,255,255,.35),transparent 55%);pointer-events:none}
+  .modern-house-mark svg{width:60%;height:60%;position:relative;z-index:1}.modern-house-mark .logo-house{fill:#fff;filter:drop-shadow(0 1px 1px rgba(13,37,54,.18))}
+  .modern-house-mark .logo-number{position:absolute;z-index:2;right:4px;bottom:4px;padding:1px 5px;border-radius:6px;background:#0d2536;color:#fff;font-family:'Sora',sans-serif;font-size:9px!important;font-weight:800;line-height:1.3;letter-spacing:.5px}
+  .modern-house-mark.small{border-radius:12px!important}
+  .modern-house-mark.small .logo-number{right:2px;bottom:2px;padding:0 3px;font-size:6px!important}
   .audit-view{display:none;padding:28px;max-width:1450px;margin:auto}.audit-view.active-view{display:block}
   .audit-hero{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:18px;padding:20px;border-radius:16px;background:linear-gradient(135deg,#17384f,#285f80);color:#fff}
   .audit-hero-body{display:flex;align-items:center;gap:14px;min-width:0;flex:1}
@@ -138,7 +141,7 @@ function injectNavigationAndViews() {
   nav.insertAdjacentHTML('beforeend',`
     <button class="nav-item audit-nav operator-audit-nav" data-audit-view="motoboyAudit">${iconMotoboy(18)} <span>Auditoria motoboys</span></button>
     <button class="nav-item audit-nav operator-audit-nav" data-audit-view="invoiceAudit">${iconNota(18)} <span>Auditoria de notas</span></button>
-    <button class="nav-item admin-only audit-nav" data-audit-view="backupCenter">⟳ <span>Backups</span></button>`);
+    <button class="nav-item admin-only audit-nav" data-audit-view="backupCenter"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/></svg> <span>Backups</span></button>`);
   workspace.insertAdjacentHTML('beforeend',`
     <section id="motoboyAuditView" class="audit-view">
       <div class="audit-hero"><div class="audit-hero-body"><span class="audit-hero-icon" aria-hidden="true">${iconMotoboy(28)}</span><div><h3>Auditoria de motoboys</h3><p>Compare o valor de entrega lançado no sistema com o valor efetivamente pago.</p></div></div><span class="audit-hero-badge">CONFERÊNCIA DIÁRIA</span></div>

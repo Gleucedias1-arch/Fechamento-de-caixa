@@ -217,7 +217,16 @@ $('#loginForm').addEventListener('submit', async event => {
   }
 });
 $('#logoutBtn').onclick = () => signOut(auth);
-$('#menuBtn').onclick = () => $('.sidebar').classList.toggle('open');
+$('#menuBtn').onclick = () => {
+  const open = $('.sidebar').classList.toggle('open');
+  document.body.classList.toggle('nav-open', open);
+};
+document.addEventListener('click', event => {
+  if (document.body.classList.contains('nav-open') && !event.target.closest('.sidebar') && !event.target.closest('#menuBtn')) {
+    $('.sidebar').classList.remove('open');
+    document.body.classList.remove('nav-open');
+  }
+});
 $$('.nav-item[data-view]').forEach(button => button.onclick = () => showView(button.dataset.view));
 
 function showView(name) {
@@ -228,6 +237,7 @@ function showView(name) {
   $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === name));
   $('#pageTitle').textContent = {dashboard:'Dashboard',closing:'Novo fechamento',finance:'Conferência financeira',history:'Histórico',users:'Usuários'}[name];
   $('.sidebar').classList.remove('open');
+  document.body.classList.remove('nav-open');
   if (name === 'history') loadHistory();
   if (name === 'finance') loadFinance();
   if (name === 'closing') loadOpeningFloatSuggestion();
