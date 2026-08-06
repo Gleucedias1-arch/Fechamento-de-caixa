@@ -1871,6 +1871,28 @@ tbody tr:hover { background: #f7fafc; }
 }
 @keyframes fadeIn { from { opacity: 0; } }
 
+/* ---------- Página pública do Gestor ---------- */
+.gestor-body { background:
+    radial-gradient(900px 480px at 100% -10%, rgba(230,169,44,.06), transparent 60%),
+    linear-gradient(180deg, #fbfcfe 0, var(--bg) 320px); min-height:100vh; }
+.gestor-shell { max-width: 1180px; margin: 0 auto; padding: 26px 22px 60px; }
+.gestor-topbar { display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap; padding-bottom:18px; border-bottom:1px solid var(--line); margin-bottom:22px; }
+.gestor-topbar .eyebrow { color: var(--gold-dark); font-weight:800; letter-spacing:.14em; font-size:11px; }
+.gestor-topbar h1 { font-family: var(--font-display); font-size:26px; font-weight:800; letter-spacing:-.5px; margin-top:6px; color:var(--ink); }
+.gestor-meta { display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+.gestor-date { font-family: var(--font-display); font-weight:700; color:var(--ink); }
+.gestor-updated { font-size:11px; color:var(--muted); display:inline-flex; align-items:center; gap:6px; }
+.gestor-updated::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 0 4px rgba(31,135,95,.15); }
+.gestor-tabs { display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; margin-bottom:20px; scrollbar-width:none; }
+.gestor-tabs::-webkit-scrollbar { display:none; }
+.gestor-tab { flex:0 0 auto; padding:10px 18px; border-radius:999px; border:1px solid var(--line); background:#fff; color:var(--muted); font-weight:700; font-size:13px; cursor:pointer; white-space:nowrap; transition:all .18s ease; }
+.gestor-tab:hover { border-color:var(--blue); color:var(--blue); }
+.gestor-tab.active { background:linear-gradient(135deg, var(--sidebar-1), var(--sidebar-2)); color:#fff; border-color:transparent; box-shadow:0 8px 20px rgba(13,37,54,.22); }
+.gestor-state { padding:60px 20px; text-align:center; color:var(--muted); font-size:14px; }
+.gestor-foot { margin-top:24px; text-align:center; color:var(--muted); font-size:11px; }
+.gestor-panel { animation: cardIn .4s ease both; }
+@media (max-width:640px){ .gestor-topbar h1 { font-size:22px; } .gestor-meta { align-items:flex-start; } .gestor-topbar { align-items:flex-start; } }
+
 /* ---------- Troca de máquina (financeiro) ---------- */
 .machine-swap-panel { margin: 4px 0 16px; padding: 16px; border: 1px dashed #cdd8e2; border-radius: 14px; background: linear-gradient(135deg, #fff, var(--blue-soft)); display: grid; gap: 12px; animation: cardIn .3s ease both; }
 .machine-swap-head span { color: var(--blue); }

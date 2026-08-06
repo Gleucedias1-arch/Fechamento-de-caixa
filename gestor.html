@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Painel do Gestor · House 190</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=3.0.0" />
+</head>
+<body class="gestor-body">
+  <div class="gestor-shell">
+    <header class="gestor-topbar">
+      <div>
+        <span class="eyebrow">HOUSE 190 · SOMENTE LEITURA</span>
+        <h1>Painel do Gestor</h1>
+      </div>
+      <div class="gestor-meta">
+        <span id="gDate" class="gestor-date">—</span>
+        <span id="gUpdated" class="gestor-updated">Conectando…</span>
+      </div>
+    </header>
+
+    <div id="gState" class="gestor-state">Carregando painel…</div>
+
+    <div id="gPanel" class="gestor-panel hidden">
+      <nav id="gTabs" class="gestor-tabs" data-testid="gestor-tabs"></nav>
+
+      <div class="kpi-grid kpi-grid-dashboard">
+        <article class="kpi card"><span>Entradas do dia</span><strong id="gEntries">R$ 0,00</strong><small>Vendas informadas</small></article>
+        <article class="kpi card"><span>Saídas</span><strong id="gOutflows">R$ 0,00</strong><small>Despesas e sangrias</small></article>
+        <article class="kpi card available-kpi"><span>Total disponível</span><strong id="gAvailable">R$ 0,00</strong><small>Cartão líquido + Pix líquido conferidos</small></article>
+        <article id="gSangriaCard" class="kpi card sangria-kpi"><span>Sangria disponível</span><strong id="gSangria">R$ 0,00</strong><small id="gSangriaText">Nenhuma sangria disponível</small></article>
+        <article class="kpi card"><span>Resultado final das divergências</span><strong id="gDiff">Sem divergência</strong><small id="gDiffText">Sem divergência</small></article>
+        <article class="kpi card"><span>Conferidos</span><strong id="gReviewed">0</strong><small>Aprovados pelo financeiro</small></article>
+        <article class="kpi card"><span>Pendentes</span><strong id="gPending">0</strong><small>Aguardando conferência</small></article>
+      </div>
+
+      <div class="dashboard-grid">
+        <article class="card"><div class="card-title"><div><h3>Situação por loja</h3><p>Fechamento e conferência de hoje</p></div></div><div id="gStoreStatus" class="store-list"></div></article>
+        <article class="card"><div class="card-title"><div><h3>Composição das entradas</h3><p>Valores por forma de pagamento</p></div></div><div id="gChannels" class="bars"></div></article>
+      </div>
+
+      <article class="card financial-overview-card"><div class="card-title"><div><span class="block-label">VISÃO FINANCEIRA</span><h3>Destino do dinheiro do dia</h3><p>Bruto, dinheiro físico, taxas, compromissos e disponibilidade prevista.</p></div><span id="gOverviewStatus" class="badge draft">Aguardando dados</span></div>
+        <div class="financial-overview-grid">
+          <div><span>Venda bruta</span><strong id="gOverviewGross">R$ 0,00</strong></div>
+          <div><span>Dinheiro físico</span><strong id="gOverviewCash">R$ 0,00</strong></div>
+          <div><span>Taxas estimadas</span><strong id="gOverviewFees">R$ 0,00</strong></div>
+          <div><span>Pix comprometido</span><strong id="gOverviewCommitments">R$ 0,00</strong></div>
+          <div class="financial-overview-highlight"><span>Disponibilidade prevista</span><strong id="gOverviewAvailable">R$ 0,00</strong></div>
+        </div>
+      </article>
+
+      <article class="card"><div class="card-title"><div><h3>Divergências encontradas</h3><p>A conferência considera somente Dinheiro, Cartão e Pix</p></div></div>
+        <div class="table-wrap mobile-card-table-wrap"><table class="mobile-card-table divergence-table"><thead><tr><th>Loja</th><th>Operador</th><th>Dinheiro</th><th>Cartão</th><th>Pix</th><th>Total</th><th>Status</th></tr></thead><tbody id="gDivergenceRows"></tbody></table></div>
+      </article>
+
+      <footer class="gestor-foot">Atualiza automaticamente. Visualização somente leitura para o gestor.</footer>
+    </div>
+  </div>
+  <script type="module" src="gestor.js?v=1.0.0"></script>
+</body>
+</html>

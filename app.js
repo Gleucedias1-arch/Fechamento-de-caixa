@@ -1,6 +1,6 @@
 import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
-import { getDatabase, ref, get, set, push, update, query, orderByChild, equalTo, startAt, endAt } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
+import { getDatabase, ref, get, set, push, update, query, orderByChild, equalTo, startAt, endAt, onValue } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
 import { firebaseConfig, ADMIN_EMAIL } from './firebase-config.js';
 import {
   SYSTEM_FIELDS, COUNTED_FIELDS, EXPENSE_FIELDS,
@@ -31,6 +31,8 @@ const CLOSING_ATTACHMENT_TYPES = new Set([
   'image/jpeg','image/png','image/webp','image/heic','image/heif','application/pdf'
 ]);
 let profile = null;
+let publicShareToken = null;
+let publicMirrorListenerSet = false;
 let currentClosings = [];
 let financeClosings = [];
 let historyClosings = [];
@@ -200,6 +202,14 @@ onAuthStateChanged(auth, async user => {
     initDates();
     await loadCardFeeRates(false);
     await loadDashboard();
+    if (isFinance()) {
+      try {
+        const tokenSnap = await get(ref(db,'settings/publicShare/token'));
+        publicShareToken = tokenSnap.exists() ? tokenSnap.val() : null;
+      } catch { publicShareToken = null; }
+      publishPublicDashboard();
+      setupPublicMirrorRealtime();
+    }
     if (profile.role === 'admin') loadUsers();
   } catch (error) {
     toast(error.message, true);
@@ -1351,6 +1361,91 @@ function renderDivergences(rows) {
 $('#refreshDash').onclick = loadDashboard;
 $('#dashDate').onchange = loadDashboard;
 $('#dashStore').onchange = loadDashboard;
+
+function snapshotScope(rows, statusStores) {
+  const total = key => rows.reduce((sum,item) => sum + numberFrom(item[key]),0);
+  const entries = total('systemTotal');
+  const outflows = total('totalOutflows');
+  const approvedRows = rows.filter(item => financeState(item) === 'approved' && item.financeCalc);
+  const available = approvedRows.reduce((sum,item) => sum + numberFrom(item.financeCalc.totalAvailable),0);
+  const sangria = rows.reduce((sum,item) => sum + sangriaAvailable(item),0);
+  const sangriaCount = rows.filter(item => sangriaAvailable(item) > 0).length;
+  const divergenceSummary = summarizeDifferences(divergenceValues(rows));
+  const reviewed = rows.filter(item => financeState(item) === 'approved').length;
+  const pending = rows.filter(item => financeState(item) === 'pending').length;
+  const kpis = {
+    entries: formatBRL(entries), outflows: formatBRL(outflows), available: formatBRL(available),
+    sangria: formatBRL(sangria), sangriaActive: sangria > 0,
+    sangriaText: sangriaCount ? `${sangriaCount} ${sangriaCount === 1 ? 'caixa aguardando recebimento' : 'caixas aguardando recebimento'}` : 'Nenhuma sangria disponível',
+    diff: describeDifference(divergenceSummary.total),
+    diffColor: nearZero(divergenceSummary.total) ? 'var(--green)' : divergenceSummary.total < 0 ? 'var(--red)' : 'var(--orange)',
+    diffText: differenceBreakdown(divergenceSummary),
+    reviewed, pending
+  };
+  const storeStatusHTML = statusStores.map(store => {
+    const found = rows.filter(item => item.store === store);
+    const approved = found.filter(item => financeState(item) === 'approved').length;
+    const returned = found.filter(item => financeState(item) === 'returned').length;
+    const pend = found.filter(item => financeState(item) === 'pending').length;
+    const summary = summarizeDifferences(divergenceValues(found));
+    const status = !found.length ? ['draft','Pendente'] : returned ? ['bad','Devolvido'] : pend ? ['warn','Aguardando'] : nearZero(summary.total) ? ['ok','Conferido'] : ['bad','Divergência'];
+    return `<div class="store-row"><div><b>${escapeHtml(store)}</b><small>${found.length ? `${approved} conferido(s) · ${pend} aguardando` : 'Nenhum fechamento'}</small></div><strong>${found.length ? escapeHtml(differenceBreakdown(summary)) : '—'}</strong><span class="badge ${status[0]}">${status[1]}</span></div>`;
+  }).join('');
+  const channelDefs = [['Dinheiro','cash'],['Cartões','card'],['Pix','pix'],['iFood','ifood'],['Outros','other']];
+  const values = channelDefs.map(([label,key]) => [label,rows.reduce((sum,item) => sum + numberFrom(item.systemByMethod?.[key]),0)]);
+  const max = Math.max(...values.map(item => item[1]),1);
+  const channelsHTML = values.map(([label,value]) => `<div><div class="bar-head"><span>${label}</span><b>${formatBRL(value)}</b></div><div class="bar-track"><div class="bar-fill" style="width:${value/max*100}%"></div></div></div>`).join('');
+  const totals = rows.reduce((summary,item) => {
+    const operational = calculateOperationalFinancialSummary(item,effectiveFeeRates(item));
+    const review = item.financeCalc;
+    const statuses = item.financeReview?.pixPaymentStatuses || [];
+    const commitments = (item.pixRequests || []).reduce((sum,request,index) =>
+      sum + ((statuses[index]?.status || request.status || 'pending') === 'rejected' ? 0 : numberFrom(request.amount)),0);
+    summary.gross += operational.grossSales;
+    summary.cash += operational.physicalCash;
+    summary.fees += numberFrom(review?.feeTotal ?? operational.feeTotal);
+    summary.commitments += commitments;
+    summary.available += operational.physicalCash + numberFrom(review?.netCard ?? operational.netCard) + numberFrom(review?.netPix ?? operational.netPix) - commitments;
+    return summary;
+  },{gross:0,cash:0,fees:0,commitments:0,available:0});
+  const approvedCount = rows.filter(item => financeState(item) === 'approved').length;
+  const overview = {
+    gross: formatBRL(totals.gross), cash: formatBRL(totals.cash), fees: `− ${formatBRL(totals.fees)}`,
+    commitments: `− ${formatBRL(totals.commitments)}`, available: formatBRL(totals.available), availableNeg: totals.available < 0,
+    statusText: !rows.length ? 'Aguardando dados' : approvedCount === rows.length ? 'Valores conferidos' : `${rows.length-approvedCount} aguardando conferência`,
+    statusClass: `badge ${rows.length && approvedCount === rows.length ? 'ok' : 'draft'}`
+  };
+  const divergent = rows.filter(item => {
+    const source = item.financeCalc?.differences || item.differences;
+    return Object.values(source || {}).some(value => !nearZero(value));
+  }).sort((a,b) => Math.abs(numberFrom(b.financeCalc?.totalDifference ?? b.difference)) - Math.abs(numberFrom(a.financeCalc?.totalDifference ?? a.difference)));
+  const divergenceRowsHTML = divergent.length ? divergent.map(item => {
+    const diff = item.financeCalc?.differences || item.differences || {};
+    const totalDiff = item.financeCalc?.totalDifference ?? item.difference;
+    const label = differenceLabel(totalDiff);
+    return `<tr><td data-label="Loja">${escapeHtml(item.store)}</td><td data-label="Operador">${escapeHtml(item.operator)}</td><td data-label="Dinheiro" class="${differenceClass(diff.cash)}">${describeDifference(diff.cash)}</td><td data-label="Cartão" class="${differenceClass(diff.card)}">${describeDifference(diff.card)}</td><td data-label="Pix" class="${differenceClass(diff.pix)}">${describeDifference(diff.pix)}</td><td data-label="Total" class="${differenceClass(totalDiff)}">${describeDifference(totalDiff)}</td><td data-label="Status"><span class="badge ${label[0]}">${label[1]}</span></td></tr>`;
+  }).join('') : '<tr><td colspan="7" class="empty">Nenhuma divergência encontrada.</td></tr>';
+  return {kpis, storeStatusHTML, channelsHTML, overview, divergenceRowsHTML};
+}
+
+async function publishPublicDashboard() {
+  if (!isFinance() || !publicShareToken) return;
+  try {
+    const date = isoToday();
+    const closings = (await fetchClosings(date,date)).map(enrichedClosing).filter(item => item.status !== 'draft');
+    const scopes = {all: snapshotScope(closings, STORES)};
+    STORES.forEach((store,index) => { scopes[`s${index}`] = snapshotScope(closings.filter(item => item.store === store), [store]); });
+    await set(ref(db,`publicDashboard/${publicShareToken}`), {date, updatedAt: Date.now(), storeNames: STORES, stores: scopes});
+  } catch (error) { /* silencioso */ }
+}
+
+function setupPublicMirrorRealtime() {
+  if (publicMirrorListenerSet || !isFinance() || !publicShareToken) return;
+  publicMirrorListenerSet = true;
+  const today = isoToday();
+  onValue(query(ref(db,'closings'),orderByChild('date'),startAt(today),endAt(today)), () => { publishPublicDashboard(); });
+}
+
 
 async function loadFinance() {
   if (!isFinance()) return;

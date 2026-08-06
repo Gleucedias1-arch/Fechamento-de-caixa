@@ -450,6 +450,12 @@
         ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin') && !data.exists()",
         ".validate": "newData.hasChildren(['schemaVersion','system','createdAt','createdBy','data'])"
       }
+    },
+    "publicDashboard": {
+      "$token": {
+        ".read": "auth != null",
+        ".write": "auth != null && (auth.token.email === 'glleucedias1@gmail.com' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'finance')"
+      }
     }
   }
 }

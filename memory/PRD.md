@@ -68,3 +68,11 @@ Depois foram pedidas melhorias adicionais:
 ## Histórico de auditorias compacto — Junho/2026
 - Problema: "Últimas auditorias" mostrava até 40 registros -> rolagem enorme com muitos dias.
 - Solução (management-audits.js + injectStyles): mostra as 4 mais recentes e botão "Ver mais N auditoria(s)"/"Ver menos" (colapso via classe .collapsed + nth-child). Card compactado no mobile (2 colunas). Aplica-se a motoboy e notas. Sem mudança nas regras/dados.
+
+## Link público do Gestor (dashboard sem login) — Junho/2026
+- Página gestor.html + gestor.js: acesso somente leitura, sem login (Firebase Anonymous Auth), abas por loja (Todas + 3 lojas), tempo real via onValue.
+- Abordagem espelho: app.js (admin/financeiro) publica snapshot display-ready em /publicDashboard/{token} (KPIs, situação por loja, canais, visão financeira, divergências). Listener onValue em closings de hoje republica em tempo real.
+- Token secreto gerado e salvo em settings/publicShare.token. Link: /gestor.html?t=g_VwQ_ToyWf1q63VFq1pXMIihG514
+- Anonymous Auth habilitado no projeto. Regras: /publicDashboard/$token .read=auth!=null (anônimo ok), .write=admin/finance. Dados brutos (closings/users) seguem bloqueados para anônimo.
+- Verificado: anônimo lê só o painel (closings/users=401), financeiro escreve (200), operador bloqueado (401), token errado=vazio. Página renderiza e troca abas OK.
+- Limitação: espelho atualiza enquanto um admin/financeiro tem o app aberto (sem backend/Cloud Function). Para 24/7 sem ninguém logado, precisaria de Cloud Function (pago).
