@@ -9,6 +9,11 @@ const STORES = ['House 190 Teixeira','House 190 Eunápolis','House Food Park Tei
 const CHANNELS = ['iFood','Stone','Sipag','Cielo','Cappta','Laranjinha','Wise','Outra máquina'];
 let currentProfile = null;
 
+// Ícones SVG (substituem os emojis de motoboy e nota fiscal)
+const iconMotoboy = (size = 20) => `<svg class="ma-icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="5" cy="17.5" r="3"/><circle cx="19" cy="17.5" r="3"/><path d="M8 17.5h6l2.5-5"/><path d="M11 12.5 9 9H6.5"/><path d="M14 9h3l2 3.5"/><path d="M16.5 9h-2"/></svg>`;
+const iconNota = (size = 20) => `<svg class="ma-icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 3v18l2-1 2 1 2-1 2 1 2-1 2 1V3l-2 1-2-1-2 1-2-1-2 1-2-1Z"/><path d="M9 8h6"/><path d="M9 12h6"/><path d="M9 16h4"/></svg>`;
+
+
 const money = value => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value)||0);
 const number = value => Number(String(value ?? 0).replace(',','.')) || 0;
 const dateBR = value => value ? value.split('-').reverse().join('/') : '—';
@@ -58,6 +63,10 @@ function injectStyles() {
   .audit-hero{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:18px;padding:20px;border-radius:16px;background:linear-gradient(135deg,#17384f,#285f80);color:#fff}
   .audit-hero-body{display:flex;align-items:center;gap:14px;min-width:0;flex:1}
   .audit-hero-icon{display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:14px;background:#ffffff1f;font-size:26px;line-height:1;flex-shrink:0}
+  .ma-icon{vertical-align:middle;flex-shrink:0}
+  .nav-item .ma-icon{margin-right:2px}
+  .audit-record b .ma-icon{color:var(--muted)}
+  .daily-audit-item .daily-audit-title .icon .ma-icon{display:block}
   .audit-title-icon{margin-right:6px;font-size:1.05em;line-height:1}
   .audit-hero-badge{padding:7px 11px;border-radius:999px;background:#ffffff18;font-size:10px;font-weight:800;white-space:nowrap;letter-spacing:.04em}
   .audit-hero h3{margin:0;font-size:19px;text-align:left;line-height:1.2}
@@ -127,12 +136,12 @@ function injectNavigationAndViews() {
   const workspace=document.querySelector('.workspace');
   if (!nav || !workspace || document.querySelector('[data-audit-view="motoboyAudit"]')) return;
   nav.insertAdjacentHTML('beforeend',`
-    <button class="nav-item audit-nav operator-audit-nav" data-audit-view="motoboyAudit">🏍️ <span>Auditoria motoboys</span></button>
-    <button class="nav-item audit-nav operator-audit-nav" data-audit-view="invoiceAudit">🧾 <span>Auditoria de notas</span></button>
+    <button class="nav-item audit-nav operator-audit-nav" data-audit-view="motoboyAudit">${iconMotoboy(18)} <span>Auditoria motoboys</span></button>
+    <button class="nav-item audit-nav operator-audit-nav" data-audit-view="invoiceAudit">${iconNota(18)} <span>Auditoria de notas</span></button>
     <button class="nav-item admin-only audit-nav" data-audit-view="backupCenter">⟳ <span>Backups</span></button>`);
   workspace.insertAdjacentHTML('beforeend',`
     <section id="motoboyAuditView" class="audit-view">
-      <div class="audit-hero"><div class="audit-hero-body"><span class="audit-hero-icon" aria-hidden="true">🏍️</span><div><h3>Auditoria de motoboys</h3><p>Compare o valor de entrega lançado no sistema com o valor efetivamente pago.</p></div></div><span class="audit-hero-badge">CONFERÊNCIA DIÁRIA</span></div>
+      <div class="audit-hero"><div class="audit-hero-body"><span class="audit-hero-icon" aria-hidden="true">${iconMotoboy(28)}</span><div><h3>Auditoria de motoboys</h3><p>Compare o valor de entrega lançado no sistema com o valor efetivamente pago.</p></div></div><span class="audit-hero-badge">CONFERÊNCIA DIÁRIA</span></div>
       <div class="audit-layout">
         <article class="card"><div class="card-title"><div><h3>Nova conferência</h3><p>Registre os dois valores para calcular a divergência.</p></div></div>
           <form id="motoboyAuditForm" class="audit-form"><div class="audit-form-grid">
@@ -146,7 +155,7 @@ function injectNavigationAndViews() {
       </div>
     </section>
     <section id="invoiceAuditView" class="audit-view">
-      <div class="audit-hero"><div class="audit-hero-body"><span class="audit-hero-icon" aria-hidden="true">🧾</span><div><h3>Auditoria de lançamento de notas</h3><p>Concilie iFood, máquinas fiscais e a nota fiscal emitida do dia.</p></div></div><span class="audit-hero-badge">CONFERÊNCIA DIÁRIA</span></div>
+      <div class="audit-hero"><div class="audit-hero-body"><span class="audit-hero-icon" aria-hidden="true">${iconNota(28)}</span><div><h3>Auditoria de lançamento de notas</h3><p>Concilie iFood, máquinas fiscais e a nota fiscal emitida do dia.</p></div></div><span class="audit-hero-badge">CONFERÊNCIA DIÁRIA</span></div>
       <div class="audit-layout">
         <article class="card"><div class="card-title"><div><h3>Nova conferência</h3><p>Informe os três valores do dia para conferir a emissão.</p></div></div>
           <form id="invoiceAuditForm" class="audit-form"><div class="audit-form-grid">
@@ -249,7 +258,7 @@ async function loadMotoboyAudits(){
   try{const snap=await get(query(ref(db,'motoboyAudits'),orderByChild('createdAt'),limitToLast(120)));const rows=Object.values(snap.val()||{}).reverse();const preview=rows.slice(0,40);list.innerHTML=preview.length?preview.map(item=>{
     const sys=number(item.systemAmount);const paid=number(item.paidAmount);
     const diff=item.difference!=null?number(item.difference):(paid-sys);
-    const title=item.driver?escapeHtml(item.driver):'🏍️ Motoboys do dia';
+    const title=item.driver?escapeHtml(item.driver):`${iconMotoboy(15)} Motoboys do dia`;
     const author=authorLabel(item);const authorHtml=author?`<p class="audit-author">${escapeHtml(author)}</p>`:'';
     return `<div class="audit-record"><div><b>${title}</b><span>${escapeHtml(item.store||'—')} · ${dateBR(item.date)}</span></div><div><small>Sistema</small><b>${money(sys)}</b></div><div><small>Pago</small><b>${money(paid)}</b></div><div><small>Divergência</small><b class="difference ${Math.abs(diff)<.01?'ok':'bad'}">${money(diff)}</b><span>${Math.abs(diff)<.01?'Conferido':diff>0?'Pago a mais':'Pago a menos'}</span></div>${authorHtml}</div>`;
   }).join(''):'<p class="empty">Nenhuma auditoria registrada.</p>';renderDivergenceChart('motoboyAuditChart',rows,{title:'Divergência de motoboys (últimos 14 dias)',subtitle:'Valor pago menos valor no sistema.',valueOf:item=>item.difference!=null?number(item.difference):(number(item.paidAmount)-number(item.systemAmount))});}catch(error){list.innerHTML='<p class="empty">Não foi possível carregar.</p>';}
@@ -266,7 +275,7 @@ async function loadInvoiceAudits(){
       const diff=item.difference!=null?number(item.difference):(expected-invoice);
       const isEven=Math.abs(diff)<.01;
       const label=isEven?'Nota confere':diff>0?'Nota emitida a menos':'Nota emitida a mais';
-      return `<div class="audit-record"><div><b>🧾 ${escapeHtml(item.store||'—')}</b><span>${dateBR(item.date)}</span></div><div><small>iFood + Máquinas</small><b>${money(expected)}</b><span>${money(ifood)} + ${money(machines)}</span></div><div><small>NF emitida</small><b>${money(invoice)}</b></div><div><small>Divergência</small><b class="difference ${isEven?'ok':'bad'}">${money(diff)}</b><span>${label}</span></div>${authorHtml}</div>`;
+      return `<div class="audit-record"><div><b>${iconNota(15)} ${escapeHtml(item.store||'—')}</b><span>${dateBR(item.date)}</span></div><div><small>iFood + Máquinas</small><b>${money(expected)}</b><span>${money(ifood)} + ${money(machines)}</span></div><div><small>NF emitida</small><b>${money(invoice)}</b></div><div><small>Divergência</small><b class="difference ${isEven?'ok':'bad'}">${money(diff)}</b><span>${label}</span></div>${authorHtml}</div>`;
     }
     const salesAmt=number(item.salesAmount);const issuedAmt=number(item.issuedAmount);
     const amountDiff=item.amountDifference!=null?number(item.amountDifference):(issuedAmt-salesAmt);
@@ -341,14 +350,14 @@ function injectClosingDailyCard(){
     <div class="daily-audit-head"><div><h4>Auditorias do dia</h4><small class="daily-audit-meta" id="dailyAuditMeta">Selecione data e loja para carregar.</small></div><span id="dailyAuditGate" class="badge draft">Aguardando…</span></div>
     <div class="daily-audit-grid">
       <div class="daily-audit-item pending" data-audit-item="motoboy">
-        <span class="daily-audit-title"><span class="icon" aria-hidden="true">🏍️</span>Motoboy</span>
+        <span class="daily-audit-title"><span class="icon" aria-hidden="true">${iconMotoboy(16)}</span>Motoboy</span>
         <strong class="daily-audit-value" data-audit-value>—</strong>
         <small class="daily-audit-status" data-audit-status>Ainda não lançada</small>
         <small class="daily-audit-author" data-audit-author hidden></small>
         <button type="button" class="daily-audit-link" data-audit-jump="motoboyAudit">Abrir auditoria</button>
       </div>
       <div class="daily-audit-item pending" data-audit-item="invoice">
-        <span class="daily-audit-title"><span class="icon" aria-hidden="true">🧾</span>Notas fiscais</span>
+        <span class="daily-audit-title"><span class="icon" aria-hidden="true">${iconNota(16)}</span>Notas fiscais</span>
         <strong class="daily-audit-value" data-audit-value>—</strong>
         <small class="daily-audit-status" data-audit-status>Ainda não lançada</small>
         <small class="daily-audit-author" data-audit-author hidden></small>
