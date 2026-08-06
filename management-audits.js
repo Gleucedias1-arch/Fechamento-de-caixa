@@ -45,9 +45,8 @@ function notify(message,error=false) {
 }
 
 function modernizeBrand() {
-  const logo = `<svg viewBox="0 0 48 48" aria-hidden="true"><path class="logo-house" fill-rule="evenodd" d="M24 6 43 20.5a1.6 1.6 0 0 1-1 2.9H40V41a1.5 1.5 0 0 1-1.5 1.5h-29A1.5 1.5 0 0 1 8 41V23.4H6a1.6 1.6 0 0 1-1-2.9L24 6Z M20 41.5V31a4 4 0 0 1 8 0v10.5Z"/></svg><span class="logo-number">190</span>`;
   document.querySelectorAll('.brand-mark').forEach(mark=>{
-    mark.innerHTML=logo;
+    mark.innerHTML='<span class="logo-190">190</span>';
     mark.setAttribute('aria-label','House 190');
     mark.classList.add('modern-house-mark');
   });
@@ -58,10 +57,9 @@ function injectStyles() {
   style.textContent=`
   .modern-house-mark{position:relative!important;background:linear-gradient(145deg,#f0c04a,#c9891a)!important;color:#0d2536!important;overflow:hidden;border-radius:16px!important;box-shadow:0 10px 26px rgba(201,137,26,.34),inset 0 1px 0 rgba(255,255,255,.4)!important;letter-spacing:0!important}
   .modern-house-mark::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 80% at 20% 0,rgba(255,255,255,.35),transparent 55%);pointer-events:none}
-  .modern-house-mark svg{width:60%;height:60%;position:relative;z-index:1}.modern-house-mark .logo-house{fill:#fff;filter:drop-shadow(0 1px 1px rgba(13,37,54,.18))}
-  .modern-house-mark .logo-number{position:absolute;z-index:2;right:4px;bottom:4px;padding:1px 5px;border-radius:6px;background:#0d2536;color:#fff;font-family:'Sora',sans-serif;font-size:9px!important;font-weight:800;line-height:1.3;letter-spacing:.5px}
+  .modern-house-mark .logo-190{position:relative;z-index:1;font-family:'Sora',sans-serif;font-weight:800;color:#fff;font-size:26px;line-height:1;letter-spacing:-1.5px;text-shadow:0 1px 2px rgba(13,37,54,.25)}
   .modern-house-mark.small{border-radius:12px!important}
-  .modern-house-mark.small .logo-number{right:2px;bottom:2px;padding:0 3px;font-size:6px!important}
+  .modern-house-mark.small .logo-190{font-size:16px;letter-spacing:-1px}
   .audit-view{display:none;padding:28px;max-width:1450px;margin:auto}.audit-view.active-view{display:block}
   .audit-hero{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:18px;padding:20px;border-radius:16px;background:linear-gradient(135deg,#17384f,#285f80);color:#fff}
   .audit-hero-body{display:flex;align-items:center;gap:14px;min-width:0;flex:1}
